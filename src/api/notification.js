@@ -1,9 +1,12 @@
-// TODO: 알림 API 함수 이름만 정의합니다.
+// 알림 관련 API 함수를 관리합니다.
+import apiClient from './apiClient'
 
-export const fetchNotifications = () => {
-  // TODO: 알림 목록 API를 연결합니다.
-}
-
-export const fetchNotificationDetail = () => {
-  // TODO: 알림 상세 API를 연결합니다.
+export default {
+  getNotifications: (params) => apiClient.get('/notifications', { params }),
+  getUnreadCount: () => apiClient.get('/notifications/unread-count'),
+  readNotification: (notificationId) => apiClient.patch(`/notifications/${notificationId}/read`),
+  readAllNotifications: () => apiClient.patch('/notifications/read-all'),
+  registerFcmToken: (data) => apiClient.post('/notifications/fcm-tokens', data),
+  deleteFcmToken: (tokenId) => apiClient.delete(`/notifications/fcm-tokens/${tokenId}`),
+  updateFcmToken: (tokenId, data) => apiClient.patch(`/notifications/fcm-tokens/${tokenId}`, data),
 }
