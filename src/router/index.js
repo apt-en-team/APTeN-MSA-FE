@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import adminRoutes from './admin'
 import residentRoutes from './resident'
 import AuthLayout from '@/layouts/AuthLayout.vue'
-import LoginView from '@/views/auth/LoginView.vue'
+import ResidentLogin from '@/views/auth/login/ResidentLogin.vue'
 
 const routes = [
   {
@@ -16,7 +16,7 @@ const routes = [
       {
         path: '',
         name: 'login',
-        component: LoginView,
+        component: ResidentLogin,
       },
     ],
   },

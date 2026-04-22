@@ -1,10 +1,10 @@
 // TODO: 입주민 영역 라우트 구조를 정의합니다.
 import ResidentLayout from '@/layouts/ResidentLayout.vue'
-import ResidentHomeView from '@/views/resident/ResidentHomeView.vue'
-import ResidentMyPageView from '@/views/resident/ResidentMyPageView.vue'
-import ResidentNotificationView from '@/views/resident/ResidentNotificationView.vue'
-import ResidentReservationView from '@/views/resident/ResidentReservationView.vue'
-import ResidentVehicleView from '@/views/resident/ResidentVehicleView.vue'
+import ResidentHome from '@/views/resident/home/ResidentHome.vue'
+import ResidentMyPage from '@/views/resident/mypage/ResidentMyPage.vue'
+import NotificationList from '@/views/resident/notification/NotificationList.vue'
+import MyReservationList from '@/views/resident/reservation/MyReservationList.vue'
+import MyVehicleList from '@/views/resident/vehicle/MyVehicleList.vue'
 
 const residentRoutes = [
   {
@@ -22,7 +22,7 @@ const residentRoutes = [
       {
         path: 'home',
         name: 'resident-home',
-        component: ResidentHomeView,
+        component: ResidentHome,
         meta: {
           requiresAuth: true,
           role: 'RESIDENT',
@@ -31,7 +31,7 @@ const residentRoutes = [
       {
         path: 'reservations',
         name: 'resident-reservations',
-        component: ResidentReservationView,
+        component: MyReservationList,
         meta: {
           requiresAuth: true,
           role: 'RESIDENT',
@@ -40,7 +40,7 @@ const residentRoutes = [
       {
         path: 'vehicles',
         name: 'resident-vehicles',
-        component: ResidentVehicleView,
+        component: MyVehicleList,
         meta: {
           requiresAuth: true,
           role: 'RESIDENT',
@@ -49,7 +49,7 @@ const residentRoutes = [
       {
         path: 'notifications',
         name: 'resident-notifications',
-        component: ResidentNotificationView,
+        component: NotificationList,
         meta: {
           requiresAuth: true,
           role: 'RESIDENT',
@@ -58,7 +58,7 @@ const residentRoutes = [
       {
         path: 'mypage',
         name: 'resident-mypage',
-        component: ResidentMyPageView,
+        component: ResidentMyPage,
         meta: {
           requiresAuth: true,
           role: 'RESIDENT',

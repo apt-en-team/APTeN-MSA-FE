@@ -1,11 +1,11 @@
 // TODO: 관리자 영역 라우트 구조를 정의합니다.
 import AdminLayout from '@/layouts/AdminLayout.vue'
-import AdminBoardView from '@/views/admin/AdminBoardView.vue'
-import AdminDashboardView from '@/views/admin/AdminDashboardView.vue'
-import AdminHouseholdView from '@/views/admin/AdminHouseholdView.vue'
-import AdminNotificationView from '@/views/admin/AdminNotificationView.vue'
-import AdminReservationView from '@/views/admin/AdminReservationView.vue'
-import AdminVehicleView from '@/views/admin/AdminVehicleView.vue'
+import AdminNoticeList from '@/views/admin/board/AdminNoticeList.vue'
+import AdminDashboard from '@/views/admin/dashboard/AdminDashboard.vue'
+import AdminHouseholdList from '@/views/admin/household/AdminHouseholdList.vue'
+import NotificationList from '@/views/admin/notification/NotificationList.vue'
+import AdminReservationList from '@/views/admin/reservation/AdminReservationList.vue'
+import AdminVehicleList from '@/views/admin/vehicle/AdminVehicleList.vue'
 
 const adminRoutes = [
   {
@@ -23,7 +23,7 @@ const adminRoutes = [
       {
         path: 'dashboard',
         name: 'admin-dashboard',
-        component: AdminDashboardView,
+        component: AdminDashboard,
         meta: {
           requiresAuth: true,
           role: 'ADMIN',
@@ -32,7 +32,7 @@ const adminRoutes = [
       {
         path: 'households',
         name: 'admin-households',
-        component: AdminHouseholdView,
+        component: AdminHouseholdList,
         meta: {
           requiresAuth: true,
           role: 'ADMIN',
@@ -41,7 +41,7 @@ const adminRoutes = [
       {
         path: 'vehicles',
         name: 'admin-vehicles',
-        component: AdminVehicleView,
+        component: AdminVehicleList,
         meta: {
           requiresAuth: true,
           role: 'ADMIN',
@@ -50,7 +50,7 @@ const adminRoutes = [
       {
         path: 'reservations',
         name: 'admin-reservations',
-        component: AdminReservationView,
+        component: AdminReservationList,
         meta: {
           requiresAuth: true,
           role: 'ADMIN',
@@ -59,7 +59,7 @@ const adminRoutes = [
       {
         path: 'boards',
         name: 'admin-boards',
-        component: AdminBoardView,
+        component: AdminNoticeList,
         meta: {
           requiresAuth: true,
           role: 'ADMIN',
@@ -68,7 +68,7 @@ const adminRoutes = [
       {
         path: 'notifications',
         name: 'admin-notifications',
-        component: AdminNotificationView,
+        component: NotificationList,
         meta: {
           requiresAuth: true,
           role: 'ADMIN',
