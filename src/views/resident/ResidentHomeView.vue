@@ -1,13 +1,18 @@
 <script setup>
-// TODO: 입주민 홈 화면 구조를 구성합니다.
+// TODO: 입주민 홈 화면의 공통 스타일 구조를 구성합니다.
 </script>
 
 <template>
-  <div class="resident-home-view">Resident Home View</div>
+  <section class="resident-home-view">
+    <h1 class="page-title">홈</h1>
+    <div class="card-section">TODO: Home Content</div>
+  </section>
 </template>
 
 <style scoped>
 .resident-home-view {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup>
-// TODO: 인증 화면 전용 레이아웃 영역을 구성합니다.
+// TODO: 인증 화면 전용 공통 레이아웃 스타일을 구성합니다.
 </script>
 
 <template>
@@ -16,11 +16,17 @@
   min-height: 100vh;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--space-24);
+  background: linear-gradient(180deg, #f8fafc 0%, #eef3fb 100%);
 }
 
 .auth-layout__main {
   width: 100%;
   max-width: 420px;
+  padding: var(--space-24);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background-color: var(--white);
+  box-shadow: var(--shadow-medium);
 }
 </style>

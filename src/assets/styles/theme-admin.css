@@ -1,0 +1,54 @@
+.theme-admin {
+  --color-bg-app: var(--admin-base-gray);
+  --color-bg-surface: var(--admin-card-white);
+  --color-bg-muted: var(--admin-light-gray);
+  --color-text-primary: var(--admin-deep-text);
+  --color-text-secondary: var(--gray-600);
+  --color-border: var(--admin-light-gray);
+  --color-border-strong: var(--gray-400);
+  --color-primary: var(--admin-sub-blue);
+  --color-primary-contrast: var(--white);
+  --color-success: var(--admin-success);
+  --color-warning: var(--admin-warning);
+  --color-danger: var(--admin-danger);
+  --color-neutral: var(--gray-600);
+  --color-sidebar-bg: var(--admin-main-navy);
+  --color-sidebar-text: var(--white);
+  --color-header-bg: rgba(255, 255, 255, 0.88);
+  --color-card-bg: var(--admin-card-white);
+  --color-table-head-bg: var(--admin-light-gray);
+  --color-table-line: var(--admin-light-gray);
+  --color-focus-ring: rgba(43, 58, 85, 0.16);
+  background-color: var(--color-bg-app);
+  color: var(--color-text-primary);
+}
+
+.theme-admin .theme-page-bg {
+  background-color: var(--admin-base-gray);
+}
+
+.theme-admin .page-title {
+  font-size: var(--font-size-page-title-admin);
+}
+
+.theme-admin .theme-sidebar {
+  background-color: var(--admin-main-navy);
+  color: var(--color-sidebar-text);
+}
+
+.theme-admin .theme-card {
+  background-color: var(--admin-card-white);
+}
+
+.theme-admin .theme-button-primary {
+  background-color: var(--admin-sub-blue);
+  color: var(--white);
+}
+
+.theme-admin .theme-table-head {
+  background-color: var(--admin-light-gray);
+}
+
+.theme-admin .theme-table-line {
+  border-color: var(--admin-light-gray);
+}

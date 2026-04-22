@@ -1,17 +1,18 @@
 <script setup>
-// TODO: 로그인 화면 구조를 구성합니다.
+// TODO: 로그인 화면의 공통 스타일 구조를 구성합니다.
 </script>
 
 <template>
-  <div class="login-view">
-    <h1>Login</h1>
-    <div>TODO: Login Form</div>
+  <div class="login-view card-section">
+    <h1 class="page-title">로그인</h1>
+    <div class="section-title">TODO: Login Form</div>
   </div>
 </template>
 
 <style scoped>
 .login-view {
-  padding: 16px;
-  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
 }
 </style>

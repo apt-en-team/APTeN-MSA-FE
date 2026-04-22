@@ -1,13 +1,18 @@
 <script setup>
-// TODO: 관리자 예약 관리 화면 구조를 구성합니다.
+// TODO: 관리자 예약 관리 화면의 공통 스타일 구조를 구성합니다.
 </script>
 
 <template>
-  <div class="admin-reservation-view">Admin Reservation View</div>
+  <section class="admin-reservation-view">
+    <h1 class="page-title">예약 관리</h1>
+    <div class="card-section">TODO: Reservation Content</div>
+  </section>
 </template>
 
 <style scoped>
 .admin-reservation-view {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
 }
 </style>

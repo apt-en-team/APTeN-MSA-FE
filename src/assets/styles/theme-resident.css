@@ -1,0 +1,45 @@
+.theme-resident {
+  --color-bg-app: var(--resident-bg-1);
+  --color-bg-surface: var(--resident-bg-2);
+  --color-bg-muted: rgba(255, 255, 255, 0.72);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--gray-600);
+  --color-border: #d8e1f2;
+  --color-border-strong: #b8c8eb;
+  --color-primary: var(--resident-primary);
+  --color-primary-contrast: var(--white);
+  --color-success: var(--resident-success);
+  --color-warning: var(--resident-warning);
+  --color-danger: var(--resident-danger);
+  --color-neutral: var(--gray-600);
+  --color-sidebar-bg: var(--resident-primary);
+  --color-sidebar-text: var(--white);
+  --color-header-bg: rgba(255, 255, 255, 0.92);
+  --color-card-bg: var(--resident-bg-2);
+  --color-table-head-bg: rgba(73, 115, 229, 0.08);
+  --color-table-line: #dfe7f6;
+  --color-focus-ring: rgba(73, 115, 229, 0.2);
+  background: linear-gradient(180deg, var(--resident-bg-1) 0%, #f8fbff 100%);
+  color: var(--color-text-primary);
+}
+
+.theme-resident .theme-page-bg {
+  background: linear-gradient(180deg, var(--resident-bg-1) 0%, #f8fbff 100%);
+}
+
+.theme-resident .page-title {
+  font-size: var(--font-size-heading-3);
+}
+
+.theme-resident .theme-card {
+  background-color: var(--resident-bg-2);
+}
+
+.theme-resident .theme-button-primary {
+  background-color: var(--resident-primary);
+  color: var(--white);
+}
+
+.theme-resident .theme-focus-line {
+  border-color: var(--resident-line-focus);
+}

@@ -1,13 +1,18 @@
 <script setup>
-// TODO: 관리자 세대 관리 화면 구조를 구성합니다.
+// TODO: 관리자 세대 관리 화면의 공통 스타일 구조를 구성합니다.
 </script>
 
 <template>
-  <div class="admin-household-view">Admin Household View</div>
+  <section class="admin-household-view">
+    <h1 class="page-title">세대 관리</h1>
+    <div class="card-section">TODO: Household Content</div>
+  </section>
 </template>
 
 <style scoped>
 .admin-household-view {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
 }
 </style>
