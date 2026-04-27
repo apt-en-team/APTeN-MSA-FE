@@ -1,51 +1,153 @@
-// 예약 상태 store를 관리합니다.
+// 예약 상태를 관리하는 store입니다.
 import { defineStore } from 'pinia'
+import reservationApi from '@/api/reservationApi'
 
 export const useReservationStore = defineStore('reservation', {
   state: () => ({
-    items: [],
-    selectedItem: null,
+    loading: false,
+    error: null,
+    availableTimes: [],
+    myReservations: [],
+    reservationDetail: null,
+    adminReservations: [],
+    seatHold: null,
   }),
   getters: {
-    reservationCount: (state) => state.items.length,
-    hasSelectedReservation: (state) => Boolean(state.selectedItem),
+    hasReservationDetail: (state) => !!state.reservationDetail,
   },
   actions: {
-    // 예약 목록 조회 구조를 정의합니다.
-    async fetchReservations(params) {
+    // 예약 가능 시간 조회
+    async fetchAvailableTimes(params) {
+      this.loading = true
+      this.error = null
       try {
-        void params
-        // TODO: 최신 예약 API 모듈 연결 예정
-      } catch (error) {
-        throw error
+        const res = await reservationApi.getAvailableTimes(params)
+        this.availableTimes = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
       }
     },
-    // 예약 상세 조회 구조를 정의합니다.
-    async fetchReservationDetail(reservationId) {
+
+    // 좌석 임시 선점
+    async holdSeat(body) {
+      this.loading = true
+      this.error = null
       try {
-        void reservationId
-        // TODO: 최신 예약 API 모듈 연결 예정
-      } catch (error) {
-        throw error
+        const res = await reservationApi.holdSeat(body)
+        this.seatHold = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
       }
     },
-    // 예약 등록 구조를 정의합니다.
-    async createReservation(data) {
+
+    // 예약 생성
+    async createReservation(body) {
+      this.loading = true
+      this.error = null
       try {
-        void data
-        // TODO: 최신 예약 API 모듈 연결 예정
-      } catch (error) {
-        throw error
+        const res = await reservationApi.createReservation(body)
+        this.reservationDetail = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
       }
     },
-    // 예약 취소 구조를 정의합니다.
-    async cancelReservation(reservationId, data) {
+
+    // 내 예약 목록 조회
+    async fetchMyReservations(params) {
+      this.loading = true
+      this.error = null
       try {
-        void reservationId
-        void data
-        // TODO: 최신 예약 API 모듈 연결 예정
-      } catch (error) {
-        throw error
+        const res = await reservationApi.getMyReservations(params)
+        this.myReservations = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 내 예약 상세 조회
+    async fetchMyReservationDetail(id) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await reservationApi.getMyReservationDetail(id)
+        this.reservationDetail = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 예약 취소
+    async cancelMyReservation(id) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await reservationApi.cancelMyReservation(id)
+        this.reservationDetail = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 예약 목록 조회
+    async fetchAdminReservations(params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await reservationApi.getAdminReservations(params)
+        this.adminReservations = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 예약 상세 조회
+    async fetchAdminReservationDetail(id) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await reservationApi.getAdminReservationDetail(id)
+        this.reservationDetail = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 예약 강제 취소
+    async cancelAdminReservation(id, body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await reservationApi.cancelAdminReservation(id, body)
+        this.reservationDetail = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
       }
     },
   },

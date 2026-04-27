@@ -1,22 +1,123 @@
-// 주차 정책 상태 store를 관리합니다.
+// 주차 상태를 관리하는 store입니다.
 import { defineStore } from 'pinia'
-import vehicleApi from '@/api/vehicleApi'
+import parkingApi from '@/api/parkingApi'
 
 export const useParkingStore = defineStore('parking', {
   state: () => ({
-    policies: null,
+    loading: false,
+    error: null,
+    parkingLogs: [],
+    parkingStatus: null,
+    parkingFloors: [],
+    parkingStatistics: null,
   }),
   getters: {
-    hasPolicies: (state) => Boolean(state.policies),
+    hasParkingStatus: (state) => !!state.parkingStatus,
   },
   actions: {
-    // 차량 정책을 조회합니다.
-    async fetchVehiclePolicies() {
-      return vehicleApi.getVehiclePolicies()
+    // 입출차 기록 목록 조회
+    async fetchParkingLogs(params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.getParkingLogs(params)
+        this.parkingLogs = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
     },
-    // 차량 정책을 저장합니다.
-    async saveVehiclePolicies(body) {
-      return vehicleApi.saveVehiclePolicies(body)
+
+    // 주차 현황 조회
+    async fetchParkingStatus() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.getParkingStatus()
+        this.parkingStatus = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 주차층 목록 조회
+    async fetchParkingFloors(params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.getParkingFloors(params)
+        this.parkingFloors = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 주차층 등록
+    async createParkingFloor(body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.createParkingFloor(body)
+        this.parkingFloors = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 주차층 수정
+    async updateParkingFloor(id, body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.updateParkingFloor(id, body)
+        this.parkingFloors = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 주차 통계 조회
+    async fetchParkingStatistics(params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.getParkingStatistics(params)
+        this.parkingStatistics = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 입출차 등록
+    async createParkingLog(body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.createParkingLog(body)
+        this.parkingLogs = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
     },
   },
 })

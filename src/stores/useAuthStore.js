@@ -1,104 +1,140 @@
-// 인증 상태 store를 관리합니다.
+// 인증 상태를 관리하는 store입니다.
 import { defineStore } from 'pinia'
 import authApi from '@/api/authApi'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
+    loading: false,
+    error: null,
     accessToken: null,
     refreshToken: null,
-    role: 'GUEST',
+    userId: null,
+    userUid: null,
+    name: null,
+    role: 'USER',
     status: null,
-    isAuthenticated: false,
   }),
   getters: {
-    hasAccessToken: (state) => Boolean(state.accessToken),
-    currentRole: (state) => state.role,
+    isAuthenticated: (state) => !!state.accessToken,
   },
   actions: {
-    // 인증 정보를 store와 localStorage에 저장합니다.
-    setAuth(payload = {}) {
-      this.accessToken = payload.accessToken || null
-      this.refreshToken = payload.refreshToken || null
-      this.role = payload.role || 'GUEST'
-      this.status = payload.status || null
-      this.isAuthenticated = Boolean(payload.accessToken)
+    // 로그인
+    async login(body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await authApi.login(body)
+        this.setAuth(res)
 
-      if (payload.accessToken) localStorage.setItem('accessToken', payload.accessToken)
-      if (payload.refreshToken) localStorage.setItem('refreshToken', payload.refreshToken)
-      localStorage.setItem('role', this.role)
-      localStorage.setItem('status', this.status || '')
+        if (this.role === 'MASTER') {
+          window.location.href = '/admin/master/complexes'
+        } else if (this.role === 'ADMIN') {
+          window.location.href = '/admin/dashboard'
+        } else if (this.role === 'USER' && this.status === 'PENDING') {
+          window.location.href = '/resident/pending'
+        } else if (this.role === 'USER') {
+          window.location.href = '/resident/home'
+        }
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
     },
 
-    // 저장된 인증 정보를 초기화합니다.
+    // 로그아웃
+    async logout() {
+      this.loading = true
+      this.error = null
+      try {
+        await authApi.logout()
+        this.clearAuth()
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 인증정보 저장
+    setAuth(data) {
+      const userInfo = data?.userInfo || data?.user || data || {}
+
+      this.accessToken = data?.accessToken || data?.tokens?.accessToken || null
+      this.refreshToken = data?.refreshToken || data?.tokens?.refreshToken || null
+      this.userId = userInfo?.userId || data?.userId || null
+      this.userUid = userInfo?.userUid || data?.userUid || null
+      this.name = userInfo?.name || data?.name || null
+      this.role = userInfo?.role || data?.role || 'USER'
+      this.status = userInfo?.status || data?.status || null
+
+      if (this.accessToken) {
+        localStorage.setItem('accessToken', this.accessToken)
+      }
+
+      if (this.refreshToken) {
+        localStorage.setItem('refreshToken', this.refreshToken)
+      }
+
+      localStorage.setItem(
+        'userInfo',
+        JSON.stringify({
+          userId: this.userId,
+          userUid: this.userUid,
+          name: this.name,
+          role: this.role,
+          status: this.status,
+        }),
+      )
+    },
+
+    // 인증정보 초기화
     clearAuth() {
       this.accessToken = null
       this.refreshToken = null
-      this.role = 'GUEST'
+      this.userId = null
+      this.userUid = null
+      this.name = null
+      this.role = 'USER'
       this.status = null
-      this.isAuthenticated = false
+      this.error = null
 
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
+      localStorage.removeItem('userInfo')
       localStorage.removeItem('role')
       localStorage.removeItem('status')
     },
 
-    // 새로고침 시 localStorage의 인증 정보를 복원합니다.
-    initializeAuth() {
-      this.accessToken = localStorage.getItem('accessToken')
-      this.refreshToken = localStorage.getItem('refreshToken')
-      this.role = localStorage.getItem('role') || 'GUEST'
-      this.status = localStorage.getItem('status') || null
-      this.isAuthenticated = Boolean(this.accessToken)
-    },
-
-    // 로그인 API를 호출합니다.
-    async login(body) {
+    // 새로고침 시 복원
+    restoreAuth() {
+      this.loading = true
+      this.error = null
       try {
-        return await authApi.login(body)
-      } catch (error) {
-        throw error
-      }
-    },
+        const accessToken = localStorage.getItem('accessToken')
+        const refreshToken = localStorage.getItem('refreshToken')
+        const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
 
-    // 로그아웃 API를 호출하고 인증 정보를 초기화합니다.
-    async logout() {
-      try {
-        await authApi.logout()
-      } catch (error) {
-        throw error
+        this.accessToken = accessToken || null
+        this.refreshToken = refreshToken || null
+        this.userId = userInfo?.userId || null
+        this.userUid = userInfo?.userUid || null
+        this.name = userInfo?.name || null
+        this.role = userInfo?.role || 'USER'
+        this.status = userInfo?.status || null
+      } catch (e) {
+        console.error(e)
+        this.error = e
       } finally {
-        this.clearAuth()
+        this.loading = false
       }
     },
 
-    // 재발급 API를 호출합니다.
-    async refreshAuth() {
-      try {
-        return await authApi.refreshToken({
-          refreshToken: this.refreshToken,
-        })
-      } catch (error) {
-        throw error
-      }
-    },
-
-    // 비밀번호 변경 API를 호출합니다.
-    async changePassword(body) {
-      try {
-        return await authApi.changePassword(body)
-      } catch (error) {
-        throw error
-      }
-    },
-
-    // 회원 탈퇴 API를 호출합니다.
-    async deleteMyAccount(body) {
-      try {
-        return await authApi.deleteMyAccount(body)
-      } catch (error) {
-        throw error
-      }
+    // 기존 라우터 호환용 초기화 함수
+    initializeAuth() {
+      this.restoreAuth()
     },
   },
 })
