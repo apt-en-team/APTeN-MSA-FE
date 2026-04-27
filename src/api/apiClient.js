@@ -1,43 +1,25 @@
-// 공통 axios 인스턴스를 관리합니다.
+// 공통 axios 인스턴스를 생성합니다.
 import axios from 'axios'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || ''
-let isRefreshing = false
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || ''
 
 const apiClient = axios.create({
-  baseURL,
+  baseURL: apiBaseURL,
   timeout: 10000,
 })
 
-function getStoredAuth() {
-  return {
-    accessToken: localStorage.getItem('accessToken') || '',
-    refreshToken: localStorage.getItem('refreshToken') || '',
-    role: localStorage.getItem('role') || 'GUEST',
-    status: localStorage.getItem('status') || '',
-  }
+function clearStoredAuth() {
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('userInfo')
+  localStorage.removeItem('role')
+  localStorage.removeItem('status')
 }
 
-async function syncAuthStore(payload = {}) {
-  const { useAuthStore } = await import('@/stores/useAuthStore')
-  const authStore = useAuthStore()
-  authStore.setAuth(payload)
-}
-
-async function clearAuthAndRedirect() {
-  try {
-    const { useAuthStore } = await import('@/stores/useAuthStore')
-    const authStore = useAuthStore()
-    authStore.clearAuth()
-  } finally {
-    window.location.href = '/login'
-  }
-}
-
-// 요청 interceptor에서 accessToken을 Authorization 헤더에 넣습니다.
+// 요청 interceptor에서 accessToken을 Authorization 헤더에 추가합니다.
 apiClient.interceptors.request.use(
   (config) => {
-    const { accessToken } = getStoredAuth()
+    const accessToken = localStorage.getItem('accessToken')
 
     if (accessToken) {
       config.headers = config.headers || {}
@@ -56,46 +38,41 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config
     const status = error.response?.status
 
-    if (status === 401 && !originalRequest?._retry && !isRefreshing) {
-      const { refreshToken, role, status: userStatus } = getStoredAuth()
+    if (status === 401 && originalRequest && !originalRequest._retry) {
+      const refreshToken = localStorage.getItem('refreshToken')
 
       if (!refreshToken) {
-        await clearAuthAndRedirect()
+        clearStoredAuth()
+        window.location.href = '/login'
         return Promise.reject(error)
       }
 
       originalRequest._retry = true
-      isRefreshing = true
 
       try {
-        const response = await axios.post(`${baseURL}/api/auth/token/refresh`, {
+        const refreshResponse = await axios.post(`${apiBaseURL}/api/auth/token/refresh`, {
           refreshToken,
         })
 
-        const nextAccessToken = response.data?.accessToken || ''
-        const nextRefreshToken = response.data?.refreshToken || refreshToken
+        const nextAccessToken = refreshResponse.data?.accessToken
+        const nextRefreshToken = refreshResponse.data?.refreshToken
 
-        localStorage.setItem('accessToken', nextAccessToken)
-        localStorage.setItem('refreshToken', nextRefreshToken)
-        localStorage.setItem('role', role)
-        localStorage.setItem('status', userStatus)
+        if (nextAccessToken) {
+          localStorage.setItem('accessToken', nextAccessToken)
+        }
 
-        await syncAuthStore({
-          accessToken: nextAccessToken,
-          refreshToken: nextRefreshToken,
-          role,
-          status: userStatus,
-        })
+        if (nextRefreshToken) {
+          localStorage.setItem('refreshToken', nextRefreshToken)
+        }
 
         originalRequest.headers = originalRequest.headers || {}
         originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`
 
         return apiClient(originalRequest)
       } catch (refreshError) {
-        await clearAuthAndRedirect()
+        clearStoredAuth()
+        window.location.href = '/login'
         return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
       }
     }
 
