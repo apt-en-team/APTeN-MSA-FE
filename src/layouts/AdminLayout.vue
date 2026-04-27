@@ -1,12 +1,14 @@
 <script setup>
 // TODO: ADMIN과 MASTER가 함께 사용하는 데스크톱 관리자 레이아웃입니다.
-import { computed } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 
 // 사이드바와 헤더에서 사용할 현재 라우트 정보를 가져옵니다.
 const route = useRoute()
+// 상단 버튼 이동에 사용할 라우터를 가져옵니다.
+const router = useRouter()
 // 로그인 사용자 정보를 표시하기 위해 인증 store를 사용합니다.
 const authStore = useAuthStore()
 // MASTER의 선택 단지 정보를 표시하기 위해 단지 store를 사용합니다.
@@ -137,6 +139,11 @@ const selectedComplexCode = computed(() => {
   }
 })
 
+// 현재 선택 단지명은 헤더 보조 문구에 사용합니다.
+const selectedComplexName = computed(() => {
+  return complexStore.selectedComplex?.name || complexStore.selectedComplex?.complexName || ''
+})
+
 // MASTER 전용 입주민 미리보기 이동 경로를 계산합니다.
 const residentPreviewPath = computed(() => {
   if (!selectedComplexCode.value) {
@@ -149,10 +156,29 @@ const residentPreviewPath = computed(() => {
 // 현재 경로와 메뉴 경로를 비교해 활성 상태를 표시합니다.
 const isMenuActive = (targetPath) => route.path === targetPath || route.path.startsWith(`${targetPath}/`)
 
+// MASTER가 선택 단지 없이 관리자 화면에 진입한 경우 경고 문구를 표시합니다.
+const shouldShowMasterWarning = computed(() => {
+  return isMaster.value && !selectedComplexCode.value
+})
+
+// 관리자 헤더의 보조 문구를 권한 상태에 맞게 표시합니다.
+const topbarSub = computed(() => {
+  if (isMaster.value && selectedComplexName.value) {
+    return `${todayStr.value} · ${selectedComplexName.value} · MASTER 미리보기`
+  }
+
+  return `${todayStr.value} · APT-EN 아파트`
+})
+
 // 기존 store 액션을 사용해 로그아웃 버튼을 연결합니다.
 const handleLogout = async () => {
   await authStore.logout()
 }
+
+// MASTER 레이아웃 진입 시 저장된 선택 단지를 복원합니다.
+onMounted(() => {
+  complexStore.restoreSelectedComplex()
+})
 </script>
 
 <template>
@@ -232,17 +258,28 @@ const handleLogout = async () => {
       <!-- 상단 헤더 영역 -->
       <header class="admin-layout__header">
         <div class="admin-layout__header-copy">
-          <p class="admin-layout__header-kicker">{{ todayStr }} · APT-EN 아파트</p>
+          <p v-if="shouldShowMasterWarning" class="admin-layout__header-warning">
+            관리할 단지를 먼저 선택해주세요.
+          </p>
+          <p class="admin-layout__header-kicker">{{ topbarSub }}</p>
           <h2 class="admin-layout__header-title">{{ currentPageTitle }}</h2>
         </div>
 
         <div class="admin-layout__header-actions">
           <button type="button" class="admin-layout__utility-button">알림</button>
           <button
-            v-if="residentPreviewPath"
+            v-if="isMaster"
+            type="button"
+            class="admin-layout__secondary-button"
+            @click="router.push('/admin/master/complexes')"
+          >
+            전체 단지 관리
+          </button>
+          <button
+            v-if="isMaster && residentPreviewPath"
             type="button"
             class="admin-layout__primary-button"
-            @click="$router.push(residentPreviewPath)"
+            @click="router.push(residentPreviewPath)"
           >
             입주민 미리보기
           </button>
@@ -484,6 +521,13 @@ const handleLogout = async () => {
   font-size: var(--font-size-label);
 }
 
+.admin-layout__header-warning {
+  margin: 0 0 4px;
+  color: var(--color-warning);
+  font-size: var(--font-size-body-sm);
+  font-weight: 600;
+}
+
 .admin-layout__header-title {
   margin: 0;
   color: var(--color-text-primary);
@@ -527,6 +571,19 @@ const handleLogout = async () => {
 
 .admin-layout__primary-button:hover {
   filter: brightness(0.92);
+}
+
+.admin-layout__secondary-button {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  background: var(--color-card-bg);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: var(--font-size-detail);
 }
 
 .admin-layout__identity {

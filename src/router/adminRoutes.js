@@ -37,7 +37,6 @@ import AdminGxProgramEdit from '@/views/admin/reservation/AdminGxProgramEdit.vue
 import AdminGxProgramList from '@/views/admin/reservation/AdminGxProgramList.vue'
 import AdminReservationDetail from '@/views/admin/reservation/AdminReservationDetail.vue'
 import AdminReservationList from '@/views/admin/reservation/AdminReservationList.vue'
-import AdminParkingStatus from '@/views/admin/vehicle/AdminParkingStatus.vue'
 import AdminVehicleList from '@/views/admin/vehicle/AdminVehicleList.vue'
 import AdminVehiclePolicy from '@/views/admin/vehicle/AdminVehiclePolicy.vue'
 import AdminVisitorPolicy from '@/views/admin/vehicle/AdminVisitorPolicy.vue'
@@ -55,44 +54,67 @@ const adminRoutes = [
     component: AdminLayout,
     meta: adminRouteMeta,
     children: [
+      // 관리자 기본 진입
       { path: '', redirect: '/admin/dashboard' },
+
+      // 대시보드
       { path: 'dashboard', component: AdminDashboard, meta: adminRouteMeta },
+
+      // 차량 관리
       { path: 'vehicles', component: AdminVehicleList, meta: adminRouteMeta },
       { path: 'vehicle-policies', component: AdminVehiclePolicy, meta: adminRouteMeta },
+
+      // 방문차량 관리
       { path: 'visitor-vehicles', component: AdminVisitorVehicleList, meta: adminRouteMeta },
       { path: 'visitor-vehicles/create', component: AdminVisitorVehicleCreate, meta: adminRouteMeta },
       { path: 'visitor-policies', component: AdminVisitorPolicy, meta: adminRouteMeta },
+
+      // 세대 관리
       { path: 'households', component: AdminHouseholdList, meta: adminRouteMeta },
       { path: 'households/create', component: AdminHouseholdCreate, meta: adminRouteMeta },
       { path: 'households/:householdId', component: AdminHouseholdDetail, meta: adminRouteMeta },
       { path: 'households/:householdId/edit', component: AdminHouseholdEdit, meta: adminRouteMeta },
       { path: 'household-match', component: AdminHouseholdMatchList, meta: adminRouteMeta },
+
+      // 관리비 관리
       { path: 'bill-policy/basic', component: AdminBillPolicy, meta: adminRouteMeta },
       { path: 'bills', component: AdminBillList, meta: adminRouteMeta },
       { path: 'bills/:billId', component: AdminBillDetail, meta: adminRouteMeta },
+
+      // 공지사항 관리
       { path: 'notices', component: AdminNoticeList, meta: adminRouteMeta },
       { path: 'notices/create', component: AdminNoticeCreate, meta: adminRouteMeta },
       { path: 'notices/:noticeId', component: AdminNoticeDetail, meta: adminRouteMeta },
       { path: 'notices/:noticeId/edit', component: AdminNoticeEdit, meta: adminRouteMeta },
+
+      // 투표 관리
       { path: 'votes', component: AdminVoteList, meta: adminRouteMeta },
       { path: 'votes/create', component: AdminVoteCreate, meta: adminRouteMeta },
       { path: 'votes/:voteId', component: AdminVoteDetail, meta: adminRouteMeta },
       { path: 'votes/:voteId/edit', component: AdminVoteEdit, meta: adminRouteMeta },
       { path: 'votes/:voteId/results', component: AdminVoteResult, meta: adminRouteMeta },
+
+      // 시설 관리
       { path: 'facilities', component: AdminFacilityList, meta: adminRouteMeta },
       { path: 'facilities/create', component: AdminFacilityCreate, meta: adminRouteMeta },
       { path: 'facilities/:facilityId', component: AdminFacilityDetail, meta: adminRouteMeta },
       { path: 'facilities/:facilityId/edit', component: AdminFacilityEdit, meta: adminRouteMeta },
       { path: 'facility-types', component: AdminFacilityType, meta: adminRouteMeta },
       { path: 'facility-policies', component: AdminFacilityPolicy, meta: adminRouteMeta },
+
+      // 예약 관리
       { path: 'reservations', component: AdminReservationList, meta: adminRouteMeta },
       { path: 'reservations/:reservationId', component: AdminReservationDetail, meta: adminRouteMeta },
+      { path: 'facility-usage/status', component: AdminFacilityUsageStatus, meta: adminRouteMeta },
+
+      // GX 프로그램 관리
       { path: 'gx-programs', component: AdminGxProgramList, meta: adminRouteMeta },
       { path: 'gx-programs/create', component: AdminGxProgramCreate, meta: adminRouteMeta },
       { path: 'gx-programs/:programId', component: AdminGxProgramDetail, meta: adminRouteMeta },
       { path: 'gx-programs/:programId/edit', component: AdminGxProgramEdit, meta: adminRouteMeta },
       { path: 'gx-programs/:programId/approvals', component: AdminGxApprovalList, meta: adminRouteMeta },
-      { path: 'facility-usage/status', component: AdminFacilityUsageStatus, meta: adminRouteMeta },
+
+      // 챗봇 관리
       { path: 'chatbot/faqs', component: AdminFaqList, meta: adminRouteMeta },
       { path: 'chatbot/faqs/create', component: AdminFaqCreate, meta: adminRouteMeta },
       { path: 'chatbot/faqs/:faqUid/edit', component: AdminFaqEdit, meta: adminRouteMeta },
