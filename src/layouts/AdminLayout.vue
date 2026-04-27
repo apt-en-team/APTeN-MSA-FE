@@ -17,34 +17,68 @@ const adminMenuGroups = [
   {
     label: 'MAIN',
     items: [
+      // 대시보드 메뉴 경로입니다.
       { label: '대시보드', to: '/admin/dashboard' },
+      // 세대 관리 메뉴 경로입니다.
       { label: '세대 관리', to: '/admin/households' },
+      // 세대 승인 메뉴 경로입니다.
       { label: '세대 승인', to: '/admin/household-match' },
+      // 관리비 관리 메뉴 경로입니다.
       { label: '관리비 관리', to: '/admin/bills' },
+      // 기본 관리비 정책 메뉴 경로입니다.
+      { label: '관리비 정책', to: '/admin/bill-policy/basic' },
     ],
   },
   {
     label: 'VEHICLE',
     items: [
+      // 차량 관리 메뉴 경로입니다.
       { label: '차량 관리', to: '/admin/vehicles' },
+      // 차량 정책 메뉴 경로입니다.
+      { label: '차량 정책', to: '/admin/vehicle-policies' },
+      // 방문차량 관리 메뉴 경로입니다.
       { label: '방문차량 관리', to: '/admin/visitor-vehicles' },
+      // 방문차량 등록 메뉴 경로입니다.
+      { label: '방문차량 등록', to: '/admin/visitor-vehicles/create' },
+      // 방문차량 정책 메뉴 경로입니다.
+      { label: '방문차량 정책', to: '/admin/visitor-policies' },
+      // 고정 방문차량 메뉴 경로입니다.
+      { label: '고정 방문차량', to: '/admin/regular-visitor-vehicles' },
+      // 주차 현황 메뉴 경로입니다.
       { label: '주차 관리', to: '/admin/parking/dashboard' },
+      // 주차층 관리 메뉴 경로입니다.
+      { label: '주차층 관리', to: '/admin/parking/floors' },
+      // 주차 통계 메뉴 경로입니다.
+      { label: '주차 통계', to: '/admin/parking/statistics' },
     ],
   },
   {
     label: 'COMMUNITY',
     items: [
+      // 게시판 관리 메뉴 경로입니다.
       { label: '게시판 관리', to: '/admin/boards/posts' },
+      // 게시판 통계 메뉴 경로입니다.
+      { label: '게시판 통계', to: '/admin/boards/statistics' },
+      // 공지사항 관리 메뉴 경로입니다.
       { label: '공지사항 관리', to: '/admin/notices' },
+      // 투표 관리 메뉴 경로입니다.
       { label: '투표 관리', to: '/admin/votes' },
+      // 챗봇 관리 메뉴 경로입니다.
       { label: '챗봇 관리', to: '/admin/chatbot/faqs' },
     ],
   },
   {
     label: 'FACILITY / RESERVATION',
     items: [
+      // 시설 관리 메뉴 경로입니다.
       { label: '시설 관리', to: '/admin/facilities' },
+      // 시설 타입 메뉴 경로입니다.
+      { label: '시설 타입', to: '/admin/facility-types' },
+      // 시설 정책 메뉴 경로입니다.
+      { label: '시설 정책', to: '/admin/facility-policies' },
+      // 예약 관리 메뉴 경로입니다.
       { label: '예약 관리', to: '/admin/reservations' },
+      // GX 프로그램 메뉴 경로입니다.
       { label: 'GX 프로그램 관리', to: '/admin/gx-programs' },
     ],
   },
@@ -52,9 +86,13 @@ const adminMenuGroups = [
 
 // MASTER 전용 단지 관리 메뉴를 별도로 노출합니다.
 const masterMenus = [
+  // MASTER 전체 단지 관리 메뉴 경로입니다.
   { label: '전체 단지 관리', to: '/admin/master/complexes' },
+  // MASTER 단지 등록 메뉴 경로입니다.
   { label: '단지 등록', to: '/admin/master/complexes/create' },
+  // MASTER 단지 관리자 배정 메뉴 경로입니다.
   { label: '단지 관리자 배정', to: '/admin/master/complexes' },
+  // 현재 선택 단지의 관리자 화면으로 이동하는 메뉴 경로입니다.
   { label: '현재 선택 단지 관리자 화면', to: '/admin/dashboard' },
 ]
 
