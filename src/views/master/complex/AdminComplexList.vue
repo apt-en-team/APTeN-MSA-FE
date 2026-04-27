@@ -12,7 +12,7 @@ const filters = reactive({
   keyword: '',
 })
 
-// 목록 응답이 다양한 형태여도 화면에서는 배열로 사용합니다.
+// 목록 응답이 페이지 객체이거나 배열이어도 화면에서는 배열로 사용합니다.
 const complexRows = computed(() => {
   if (Array.isArray(complexStore.complexList)) {
     return complexStore.complexList
@@ -20,10 +20,6 @@ const complexRows = computed(() => {
 
   if (Array.isArray(complexStore.complexList?.content)) {
     return complexStore.complexList.content
-  }
-
-  if (Array.isArray(complexStore.complexList?.resultData?.content)) {
-    return complexStore.complexList.resultData.content
   }
 
   return []
@@ -41,41 +37,41 @@ const formatDate = (dateValue) => {
   return String(dateValue).slice(0, 10)
 }
 
-// 단지 목록을 조회합니다.
-const fetchComplexes = async () => {
+// 단지 목록 조회
+const loadComplexes = async () => {
   await complexStore.fetchMasterComplexes({
     keyword: filters.keyword || undefined,
   })
 }
 
-// 검색 버튼 클릭 시 keyword 기준으로 목록을 다시 조회합니다.
+// 검색 조건으로 단지 목록 재조회
 const handleSearch = async () => {
-  await fetchComplexes()
+  await loadComplexes()
 }
 
-// 단지 선택 후 관리자 대시보드로 이동합니다.
+// 선택 단지를 저장하고 관리자 화면으로 이동
 const handleSelectComplex = (complex) => {
   complexStore.setSelectedComplex(complex)
   router.push('/admin/dashboard')
 }
 
-// 상세 화면으로 이동합니다.
+// 단지 상세 화면 이동
 const goToDetail = (code) => {
   router.push(`/admin/master/complexes/${code}`)
 }
 
-// 관리자 배정 화면으로 이동합니다.
+// 단지 관리자 배정 화면 이동
 const goToAdmins = (code) => {
   router.push(`/admin/master/complexes/${code}/admins`)
 }
 
-// 단지 등록 화면으로 이동합니다.
+// 단지 등록 화면 이동
 const goToCreate = () => {
   router.push('/admin/master/complexes/create')
 }
 
 // 페이지 진입 시 전체 단지 목록을 조회합니다.
-onMounted(fetchComplexes)
+onMounted(loadComplexes)
 </script>
 
 <template>
@@ -83,7 +79,9 @@ onMounted(fetchComplexes)
     <div class="master-complex-list__header">
       <div>
         <h1 class="page-title">전체 단지 관리</h1>
-        <p class="master-complex-list__description">MASTER가 단지를 선택한 뒤 관리자 화면으로 진입할 수 있습니다.</p>
+        <p class="master-complex-list__description">
+          관리할 아파트 단지를 선택하면 해당 단지 기준 관리자 화면으로 이동합니다.
+        </p>
       </div>
       <button type="button" class="master-complex-list__primary-button" @click="goToCreate">
         단지 등록
@@ -103,6 +101,13 @@ onMounted(fetchComplexes)
     </div>
 
     <div class="card-section">
+      <p v-if="complexStore.loading" class="master-complex-list__feedback">단지 목록을 불러오는 중입니다.</p>
+      <p
+        v-else-if="complexStore.error"
+        class="master-complex-list__feedback master-complex-list__feedback--error"
+      >
+        단지 목록을 불러오지 못했습니다.
+      </p>
       <div class="master-complex-list__table-wrap">
         <table class="master-complex-list__table">
           <thead>
@@ -116,7 +121,7 @@ onMounted(fetchComplexes)
             </tr>
           </thead>
           <tbody>
-            <tr v-if="complexRows.length === 0">
+            <tr v-if="!complexStore.loading && complexRows.length === 0">
               <td colspan="6" class="master-complex-list__empty">조회된 단지가 없습니다.</td>
             </tr>
             <tr v-for="complex in complexRows" :key="complex.code || complex.id">
@@ -180,6 +185,16 @@ onMounted(fetchComplexes)
 
 .master-complex-list__table-wrap {
   overflow-x: auto;
+}
+
+.master-complex-list__feedback {
+  margin: 0 0 16px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+.master-complex-list__feedback--error {
+  color: var(--color-danger);
 }
 
 .master-complex-list__table {

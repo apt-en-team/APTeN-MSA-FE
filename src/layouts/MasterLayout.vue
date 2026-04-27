@@ -1,21 +1,26 @@
 <script setup>
 // TODO: MASTER 전용 단지 관리 레이아웃입니다.
 import { computed, onMounted } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useComplexStore } from '@/stores/useComplexStore'
+
+const router = useRouter()
 
 // 선택 단지 상태를 표시하기 위해 단지 store를 사용합니다.
 const complexStore = useComplexStore()
 
-// 현재 선택 단지명을 상단에 표시합니다.
-const selectedComplexName = computed(() => {
-  return complexStore.selectedComplex?.name || '선택된 단지 없음'
-})
+// 현재 선택 단지 상태를 화면에 표시합니다.
+const selectedComplex = computed(() => complexStore.selectedComplex)
 
 // 선택 단지 존재 여부에 따라 안내 문구와 버튼을 분기합니다.
-const hasSelectedComplex = computed(() => !!complexStore.selectedComplex?.code)
+const hasSelectedComplex = computed(() => !!selectedComplex.value?.code)
 
-// 레이아웃 진입 시 저장된 선택 단지를 복원합니다.
+// 선택 단지 기준 관리자 화면 이동
+const goAdminDashboard = () => {
+  router.push('/admin/dashboard')
+}
+
+// 선택 단지 복원
 onMounted(() => {
   complexStore.restoreSelectedComplex()
 })
@@ -46,19 +51,22 @@ onMounted(() => {
       <header class="master-layout__header">
         <div>
           <p class="master-layout__header-kicker">MASTER</p>
-          <h2 class="master-layout__header-title">{{ selectedComplexName }}</h2>
+          <h2 class="master-layout__header-title">
+            {{ selectedComplex?.name || '선택된 단지 없음' }}
+          </h2>
           <p v-if="!hasSelectedComplex" class="master-layout__empty-message">
             관리할 단지를 먼저 선택해주세요.
           </p>
         </div>
 
-        <RouterLink
+        <button
           v-if="hasSelectedComplex"
-          to="/admin/dashboard"
           class="master-layout__action-button"
+          type="button"
+          @click="goAdminDashboard"
         >
           관리자 화면으로 이동
-        </RouterLink>
+        </button>
       </header>
 
       <!-- MASTER 본문 영역 -->

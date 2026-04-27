@@ -98,8 +98,9 @@ const masterMenus = [
   { label: '현재 선택 단지 관리자 화면', to: '/admin/dashboard' },
 ]
 
+// MASTER 여부 확인
+const isMaster = computed(() => authStore.role === 'MASTER' || authStore.user?.role === 'MASTER')
 // 사용자 권한과 표시용 이름을 계산합니다.
-const isMaster = computed(() => authStore.role === 'MASTER')
 const userName = computed(() => authStore.name || '관리자')
 const userRole = computed(() => authStore.role || 'ADMIN')
 const currentPageTitle = computed(() => route.meta?.title || '관리자 화면')
@@ -116,18 +117,15 @@ const todayStr = computed(() => {
   return `${year}.${month}.${day} (${dayOfWeek})`
 })
 
+// 선택 단지 상태를 공통으로 사용합니다.
+const selectedComplex = computed(() => complexStore.selectedComplex)
+
 // 선택 단지 코드는 store와 localStorage에서 안전하게 읽습니다.
 const selectedComplexCode = computed(() => {
-  const selectedComplex = complexStore.selectedComplex
+  const currentComplex = selectedComplex.value
 
-  if (selectedComplex?.code) {
-    return selectedComplex.code
-  }
-
-  const storedCode = localStorage.getItem('selectedComplexCode')
-
-  if (storedCode) {
-    return storedCode
+  if (currentComplex?.code) {
+    return currentComplex.code
   }
 
   try {
@@ -141,10 +139,10 @@ const selectedComplexCode = computed(() => {
 
 // 현재 선택 단지명은 헤더 보조 문구에 사용합니다.
 const selectedComplexName = computed(() => {
-  return complexStore.selectedComplex?.name || complexStore.selectedComplex?.complexName || ''
+  return selectedComplex.value?.name || selectedComplex.value?.complexName || ''
 })
 
-// MASTER 전용 입주민 미리보기 이동 경로를 계산합니다.
+// 선택 단지 기준 입주민 미리보기 이동
 const residentPreviewPath = computed(() => {
   if (!selectedComplexCode.value) {
     return ''
@@ -164,7 +162,11 @@ const shouldShowMasterWarning = computed(() => {
 // 관리자 헤더의 보조 문구를 권한 상태에 맞게 표시합니다.
 const topbarSub = computed(() => {
   if (isMaster.value && selectedComplexName.value) {
-    return `${todayStr.value} · ${selectedComplexName.value} · MASTER 미리보기`
+    return `${todayStr.value} · ${selectedComplexName.value} · MASTER 관리 모드`
+  }
+
+  if (isMaster.value && !selectedComplexName.value) {
+    return '관리할 단지를 먼저 선택해주세요.'
   }
 
   return `${todayStr.value} · APT-EN 아파트`
@@ -175,7 +177,7 @@ const handleLogout = async () => {
   await authStore.logout()
 }
 
-// MASTER 레이아웃 진입 시 저장된 선택 단지를 복원합니다.
+// 선택 단지 복원
 onMounted(() => {
   complexStore.restoreSelectedComplex()
 })

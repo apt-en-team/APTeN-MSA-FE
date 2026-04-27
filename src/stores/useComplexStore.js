@@ -10,6 +10,7 @@ export const useComplexStore = defineStore('complex', {
     complexDetail: null,
     complexAdmins: [],
     selectedComplex: null,
+    publicComplexList: [],
     publicComplexes: [],
   }),
   getters: {
@@ -22,8 +23,8 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.getMasterComplexes(params)
-        // 목록 응답이 페이지 객체일 수 있어 배열 형태로 정규화합니다.
-        this.complexList = Array.isArray(res) ? res : res?.content || res?.resultData?.content || []
+        // MASTER 단지 목록은 페이지 객체나 배열 그대로 보관합니다.
+        this.complexList = res
       } catch (e) {
         console.error(e)
         this.error = e
@@ -38,8 +39,8 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.getMasterComplexDetail(code)
-        // 상세 응답도 래핑 구조를 풀어 화면에서 바로 사용할 수 있게 정리합니다.
-        this.complexDetail = res?.resultData || res
+        // 상세 데이터는 API에서 이미 unwrap된 값을 그대로 저장합니다.
+        this.complexDetail = res
       } catch (e) {
         console.error(e)
         this.error = e
@@ -55,7 +56,7 @@ export const useComplexStore = defineStore('complex', {
       try {
         const res = await apartmentComplexApi.createComplex(body)
         // 등록 후 반환값이 있으면 상세 상태에 반영합니다.
-        this.complexDetail = res?.resultData || res
+        this.complexDetail = res
       } catch (e) {
         console.error(e)
         this.error = e
@@ -71,7 +72,7 @@ export const useComplexStore = defineStore('complex', {
       try {
         const res = await apartmentComplexApi.updateComplex(code, body)
         // 수정 후 반환값이 있으면 상세 상태에 반영합니다.
-        this.complexDetail = res?.resultData || res
+        this.complexDetail = res
       } catch (e) {
         console.error(e)
         this.error = e
@@ -87,7 +88,7 @@ export const useComplexStore = defineStore('complex', {
       try {
         const res = await apartmentComplexApi.updateComplexStatus(code, body)
         // 상태 변경 후 반환값이 있으면 상세 상태에 반영합니다.
-        this.complexDetail = res?.resultData || res
+        this.complexDetail = res
       } catch (e) {
         console.error(e)
         this.error = e
@@ -147,6 +148,8 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.getPublicComplexes(params)
+        // 공개 단지 목록은 향후 화면 호환을 위해 두 상태에 함께 저장합니다.
+        this.publicComplexList = Array.isArray(res) ? res : res?.content || []
         this.publicComplexes = res
       } catch (e) {
         console.error(e)
@@ -158,16 +161,16 @@ export const useComplexStore = defineStore('complex', {
 
     // 선택 단지 저장
     setSelectedComplex(complex) {
-      // 선택 단지는 관리자 화면 전환에 필요한 핵심 정보만 저장합니다.
-      const normalizedComplex = {
-        code: complex?.code || '',
-        name: complex?.name || complex?.complexName || '',
-        status: complex?.status || '',
-        address: complex?.address || '',
+      // 선택 단지는 관리자 화면 진입에 필요한 핵심 정보만 저장합니다.
+      const selected = {
+        code: complex?.code,
+        name: complex?.name || complex?.complexName,
+        status: complex?.status,
+        address: complex?.address,
       }
 
-      this.selectedComplex = normalizedComplex
-      localStorage.setItem('selectedComplex', JSON.stringify(normalizedComplex))
+      this.selectedComplex = selected
+      localStorage.setItem('selectedComplex', JSON.stringify(selected))
     },
 
     // 선택 단지 복원
@@ -183,7 +186,7 @@ export const useComplexStore = defineStore('complex', {
         this.selectedComplex = JSON.parse(saved)
       } catch (e) {
         console.error(e)
-        this.selectedComplex = null
+        localStorage.removeItem('selectedComplex')
       }
     },
 

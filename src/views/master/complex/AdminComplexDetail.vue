@@ -14,14 +14,24 @@ const complexCode = computed(() => route.params.code)
 // 상세 데이터가 없을 때도 안전하게 표시합니다.
 const complexDetail = computed(() => complexStore.complexDetail || {})
 
-// 단지 상세 데이터를 조회합니다.
-const fetchComplexDetail = async () => {
+// 단지 상세 조회
+const loadComplexDetail = async () => {
+  if (!complexCode.value) {
+    router.push('/admin/master/complexes')
+    return
+  }
+
   await complexStore.fetchMasterComplexDetail(complexCode.value)
 }
 
-// 현재 상세 단지를 선택 단지로 저장하고 관리자 화면으로 이동합니다.
+// 현재 단지를 선택 단지로 저장
 const handleSelectComplex = () => {
   complexStore.setSelectedComplex(complexDetail.value)
+}
+
+// 선택 단지 기준 관리자 화면 이동
+const goToAdminDashboard = () => {
+  handleSelectComplex()
   router.push('/admin/dashboard')
 }
 
@@ -35,13 +45,18 @@ const goToAdmins = () => {
   router.push(`/admin/master/complexes/${complexCode.value}/admins`)
 }
 
-// 입주민 미리보기 화면으로 이동합니다.
+// 목록 화면으로 이동합니다.
+const goToList = () => {
+  router.push('/admin/master/complexes')
+}
+
+// 입주민 미리보기 이동
 const goToResidentPreview = () => {
   router.push(`/admin/complexes/${complexCode.value}/resident-preview`)
 }
 
 // 페이지 진입 시 단지 상세를 조회합니다.
-onMounted(fetchComplexDetail)
+onMounted(loadComplexDetail)
 </script>
 
 <template>
@@ -52,13 +67,16 @@ onMounted(fetchComplexDetail)
         <p class="master-complex-detail__description">현재 단지 정보를 확인한 뒤 관리자 화면으로 전환할 수 있습니다.</p>
       </div>
       <div class="master-complex-detail__actions">
+        <button type="button" class="master-complex-detail__secondary-button" @click="goToList">
+          목록으로
+        </button>
         <button type="button" class="master-complex-detail__secondary-button" @click="goToEdit">
           수정
         </button>
         <button type="button" class="master-complex-detail__secondary-button" @click="goToAdmins">
           관리자 배정
         </button>
-        <button type="button" class="master-complex-detail__primary-button" @click="handleSelectComplex">
+        <button type="button" class="master-complex-detail__primary-button" @click="goToAdminDashboard">
           이 단지로 관리자 화면 보기
         </button>
         <button type="button" class="master-complex-detail__secondary-button" @click="goToResidentPreview">
@@ -83,6 +101,26 @@ onMounted(fetchComplexDetail)
       <div class="master-complex-detail__item">
         <span class="master-complex-detail__label">주소</span>
         <strong>{{ complexDetail.address || '-' }}</strong>
+      </div>
+      <div class="master-complex-detail__item">
+        <span class="master-complex-detail__label">상세주소</span>
+        <strong>{{ complexDetail.addressDetail || '-' }}</strong>
+      </div>
+      <div class="master-complex-detail__item">
+        <span class="master-complex-detail__label">우편번호</span>
+        <strong>{{ complexDetail.zipCode || '-' }}</strong>
+      </div>
+      <div class="master-complex-detail__item">
+        <span class="master-complex-detail__label">설명</span>
+        <strong>{{ complexDetail.description || '-' }}</strong>
+      </div>
+      <div class="master-complex-detail__item">
+        <span class="master-complex-detail__label">등록일</span>
+        <strong>{{ complexDetail.createdAt || complexDetail.createdDate || '-' }}</strong>
+      </div>
+      <div class="master-complex-detail__item">
+        <span class="master-complex-detail__label">수정일</span>
+        <strong>{{ complexDetail.updatedAt || complexDetail.modifiedAt || '-' }}</strong>
       </div>
     </div>
   </section>
