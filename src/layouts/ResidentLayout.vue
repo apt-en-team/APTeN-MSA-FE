@@ -1,5 +1,5 @@
 <script setup>
-// TODO: 입주민 모바일 전용 테마 레이아웃 구조를 구성합니다.
+// TODO: USER 전용 모바일 레이아웃입니다.
 import AppHeader from '@/components/resident/AppHeader.vue'
 import BottomNav from '@/components/resident/BottomNav.vue'
 </script>

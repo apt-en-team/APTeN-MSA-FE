@@ -1,64 +1,49 @@
-// 예약 상태 store 공통 구조를 정의합니다.
+// 예약 상태 store를 관리합니다.
 import { defineStore } from 'pinia'
-import reservationApi from '@/api/reservation'
 
 export const useReservationStore = defineStore('reservation', {
   state: () => ({
     items: [],
     selectedItem: null,
-    availableTimes: [],
-    seats: [],
-    gxPrograms: [],
   }),
   getters: {
     reservationCount: (state) => state.items.length,
     hasSelectedReservation: (state) => Boolean(state.selectedItem),
   },
   actions: {
+    // 예약 목록 조회 구조를 정의합니다.
     async fetchReservations(params) {
       try {
-        // TODO: 예약 목록 API 연동을 구현합니다.
-        await reservationApi.getMyReservations(params)
+        void params
+        // TODO: 최신 예약 API 모듈 연결 예정
       } catch (error) {
         throw error
       }
     },
+    // 예약 상세 조회 구조를 정의합니다.
     async fetchReservationDetail(reservationId) {
       try {
-        // TODO: 예약 상세 API 연동을 구현합니다.
-        await reservationApi.getReservationDetail(reservationId)
+        void reservationId
+        // TODO: 최신 예약 API 모듈 연결 예정
       } catch (error) {
         throw error
       }
     },
-    async fetchAvailableTimes(facilityId, params) {
-      try {
-        // TODO: 예약 가능 시간 API 연동을 구현합니다.
-        await reservationApi.getAvailableTimes(facilityId, params)
-      } catch (error) {
-        throw error
-      }
-    },
-    async fetchSeats(facilityId, params) {
-      try {
-        // TODO: 좌석 조회 API 연동을 구현합니다.
-        await reservationApi.getSeats(facilityId, params)
-      } catch (error) {
-        throw error
-      }
-    },
+    // 예약 등록 구조를 정의합니다.
     async createReservation(data) {
       try {
-        // TODO: 예약 생성 API 연동을 구현합니다.
-        await reservationApi.createReservation(data)
+        void data
+        // TODO: 최신 예약 API 모듈 연결 예정
       } catch (error) {
         throw error
       }
     },
+    // 예약 취소 구조를 정의합니다.
     async cancelReservation(reservationId, data) {
       try {
-        // TODO: 예약 취소 API 연동을 구현합니다.
-        await reservationApi.cancelReservation(reservationId, data)
+        void reservationId
+        void data
+        // TODO: 최신 예약 API 모듈 연결 예정
       } catch (error) {
         throw error
       }

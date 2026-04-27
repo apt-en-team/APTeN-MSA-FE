@@ -1,5 +1,11 @@
 <script setup>
-// TODO: 관리자 웹 전용 테마 레이아웃 구조를 구성합니다.
+// TODO: ADMIN과 MASTER가 함께 사용하는 관리자 레이아웃입니다.
+import { computed } from 'vue'
+import { useAuthStore } from '@/stores/useAuthStore'
+
+const authStore = useAuthStore()
+
+const isMaster = computed(() => authStore.role === 'MASTER')
 </script>
 
 <template>
@@ -7,9 +13,22 @@
     <aside class="admin-layout__sidebar theme-sidebar">
       <div class="admin-layout__brand">APT-EN Admin</div>
       <ul class="admin-layout__nav">
-        <li>Dashboard</li>
-        <li>Management</li>
-        <li>Settings</li>
+        <li><RouterLink to="/admin/dashboard">대시보드</RouterLink></li>
+        <li><RouterLink to="/admin/households">세대 관리</RouterLink></li>
+        <li><RouterLink to="/admin/vehicles">차량 관리</RouterLink></li>
+        <li><RouterLink to="/admin/visitor-vehicles">방문차량 관리</RouterLink></li>
+        <li><RouterLink to="/admin/vehicle-policies">주차 관리</RouterLink></li>
+        <li><RouterLink to="/admin/bills">관리비 관리</RouterLink></li>
+        <li><RouterLink to="/admin/notices">게시판 관리</RouterLink></li>
+        <li><RouterLink to="/admin/notices">공지사항 관리</RouterLink></li>
+        <li><RouterLink to="/admin/votes">투표 관리</RouterLink></li>
+        <li><RouterLink to="/admin/facilities">시설 관리</RouterLink></li>
+        <li><RouterLink to="/admin/reservations">예약 관리</RouterLink></li>
+        <li><RouterLink to="/admin/gx-programs">GX 프로그램 관리</RouterLink></li>
+        <li><RouterLink to="/admin/chatbot/faqs">챗봇 관리</RouterLink></li>
+        <li v-if="isMaster"><RouterLink to="/admin/master/complexes">전체 단지 관리</RouterLink></li>
+        <li v-if="isMaster"><RouterLink to="/admin/master/complexes/create">단지 등록</RouterLink></li>
+        <li v-if="isMaster"><RouterLink to="/admin/master/complexes">단지 관리자 배정</RouterLink></li>
       </ul>
     </aside>
     <div class="admin-layout__content">

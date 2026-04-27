@@ -1,25 +1,23 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import adminRoutes from './admin'
-import residentRoutes from './resident'
-import AuthLayout from '@/layouts/AuthLayout.vue'
-import ResidentLogin from '@/views/auth/login/ResidentLogin.vue'
+import { useAuthStore } from '@/stores/useAuthStore'
+import adminRoutes from './adminRoutes'
+import authRoutes from './authRoutes'
+import masterRoutes from './masterRoutes'
+import residentRoutes from './residentRoutes'
+
+function canAccess(userRole, allowedRoles = []) {
+  if (!allowedRoles || allowedRoles.length === 0) return true
+  if (userRole === 'MASTER') return true
+  return allowedRoles.includes(userRole)
+}
 
 const routes = [
   {
     path: '/',
     redirect: '/login',
   },
-  {
-    path: '/login',
-    component: AuthLayout,
-    children: [
-      {
-        path: '',
-        name: 'login',
-        component: ResidentLogin,
-      },
-    ],
-  },
+  ...authRoutes,
+  ...masterRoutes,
   ...adminRoutes,
   ...residentRoutes,
 ]
@@ -30,7 +28,25 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  // TODO: 인증 및 권한 기반 라우트 가드를 구현합니다.
+  const authStore = useAuthStore()
+
+  authStore.initializeAuth()
+
+  // 로그인 필요 여부 확인
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    return next('/login')
+  }
+
+  // 권한 없으면 forbidden 페이지로 이동
+  if (!canAccess(authStore.role, to.meta.roles)) {
+    return next('/forbidden')
+  }
+
+  // USER가 승인 대기 상태면 대기 페이지로 이동
+  if (authStore.role === 'USER' && authStore.status === 'PENDING' && to.path !== '/resident/pending') {
+    return next('/resident/pending')
+  }
+
   next()
 })
 

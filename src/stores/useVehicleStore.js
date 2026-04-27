@@ -1,63 +1,69 @@
-// 차량 상태 store 공통 구조를 정의합니다.
+// 사용자 차량 상태 store를 관리합니다.
 import { defineStore } from 'pinia'
-import vehicleApi from '@/api/vehicle'
+import vehicleApi from '@/api/vehicleApi'
 
 export const useVehicleStore = defineStore('vehicle', {
   state: () => ({
     items: [],
     selectedItem: null,
-    visitorItems: [],
-    regularVisitorItems: [],
   }),
   getters: {
     vehicleCount: (state) => state.items.length,
     hasSelectedVehicle: (state) => Boolean(state.selectedItem),
   },
   actions: {
-    async fetchVehicles(params) {
+    // 내 차량 목록을 조회합니다.
+    async fetchVehicles() {
       try {
-        // TODO: 차량 목록 API 연동을 구현합니다.
-        await vehicleApi.getMyVehicles(params)
+        return await vehicleApi.getMyVehicles()
       } catch (error) {
         throw error
       }
     },
+    // 내 차량 등록을 요청합니다.
     async createVehicle(data) {
       try {
-        // TODO: 차량 등록 API 연동을 구현합니다.
-        await vehicleApi.createVehicle(data)
+        return await vehicleApi.createVehicle(data)
       } catch (error) {
         throw error
       }
     },
+    // 내 차량 상세를 조회합니다.
+    async fetchVehicleDetail(vehicleId) {
+      try {
+        return await vehicleApi.getMyVehicleDetail(vehicleId)
+      } catch (error) {
+        throw error
+      }
+    },
+    // 내 차량 수정을 요청합니다.
     async updateVehicle(vehicleId, data) {
       try {
-        // TODO: 차량 수정 API 연동을 구현합니다.
-        await vehicleApi.updateVehicle(vehicleId, data)
+        return await vehicleApi.updateVehicle(vehicleId, data)
       } catch (error) {
         throw error
       }
     },
+    // 내 차량 삭제를 요청합니다.
     async deleteVehicle(vehicleId) {
       try {
-        // TODO: 차량 삭제 API 연동을 구현합니다.
-        await vehicleApi.deleteVehicle(vehicleId)
+        return await vehicleApi.deleteVehicle(vehicleId)
       } catch (error) {
         throw error
       }
     },
-    async fetchVisitorVehicles(params) {
+    // 차량번호 중복 여부를 조회합니다.
+    async checkLicensePlate(params) {
       try {
-        // TODO: 방문 차량 목록 API 연동을 구현합니다.
-        await vehicleApi.getVisitorVehicles(params)
+        return await vehicleApi.checkLicensePlate(params)
       } catch (error) {
         throw error
       }
     },
-    async fetchRegularVisitorVehicles(params) {
+    // 관리자 차량 목록을 조회합니다.
+    async fetchAdminVehicles(params) {
       try {
-        // TODO: 정기 방문 차량 목록 API 연동을 구현합니다.
-        await vehicleApi.getRegularVisitorVehicles(params)
+        return await vehicleApi.getAdminVehicles(params)
       } catch (error) {
         throw error
       }

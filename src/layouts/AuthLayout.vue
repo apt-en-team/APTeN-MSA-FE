@@ -1,5 +1,5 @@
 <script setup>
-// TODO: 인증 화면 전용 공통 레이아웃 스타일을 구성합니다.
+// TODO: 인증 화면 전용 공통 레이아웃입니다.
 </script>
 
 <template>

@@ -1,12 +1,13 @@
-// 인증 상태 store 공통 구조를 정의합니다.
+// 인증 상태 store를 관리합니다.
 import { defineStore } from 'pinia'
-import authApi from '@/api/auth'
+import authApi from '@/api/authApi'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     accessToken: null,
     refreshToken: null,
-    role: null,
+    role: 'GUEST',
+    status: null,
     isAuthenticated: false,
   }),
   getters: {
@@ -14,45 +15,87 @@ export const useAuthStore = defineStore('auth', {
     currentRole: (state) => state.role,
   },
   actions: {
-    setTokens(tokens = {}) {
-      this.accessToken = tokens.accessToken || null
-      this.refreshToken = tokens.refreshToken || null
-      this.role = tokens.role || null
-      this.isAuthenticated = Boolean(tokens.accessToken)
-      // TODO: storage 저장 위치를 확정한 뒤 토큰 저장 로직을 연결합니다.
+    // 인증 정보를 store와 localStorage에 저장합니다.
+    setAuth(payload = {}) {
+      this.accessToken = payload.accessToken || null
+      this.refreshToken = payload.refreshToken || null
+      this.role = payload.role || 'GUEST'
+      this.status = payload.status || null
+      this.isAuthenticated = Boolean(payload.accessToken)
+
+      if (payload.accessToken) localStorage.setItem('accessToken', payload.accessToken)
+      if (payload.refreshToken) localStorage.setItem('refreshToken', payload.refreshToken)
+      localStorage.setItem('role', this.role)
+      localStorage.setItem('status', this.status || '')
     },
-    clearTokens() {
+
+    // 저장된 인증 정보를 초기화합니다.
+    clearAuth() {
       this.accessToken = null
       this.refreshToken = null
-      this.role = null
+      this.role = 'GUEST'
+      this.status = null
       this.isAuthenticated = false
-      // TODO: storage 초기화 로직을 연결합니다.
+
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('role')
+      localStorage.removeItem('status')
     },
-    async logout() {
+
+    // 새로고침 시 localStorage의 인증 정보를 복원합니다.
+    initializeAuth() {
+      this.accessToken = localStorage.getItem('accessToken')
+      this.refreshToken = localStorage.getItem('refreshToken')
+      this.role = localStorage.getItem('role') || 'GUEST'
+      this.status = localStorage.getItem('status') || null
+      this.isAuthenticated = Boolean(this.accessToken)
+    },
+
+    // 로그인 API를 호출합니다.
+    async login(body) {
       try {
-        // TODO: 로그아웃 API 연동 시점을 확정합니다.
-        await authApi.logout()
+        return await authApi.login(body)
       } catch (error) {
-        // TODO: 공통 에러 처리 정책을 연결합니다.
         throw error
-      } finally {
-        this.clearTokens()
       }
     },
+
+    // 로그아웃 API를 호출하고 인증 정보를 초기화합니다.
+    async logout() {
+      try {
+        await authApi.logout()
+      } catch (error) {
+        throw error
+      } finally {
+        this.clearAuth()
+      }
+    },
+
+    // 재발급 API를 호출합니다.
     async refreshAuth() {
       try {
-        // TODO: refresh token 재발급 API 연동을 구현합니다.
-        await authApi.refreshToken({
+        return await authApi.refreshToken({
           refreshToken: this.refreshToken,
         })
       } catch (error) {
-        // TODO: 재발급 실패 시 인증 초기화 정책을 연결합니다.
         throw error
       }
     },
-    async login() {
+
+    // 비밀번호 변경 API를 호출합니다.
+    async changePassword(body) {
       try {
-        // TODO: 로그인 API 연동을 구현합니다.
+        return await authApi.changePassword(body)
+      } catch (error) {
+        throw error
+      }
+    },
+
+    // 회원 탈퇴 API를 호출합니다.
+    async deleteMyAccount(body) {
+      try {
+        return await authApi.deleteMyAccount(body)
       } catch (error) {
         throw error
       }
