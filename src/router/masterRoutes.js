@@ -1,10 +1,10 @@
 import MasterLayout from '@/layouts/MasterLayout.vue'
 import ResidentPreviewLayout from '@/layouts/ResidentPreviewLayout.vue'
-import AdminComplexAdmin from '@/views/master/AdminComplexAdmin.vue'
-import AdminComplexCreate from '@/views/master/AdminComplexCreate.vue'
-import AdminComplexDetail from '@/views/master/AdminComplexDetail.vue'
-import AdminComplexEdit from '@/views/master/AdminComplexEdit.vue'
-import AdminComplexList from '@/views/master/AdminComplexList.vue'
+import AdminComplexAdmin from '@/views/master/complex/AdminComplexAdmin.vue'
+import AdminComplexCreate from '@/views/master/complex/AdminComplexCreate.vue'
+import AdminComplexDetail from '@/views/master/complex/AdminComplexDetail.vue'
+import AdminComplexEdit from '@/views/master/complex/AdminComplexEdit.vue'
+import AdminComplexList from '@/views/master/complex/AdminComplexList.vue'
 
 const masterRouteMeta = {
   requiresAuth: true,

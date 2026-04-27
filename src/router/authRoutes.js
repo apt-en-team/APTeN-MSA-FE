@@ -1,6 +1,6 @@
 import AuthLayout from '@/layouts/AuthLayout.vue'
-import Forbidden from '@/views/auth/Forbidden.vue'
-import ResidentLogin from '@/views/auth/login/ResidentLogin.vue'
+import Forbidden from '@/views/common/Forbidden.vue'
+import ResidentLogin from '@/views/auth/ResidentLogin.vue'
 
 const authRoutes = [
   {

@@ -1,10 +1,7 @@
 <script setup>
-// 관리자 예약 상세 페이지 placeholder입니다.
+import AdminReservationDetailPage from '@/views/admin/reservation/AdminReservationDetail.vue'
 </script>
 
 <template>
-  <section class="page-container">
-    <h1 class="page-title">예약 상세</h1>
-    <div class="card-section">관리자 예약 상세 페이지 placeholder</div>
-  </section>
+  <AdminReservationDetailPage />
 </template>
