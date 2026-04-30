@@ -2,9 +2,11 @@
 // TODO: MASTER 전용 단지 관리 레이아웃입니다.
 import { computed, onMounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 // 선택 단지 상태를 표시하기 위해 단지 store를 사용합니다.
 const complexStore = useComplexStore()
@@ -18,6 +20,12 @@ const hasSelectedComplex = computed(() => !!selectedComplex.value?.code)
 // 선택 단지 기준 관리자 화면 이동
 const goAdminDashboard = () => {
   router.push('/admin/dashboard')
+}
+
+// 로그아웃 후 로그인 화면으로 이동합니다.
+const handleLogout = async () => {
+  await authStore.logout()
+  router.push('/login')
 }
 
 // 선택 단지 복원
@@ -59,14 +67,19 @@ onMounted(() => {
           </p>
         </div>
 
-        <button
-          v-if="hasSelectedComplex"
-          class="master-layout__action-button"
-          type="button"
-          @click="goAdminDashboard"
-        >
-          관리자 화면으로 이동
-        </button>
+        <div class="master-layout__header-actions">
+          <button
+            v-if="hasSelectedComplex"
+            class="master-layout__action-button"
+            type="button"
+            @click="goAdminDashboard"
+          >
+            관리자 화면으로 이동
+          </button>
+          <button type="button" class="master-layout__ghost-button" @click="handleLogout">
+            로그아웃
+          </button>
+        </div>
       </header>
 
       <!-- MASTER 본문 영역 -->
@@ -152,6 +165,12 @@ onMounted(() => {
   background: var(--color-bg-app);
 }
 
+.master-layout__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .master-layout__header-kicker {
   margin: 0 0 4px;
   color: var(--color-text-secondary);
@@ -176,10 +195,25 @@ onMounted(() => {
   justify-content: center;
   height: 40px;
   padding: 0 16px;
+  border: none;
   border-radius: var(--radius-8);
   background: var(--color-primary);
   color: var(--color-primary-contrast);
+  cursor: pointer;
   text-decoration: none;
+}
+
+.master-layout__ghost-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  background: var(--color-card-bg);
+  color: var(--color-text-primary);
+  cursor: pointer;
 }
 
 .master-layout__main {

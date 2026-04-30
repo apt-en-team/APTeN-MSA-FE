@@ -17,6 +17,7 @@ const masterRoutes = [
     component: MasterLayout,
     meta: masterRouteMeta,
     children: [
+      { path: '', redirect: '/admin/master/complexes' },
       { path: 'complexes', component: AdminComplexList, meta: masterRouteMeta },
       { path: 'complexes/create', component: AdminComplexCreate, meta: masterRouteMeta },
       { path: 'complexes/:code', component: AdminComplexDetail, meta: masterRouteMeta },

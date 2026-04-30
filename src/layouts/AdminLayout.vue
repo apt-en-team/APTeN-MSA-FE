@@ -278,6 +278,14 @@ onMounted(() => {
             전체 단지 관리
           </button>
           <button
+            v-if="isMaster && !residentPreviewPath"
+            type="button"
+            class="admin-layout__secondary-button"
+            @click="router.push('/admin/master/complexes')"
+          >
+            단지 선택
+          </button>
+          <button
             v-if="isMaster && residentPreviewPath"
             type="button"
             class="admin-layout__primary-button"
