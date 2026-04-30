@@ -2,7 +2,9 @@
 // TODO: MASTER가 단지를 선택하고 관리자 화면 또는 입주민 미리보기로 이동하는 화면입니다.
 import { computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import BasePagination from '@/components/common/BasePagination.vue'
 import { getComplexStatusLabel } from '@/constants/complexCodes'
 import { useComplexStore } from '@/stores/useComplexStore'
 
@@ -14,6 +16,10 @@ const state = reactive({
     keyword: '',
   },
   selectedCode: '',
+  pagination: {
+    currentPage: 1,
+    pageSize: 20,
+  },
   modal: {
     visible: false,
     title: '',
@@ -72,8 +78,8 @@ const loadComplexes = async () => {
   try {
     const page = await complexStore.fetchMasterComplexes({
       keyword: state.filters.keyword || undefined,
-      page: 0,
-      size: 20,
+      page: state.pagination.currentPage - 1,
+      size: state.pagination.pageSize,
     })
 
     if (!state.selectedCode && complexStore.selectedComplex?.code) {
@@ -90,6 +96,14 @@ const loadComplexes = async () => {
 
 // 검색 조건으로 단지 목록 재조회
 const handleSearch = async () => {
+  state.pagination.currentPage = 1
+  await loadComplexes()
+}
+
+// 필터 초기화
+const resetFilters = async () => {
+  state.filters.keyword = ''
+  state.pagination.currentPage = 1
   await loadComplexes()
 }
 
@@ -179,6 +193,12 @@ const goToCreate = () => {
   router.push('/admin/master/complexes/create')
 }
 
+// 페이지 변경 처리
+const handlePageChange = async (page) => {
+  state.pagination.currentPage = page
+  await loadComplexes()
+}
+
 // 선택 단지 복구
 onMounted(async () => {
   complexStore.restoreSelectedComplex()
@@ -247,16 +267,15 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="card-section master-complex-list__filter">
-      <input
-        v-model="state.filters.keyword"
-        type="text"
-        class="master-complex-list__input"
-        placeholder="단지명 또는 코드 검색"
-      />
-      <button type="button" class="master-complex-list__secondary-button" @click="handleSearch">
-        조회
-      </button>
+    <div class="card-section master-complex-list__filter-shell">
+      <AdminFilterBar @reset="resetFilters" @search="handleSearch">
+        <input
+          v-model="state.filters.keyword"
+          type="text"
+          class="master-complex-list__input"
+          placeholder="단지명 또는 코드 검색"
+        />
+      </AdminFilterBar>
     </div>
 
     <div class="card-section">
@@ -321,6 +340,14 @@ onMounted(async () => {
           </tbody>
         </table>
       </div>
+
+      <BasePagination
+        :current-page="state.pagination.currentPage"
+        :total-pages="complexStore.masterComplexPage?.totalPages || 1"
+        :total-all="complexStore.masterComplexPage?.totalElements || complexRows.length"
+        :total-filtered="complexRows.length"
+        @change="handlePageChange"
+      />
     </div>
 
     <BaseModal
@@ -439,6 +466,11 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+.master-complex-list__filter-shell {
+  padding: 0;
+  overflow: hidden;
 }
 
 .master-complex-list__input {

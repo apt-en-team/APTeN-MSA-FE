@@ -2,7 +2,9 @@
 // TODO: MASTER가 단지 소속 관리자 계정을 조회하고 관리하는 화면입니다.
 import { computed, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import BasePagination from '@/components/common/BasePagination.vue'
 import { getComplexAdminRoleLabel, getComplexStatusLabel } from '@/constants/complexCodes'
 import { useComplexStore } from '@/stores/useComplexStore'
 
@@ -16,6 +18,10 @@ const state = reactive({
     keyword: '',
     role: '',
     status: '',
+  },
+  pagination: {
+    currentPage: 1,
+    pageSize: 10,
   },
   createForm: {
     email: '',
@@ -96,6 +102,19 @@ const adminRows = computed(() => {
 
     return roleMatched && statusMatched && keywordMatched
   })
+})
+
+// 필터된 목록 기준 페이지 slice 처리
+const pagedAdminRows = computed(() => {
+  const startIndex = (state.pagination.currentPage - 1) * state.pagination.pageSize
+  const endIndex = startIndex + state.pagination.pageSize
+
+  return adminRows.value.slice(startIndex, endIndex)
+})
+
+// 로컬 페이지네이션 계산
+const totalPages = computed(() => {
+  return Math.max(1, Math.ceil(adminRows.value.length / state.pagination.pageSize))
 })
 
 // 현재 날짜를 요약 카드에 표시합니다.
@@ -202,6 +221,12 @@ const resetFilters = () => {
   state.filters.keyword = ''
   state.filters.role = ''
   state.filters.status = ''
+  state.pagination.currentPage = 1
+}
+
+// 페이지 변경 처리
+const handlePageChange = (page) => {
+  state.pagination.currentPage = page
 }
 
 // 신규 등록 모달 열기
@@ -402,40 +427,39 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="card-section master-admin__filter">
-      <input
-        v-model="state.filters.keyword"
-        type="text"
-        class="master-admin__input"
-        placeholder="이름 또는 userId 검색"
-      />
+    <div class="card-section master-admin__filter-shell">
+      <AdminFilterBar @reset="resetFilters">
+        <input
+          v-model="state.filters.keyword"
+          type="text"
+          class="master-admin__input"
+          placeholder="이름 또는 userId 검색"
+        />
 
-      <select v-model="state.filters.role" class="master-admin__select">
-        <option
-          v-for="option in adminRoleOptions"
-          :key="option.code || 'all-role'"
-          :value="option.code"
-        >
-          {{ option.label }}
-        </option>
-      </select>
+        <select v-model="state.filters.role" class="master-admin__select">
+          <option
+            v-for="option in adminRoleOptions"
+            :key="option.code || 'all-role'"
+            :value="option.code"
+          >
+            {{ option.label }}
+          </option>
+        </select>
 
-      <select v-model="state.filters.status" class="master-admin__select">
-        <option
-          v-for="option in activeStatusOptions"
-          :key="option.code || 'all-status'"
-          :value="option.code"
-        >
-          {{ option.label }}
-        </option>
-      </select>
+        <select v-model="state.filters.status" class="master-admin__select">
+          <option
+            v-for="option in activeStatusOptions"
+            :key="option.code || 'all-status'"
+            :value="option.code"
+          >
+            {{ option.label }}
+          </option>
+        </select>
 
-      <button type="button" class="master-admin__secondary-button" @click="resetFilters">
-        초기화
-      </button>
-      <button type="button" class="master-admin__ghost-button" @click="goToDashboard">
-        뒤로
-      </button>
+        <button type="button" class="master-admin__ghost-button" @click="goToDashboard">
+          뒤로
+        </button>
+      </AdminFilterBar>
     </div>
 
     <div class="card-section">
@@ -455,11 +479,11 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="adminRows.length === 0">
+            <tr v-if="pagedAdminRows.length === 0">
               <td colspan="8" class="master-admin__empty">등록된 관리자 계정이 없습니다.</td>
             </tr>
-            <tr v-for="(admin, index) in adminRows" :key="admin.userId || index">
-              <td>{{ index + 1 }}</td>
+            <tr v-for="(admin, index) in pagedAdminRows" :key="admin.userId || index">
+              <td>{{ (state.pagination.currentPage - 1) * state.pagination.pageSize + index + 1 }}</td>
               <td>{{ admin.userId || '-' }}</td>
               <td>{{ admin.name || '-' }}</td>
               <td>{{ getComplexAdminRoleLabel(admin.adminRole) }}</td>
@@ -491,6 +515,14 @@ onMounted(async () => {
           </tbody>
         </table>
       </div>
+
+      <BasePagination
+        :current-page="state.pagination.currentPage"
+        :total-pages="totalPages"
+        :total-all="complexStore.complexAdmins.length"
+        :total-filtered="adminRows.length"
+        @change="handlePageChange"
+      />
     </div>
 
     <BaseModal
@@ -681,6 +713,11 @@ onMounted(async () => {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+.master-admin__filter-shell {
+  padding: 0;
+  overflow: hidden;
 }
 
 .master-admin__input,

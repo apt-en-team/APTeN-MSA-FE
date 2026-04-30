@@ -1,38 +1,99 @@
 <script setup>
-// TODO: 관리자 검색 및 필터 바 컴포넌트의 표현용 스타일 구조를 제공합니다.
+// TODO: 관리자 화면에서 공통으로 사용하는 검색/필터 래퍼 컴포넌트입니다.
+const emit = defineEmits(['reset', 'search'])
+
+// 필터 초기화
+const handleReset = () => {
+  emit('reset')
+}
+
+// 검색 이벤트를 상위 화면으로 전달합니다.
+const handleSearch = () => {
+  emit('search')
+}
 </script>
 
 <template>
-  <div class="admin-filter-bar">
-    <div class="admin-filter-bar__control">Search</div>
-    <div class="admin-filter-bar__control">Select</div>
-    <div class="admin-filter-bar__action">Action</div>
-  </div>
+  <section class="admin-filter-bar">
+    <div class="admin-filter-bar__controls">
+      <slot />
+    </div>
+
+    <div class="admin-filter-bar__actions">
+      <button type="button" class="admin-filter-bar__button admin-filter-bar__button--ghost" @click="handleReset">
+        <span class="admin-filter-bar__icon" aria-hidden="true">↺</span>
+        초기화
+      </button>
+      <button type="button" class="admin-filter-bar__button admin-filter-bar__button--primary" @click="handleSearch">
+        조회
+      </button>
+    </div>
+  </section>
 </template>
 
 <style scoped>
 .admin-filter-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-12);
-  margin-bottom: var(--space-20);
-}
-
-.admin-filter-bar__control,
-.admin-filter-bar__action {
-  display: inline-flex;
-  min-height: 44px;
-  min-width: 120px;
   align-items: center;
-  padding: 0 var(--space-16);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-8);
-  background-color: var(--color-card-bg);
-  color: var(--color-text-secondary);
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #E2E8F0;
+  border-radius: var(--radius-12) var(--radius-12) 0 0;
+  background: #F5F6F8;
 }
 
-.admin-filter-bar__action {
-  background-color: var(--color-primary);
-  color: var(--color-primary-contrast);
+.admin-filter-bar__controls {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.admin-filter-bar__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-filter-bar__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-8);
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin-filter-bar__button--ghost {
+  border: 1px solid #E2E8F0;
+  background: var(--color-card-bg);
+  color: #1E2A3E;
+}
+
+.admin-filter-bar__button--primary {
+  border: none;
+  background: #2B3A55;
+  color: var(--color-white);
+}
+
+.admin-filter-bar__icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+@media (max-width: 960px) {
+  .admin-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-filter-bar__actions {
+    justify-content: flex-end;
+  }
 }
 </style>
