@@ -123,7 +123,7 @@ const ensureSelectedComplex = () => {
   return false
 }
 
-// 선택 단지를 저장하고 관리자 화면으로 이동합니다.
+// 선택 단지를 저장하고 MASTER 전용 대시보드로 이동합니다.
 const handleSelectComplex = async (complex) => {
   state.selectedCode = complex?.code || ''
 
@@ -134,7 +134,7 @@ const handleSelectComplex = async (complex) => {
     complexStore.setSelectedComplex(complex)
   }
 
-  router.push('/admin/dashboard')
+  router.push(`/admin/master/complexes/${state.selectedCode}/dashboard`)
 }
 
 // 입주민 미리보기 전 단지 선택 여부 확인
@@ -146,13 +146,13 @@ const goToResidentPreview = () => {
   router.push(`/admin/complexes/${selectedComplex.value.code}/resident-preview`)
 }
 
-// 관리자 바로가기 전 단지 선택 여부 확인
+// MASTER 전용 대시보드 진입
 const goToAdminDashboard = () => {
   if (!ensureSelectedComplex()) {
     return
   }
 
-  router.push('/admin/dashboard')
+  router.push(`/admin/master/complexes/${selectedComplex.value.code}/dashboard`)
 }
 
 // 선택된 단지의 수정 화면으로 이동합니다.
@@ -241,7 +241,7 @@ onMounted(async () => {
           <span class="master-complex-list__card-kicker">ADMIN</span>
           <strong class="master-complex-list__card-title">관리자 바로가기</strong>
           <span class="master-complex-list__card-copy">
-            기존 관리자 대시보드를 재사용해 선택 단지 기준으로 이동합니다.
+            MASTER 전용 단지 대시보드에서 관리자 운영 흐름을 이어서 확인합니다.
           </span>
         </button>
       </div>
@@ -313,7 +313,7 @@ onMounted(async () => {
                     class="master-complex-list__primary-button"
                     @click="handleSelectComplex(complex)"
                   >
-                    이 단지로 관리자 화면 보기
+                    이 단지로 대시보드 보기
                   </button>
                 </div>
               </td>

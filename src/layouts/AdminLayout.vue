@@ -1,18 +1,14 @@
 <script setup>
-// TODO: ADMIN과 MASTER가 함께 사용하는 데스크톱 관리자 레이아웃입니다.
-import { computed, onMounted } from 'vue'
-import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+// TODO: 일반 ADMIN 사용자를 기준으로 사용하는 데스크톱 관리자 레이아웃입니다.
+import { computed } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { useComplexStore } from '@/stores/useComplexStore'
 
 // 사이드바와 헤더에서 사용할 현재 라우트 정보를 가져옵니다.
 const route = useRoute()
-// 상단 버튼 이동에 사용할 라우터를 가져옵니다.
-const router = useRouter()
 // 로그인 사용자 정보를 표시하기 위해 인증 store를 사용합니다.
 const authStore = useAuthStore()
-// MASTER의 선택 단지 정보를 표시하기 위해 단지 store를 사용합니다.
-const complexStore = useComplexStore()
+// AdminLayout에서 MASTER 분기 제거/축소 이유는 MASTER 전용 흐름을 MasterLayout으로 분리하기 위해서입니다.
 
 // 사이드바의 메인 관리자 메뉴를 그룹 단위로 정리합니다.
 const adminMenuGroups = [
@@ -86,20 +82,6 @@ const adminMenuGroups = [
   },
 ]
 
-// MASTER 전용 단지 관리 메뉴를 별도로 노출합니다.
-const masterMenus = [
-  // MASTER 전체 단지 관리 메뉴 경로입니다.
-  { label: '전체 단지 관리', to: '/admin/master/complexes' },
-  // MASTER 단지 등록 메뉴 경로입니다.
-  { label: '단지 등록', to: '/admin/master/complexes/create' },
-  // MASTER 단지 관리자 배정 메뉴 경로입니다.
-  { label: '단지 관리자 배정', to: '/admin/master/complexes' },
-  // 현재 선택 단지의 관리자 화면으로 이동하는 메뉴 경로입니다.
-  { label: '현재 선택 단지 관리자 화면', to: '/admin/dashboard' },
-]
-
-// MASTER 여부 확인
-const isMaster = computed(() => authStore.role === 'MASTER' || authStore.user?.role === 'MASTER')
 // 사용자 권한과 표시용 이름을 계산합니다.
 const userName = computed(() => authStore.name || '관리자')
 const userRole = computed(() => authStore.role || 'ADMIN')
@@ -117,58 +99,11 @@ const todayStr = computed(() => {
   return `${year}.${month}.${day} (${dayOfWeek})`
 })
 
-// 선택 단지 상태를 공통으로 사용합니다.
-const selectedComplex = computed(() => complexStore.selectedComplex)
-
-// 선택 단지 코드는 store와 localStorage에서 안전하게 읽습니다.
-const selectedComplexCode = computed(() => {
-  const currentComplex = selectedComplex.value
-
-  if (currentComplex?.code) {
-    return currentComplex.code
-  }
-
-  try {
-    const storedComplex = JSON.parse(localStorage.getItem('selectedComplex') || 'null')
-    return storedComplex?.code || null
-  } catch (error) {
-    console.error(error)
-    return null
-  }
-})
-
-// 현재 선택 단지명은 헤더 보조 문구에 사용합니다.
-const selectedComplexName = computed(() => {
-  return selectedComplex.value?.name || selectedComplex.value?.complexName || ''
-})
-
-// 선택 단지 기준 입주민 미리보기 이동
-const residentPreviewPath = computed(() => {
-  if (!selectedComplexCode.value) {
-    return ''
-  }
-
-  return `/admin/complexes/${selectedComplexCode.value}/resident-preview`
-})
-
 // 현재 경로와 메뉴 경로를 비교해 활성 상태를 표시합니다.
 const isMenuActive = (targetPath) => route.path === targetPath || route.path.startsWith(`${targetPath}/`)
 
-// MASTER가 선택 단지 없이 관리자 화면에 진입한 경우 경고 문구를 표시합니다.
-const shouldShowMasterWarning = computed(() => {
-  return isMaster.value && !selectedComplexCode.value
-})
-
 // 관리자 헤더의 보조 문구를 권한 상태에 맞게 표시합니다.
 const topbarSub = computed(() => {
-  if (isMaster.value && selectedComplexName.value) {
-    return `${todayStr.value} · ${selectedComplexName.value} · MASTER 관리 모드`
-  }
-
-  if (isMaster.value && !selectedComplexName.value) {
-    return '관리할 단지를 먼저 선택해주세요.'
-  }
-
   return `${todayStr.value} · APT-EN 아파트`
 })
 
@@ -176,11 +111,6 @@ const topbarSub = computed(() => {
 const handleLogout = async () => {
   await authStore.logout()
 }
-
-// 선택 단지 복원
-onMounted(() => {
-  complexStore.restoreSelectedComplex()
-})
 </script>
 
 <template>
@@ -214,34 +144,6 @@ onMounted(() => {
             </RouterLink>
           </nav>
         </div>
-
-        <div v-if="isMaster" class="admin-layout__master-panel">
-          <p class="admin-layout__section-label">MASTER MENU</p>
-          <nav class="admin-layout__nav admin-layout__nav--compact">
-            <RouterLink
-              v-for="menu in masterMenus"
-              :key="menu.to + menu.label"
-              :to="menu.to"
-              class="admin-layout__nav-link admin-layout__nav-link--sub"
-              :class="{ 'is-active': isMenuActive(menu.to) }"
-            >
-              {{ menu.label }}
-            </RouterLink>
-
-            <RouterLink
-              v-if="residentPreviewPath"
-              :to="residentPreviewPath"
-              class="admin-layout__nav-link admin-layout__nav-link--sub"
-              :class="{ 'is-active': isMenuActive(residentPreviewPath) }"
-            >
-              입주민 미리보기
-            </RouterLink>
-
-            <span v-else class="admin-layout__nav-link admin-layout__nav-link--disabled">
-              입주민 미리보기
-            </span>
-          </nav>
-        </div>
       </div>
 
       <!-- 하단 프로필 영역 -->
@@ -260,39 +162,12 @@ onMounted(() => {
       <!-- 상단 헤더 영역 -->
       <header class="admin-layout__header">
         <div class="admin-layout__header-copy">
-          <p v-if="shouldShowMasterWarning" class="admin-layout__header-warning">
-            관리할 단지를 먼저 선택해주세요.
-          </p>
           <p class="admin-layout__header-kicker">{{ topbarSub }}</p>
           <h2 class="admin-layout__header-title">{{ currentPageTitle }}</h2>
         </div>
 
         <div class="admin-layout__header-actions">
           <button type="button" class="admin-layout__utility-button">알림</button>
-          <button
-            v-if="isMaster"
-            type="button"
-            class="admin-layout__secondary-button"
-            @click="router.push('/admin/master/complexes')"
-          >
-            전체 단지 관리
-          </button>
-          <button
-            v-if="isMaster && !residentPreviewPath"
-            type="button"
-            class="admin-layout__secondary-button"
-            @click="router.push('/admin/master/complexes')"
-          >
-            단지 선택
-          </button>
-          <button
-            v-if="isMaster && residentPreviewPath"
-            type="button"
-            class="admin-layout__primary-button"
-            @click="router.push(residentPreviewPath)"
-          >
-            입주민 미리보기
-          </button>
           <div class="admin-layout__identity">
             <span class="admin-layout__identity-name">{{ userName }}</span>
             <span class="admin-layout__identity-role">{{ userRole }}</span>
@@ -372,8 +247,7 @@ onMounted(() => {
   padding: var(--space-12);
 }
 
-.admin-layout__nav-group + .admin-layout__nav-group,
-.admin-layout__master-panel {
+.admin-layout__nav-group + .admin-layout__nav-group {
   margin-top: var(--space-8);
 }
 
@@ -381,10 +255,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 1px;
-}
-
-.admin-layout__nav--compact {
-  margin-top: var(--space-8);
 }
 
 .admin-layout__nav-link {
@@ -414,20 +284,6 @@ onMounted(() => {
   color: var(--color-primary-contrast);
   opacity: 1;
   font-weight: 600;
-}
-
-.admin-layout__nav-link--sub {
-  min-height: 34px;
-  font-size: var(--font-size-detail);
-}
-
-.admin-layout__nav-link--disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-.admin-layout__master-panel {
-  padding-top: var(--space-12);
 }
 
 .admin-layout__section-label {

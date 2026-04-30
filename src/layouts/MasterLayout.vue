@@ -1,10 +1,11 @@
 <script setup>
 // TODO: MASTER 전용 단지 관리 레이아웃입니다.
 import { computed, onMounted } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 
+const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
@@ -17,9 +18,54 @@ const selectedComplex = computed(() => complexStore.selectedComplex)
 // 선택 단지 존재 여부에 따라 안내 문구와 버튼을 분기합니다.
 const hasSelectedComplex = computed(() => !!selectedComplex.value?.code)
 
-// 선택 단지 기준 관리자 화면 이동
-const goAdminDashboard = () => {
-  router.push('/admin/dashboard')
+// MasterLayout에서 MASTER 전용 네비게이션 처리를 담당합니다.
+const masterNavItems = computed(() => {
+  const items = [
+    { label: '전체 단지 관리', to: '/admin/master/complexes' },
+    { label: '단지 등록', to: '/admin/master/complexes/create' },
+  ]
+
+  if (selectedComplex.value?.code) {
+    items.push({
+      label: '선택 단지 대시보드',
+      to: `/admin/master/complexes/${selectedComplex.value.code}/dashboard`,
+    })
+  }
+
+  return items
+})
+
+// 선택 단지 기준 MASTER 전용 대시보드 경로를 계산합니다.
+const selectedDashboardPath = computed(() => {
+  if (!selectedComplex.value?.code) {
+    return ''
+  }
+
+  return `/admin/master/complexes/${selectedComplex.value.code}/dashboard`
+})
+
+// 현재 네비게이션 활성 상태를 비교합니다.
+const isNavActive = (targetPath) => {
+  return route.path === targetPath || route.path.startsWith(`${targetPath}/`)
+}
+
+// 선택 단지 없음 안내는 MASTER 허브에서 책임집니다.
+const selectedComplexMessage = computed(() => {
+  if (!hasSelectedComplex.value) {
+    return '관리할 단지를 먼저 선택해주세요.'
+  }
+
+  return `${selectedComplex.value.name} 단지의 MASTER 관리 화면입니다.`
+})
+
+// MASTER 전용 대시보드 진입
+const goSelectedDashboard = () => {
+  if (!selectedDashboardPath.value) {
+    router.push('/admin/master/complexes')
+    return
+  }
+
+  router.push(selectedDashboardPath.value)
 }
 
 // 로그아웃 후 로그인 화면으로 이동합니다.
@@ -44,11 +90,14 @@ onMounted(() => {
       </div>
 
       <nav class="master-layout__nav">
-        <RouterLink to="/admin/master/complexes" class="master-layout__nav-link">
-          전체 단지 관리
-        </RouterLink>
-        <RouterLink to="/admin/master/complexes/create" class="master-layout__nav-link">
-          단지 등록
+        <RouterLink
+          v-for="item in masterNavItems"
+          :key="item.to"
+          :to="item.to"
+          class="master-layout__nav-link"
+          :class="{ 'is-active': isNavActive(item.to) }"
+        >
+          {{ item.label }}
         </RouterLink>
       </nav>
     </aside>
@@ -62,9 +111,7 @@ onMounted(() => {
           <h2 class="master-layout__header-title">
             {{ selectedComplex?.name || '선택된 단지 없음' }}
           </h2>
-          <p v-if="!hasSelectedComplex" class="master-layout__empty-message">
-            관리할 단지를 먼저 선택해주세요.
-          </p>
+          <p class="master-layout__empty-message">{{ selectedComplexMessage }}</p>
         </div>
 
         <div class="master-layout__header-actions">
@@ -72,9 +119,9 @@ onMounted(() => {
             v-if="hasSelectedComplex"
             class="master-layout__action-button"
             type="button"
-            @click="goAdminDashboard"
+            @click="goSelectedDashboard"
           >
-            관리자 화면으로 이동
+            선택 단지 대시보드
           </button>
           <button type="button" class="master-layout__ghost-button" @click="handleLogout">
             로그아웃
@@ -143,7 +190,8 @@ onMounted(() => {
   text-decoration: none;
 }
 
-.master-layout__nav-link.router-link-active {
+.master-layout__nav-link.router-link-active,
+.master-layout__nav-link.is-active {
   background: var(--color-primary);
   color: var(--color-primary-contrast);
   opacity: 1;
@@ -185,7 +233,7 @@ onMounted(() => {
 
 .master-layout__empty-message {
   margin: 8px 0 0;
-  color: var(--color-warning);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-body-sm);
 }
 
