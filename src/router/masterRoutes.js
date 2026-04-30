@@ -1,4 +1,5 @@
 import MasterLayout from '@/layouts/MasterLayout.vue'
+import MasterAdminLayout from '@/layouts/MasterAdminLayout.vue'
 import ResidentPreviewLayout from '@/layouts/ResidentPreviewLayout.vue'
 import AdminComplexAdmin from '@/views/master/complex/AdminComplexAdmin.vue'
 import AdminComplexCreate from '@/views/master/complex/AdminComplexCreate.vue'
@@ -18,13 +19,20 @@ const masterRoutes = [
     component: MasterLayout,
     meta: masterRouteMeta,
     children: [
-      { path: '', redirect: '/admin/master/complexes' },
-      { path: 'complexes', component: AdminComplexList, meta: masterRouteMeta },
+      { path: '', component: AdminComplexList, meta: masterRouteMeta },
+      { path: 'complexes', redirect: '/admin/master' },
       { path: 'complexes/create', component: AdminComplexCreate, meta: masterRouteMeta },
       { path: 'complexes/:code', component: AdminComplexDetail, meta: masterRouteMeta },
       { path: 'complexes/:code/edit', component: AdminComplexEdit, meta: masterRouteMeta },
-      { path: 'complexes/:code/dashboard', component: AdminComplexDashboard, meta: masterRouteMeta },
-      { path: 'complexes/:code/admins', component: AdminComplexAdmin, meta: masterRouteMeta },
+    ],
+  },
+  {
+    path: '/admin/master/complexes/:code',
+    component: MasterAdminLayout,
+    meta: masterRouteMeta,
+    children: [
+      { path: 'dashboard', component: AdminComplexDashboard, meta: masterRouteMeta },
+      { path: 'admins', component: AdminComplexAdmin, meta: masterRouteMeta },
     ],
   },
   {

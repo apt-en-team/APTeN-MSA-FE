@@ -114,7 +114,8 @@ const handleSubmit = async () => {
       title: '단지 생성이 완료되었습니다.',
       subtitle: '목록 화면으로 이동해 방금 등록한 단지를 확인할 수 있습니다.',
       onConfirm: () => {
-        router.push('/admin/master/complexes')
+        // 단지 등록 성공 후 마스터 홈 이동
+        router.push('/admin/master')
       },
     })
   } catch (error) {
@@ -130,7 +131,7 @@ const handleSubmit = async () => {
 
 // 목록 화면으로 이동합니다.
 const goToList = () => {
-  router.push('/admin/master/complexes')
+  router.push('/admin/master')
 }
 </script>
 
@@ -140,13 +141,13 @@ const goToList = () => {
       <div class="master-complex-form__header">
         <div>
           <p class="master-complex-form__eyebrow">MASTER</p>
-          <h1 class="master-complex-form__title">단지 등록</h1>
+          <h1 class="master-complex-form__title">새 단지 추가</h1>
           <p class="master-complex-form__description">
             단지를 등록하면 최초 관리자 계정도 함께 생성됩니다.
           </p>
         </div>
         <button type="button" class="master-complex-form__ghost-button" @click="goToList">
-          목록으로
+          홈으로
         </button>
       </div>
 

@@ -362,7 +362,7 @@ const handleDeleteAdmin = async () => {
 
 // 단지 선택 화면으로 이동합니다.
 const goToComplexList = () => {
-  router.push('/admin/master/complexes')
+  router.push('/admin/master')
 }
 
 // 선택 단지 대시보드로 이동합니다.

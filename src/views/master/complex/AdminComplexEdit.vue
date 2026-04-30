@@ -117,7 +117,8 @@ const handleSubmit = async () => {
       title: '수정이 완료되었습니다.',
       subtitle: '변경된 단지 정보가 저장되었습니다.',
       onConfirm: () => {
-        router.push(`/admin/master/complexes/${code}`)
+        // 단지 수정/삭제 성공 후 마스터 홈 이동
+        router.push('/admin/master')
       },
     })
   } catch (error) {
@@ -156,7 +157,8 @@ const handleDelete = async () => {
       title: '삭제가 완료되었습니다.',
       subtitle: '단지 상태가 삭제로 변경되었습니다.',
       onConfirm: () => {
-        router.push('/admin/master/complexes')
+        // 단지 수정/삭제 성공 후 마스터 홈 이동
+        router.push('/admin/master')
       },
     })
   } catch (error) {
@@ -172,12 +174,12 @@ const handleDelete = async () => {
 
 // 상세 화면으로 이동합니다.
 const goToDetail = () => {
-  router.push(`/admin/master/complexes/${route.params.code}`)
+  router.push('/admin/master')
 }
 
 // 목록 화면으로 이동합니다.
 const goToList = () => {
-  router.push('/admin/master/complexes')
+  router.push('/admin/master')
 }
 
 onMounted(loadComplexDetail)
@@ -195,7 +197,7 @@ onMounted(loadComplexDetail)
           </p>
         </div>
         <button type="button" class="master-complex-form__ghost-button" @click="goToDetail">
-          상세로
+          홈으로
         </button>
       </div>
 
@@ -255,7 +257,7 @@ onMounted(loadComplexDetail)
         </div>
         <div class="master-complex-form__footer-actions">
           <button type="button" class="master-complex-form__ghost-button" @click="goToList">
-            목록으로
+            홈으로
           </button>
           <button
             type="button"

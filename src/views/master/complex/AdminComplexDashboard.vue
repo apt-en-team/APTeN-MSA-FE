@@ -88,7 +88,7 @@ const goToEdit = () => {
 
 // 전체 단지 목록으로 이동합니다.
 const goToList = () => {
-  router.push('/admin/master/complexes')
+  router.push('/admin/master')
 }
 
 // MASTER 전용 대시보드 진입
