@@ -27,7 +27,7 @@ const selectedComplexName = computed(() => {
   return selectedComplex.value?.name || route.params.code || '선택 단지'
 })
 
-// 사이드바 있는 마스터 관리 레이아웃의 메뉴를 정의합니다.
+// 사이드바 있는 마스터 관리 레이아웃과 사이드바 없는 마스터 홈 레이아웃을 구분한다.
 const masterAdminMenus = computed(() => {
   if (!complexCode.value) {
     return []
@@ -99,7 +99,7 @@ const goToResidentPreview = () => {
           <h2 class="master-admin-layout__header-title">{{ selectedComplexName }}</h2>
         </div>
 
-        <button type="button" class="master-admin-layout__ghost-button" @click="handleLogout">
+        <button type="button" class="master-admin-layout__header-button" @click="handleLogout">
           로그아웃
         </button>
       </header>
@@ -213,7 +213,8 @@ const goToResidentPreview = () => {
 }
 
 .master-admin-layout__primary-button,
-.master-admin-layout__ghost-button {
+.master-admin-layout__ghost-button,
+.master-admin-layout__header-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -236,8 +237,8 @@ const goToResidentPreview = () => {
   color: var(--color-sidebar-text);
 }
 
-.master-admin-layout__header .master-admin-layout__ghost-button {
-  border-color: var(--color-border);
+.master-admin-layout__header-button {
+  border: 1px solid var(--color-border);
   background: var(--color-card-bg);
   color: var(--color-text-primary);
 }
