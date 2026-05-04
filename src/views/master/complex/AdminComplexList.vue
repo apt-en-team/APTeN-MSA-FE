@@ -9,10 +9,6 @@ const router = useRouter()
 const complexStore = useComplexStore()
 const authStore = useAuthStore()
 
-function goTo(path) {
-  router.push(path)
-}
-
 const state = reactive({
   selectedCode: '',
   complexes: [],
@@ -26,22 +22,39 @@ const selectedComplex = computed(() => {
 
 // 단지 목록을 드롭다운용으로 조회한다.
 async function fetchComplexes() {
-  const result = await complexStore.fetchMasterComplexes({
-    page: 0,
-    size: 100,
-  })
+  try {
+    const result = await complexStore.fetchMasterComplexes({
+      page: 0,
+      size: 100,
+    })
 
-  const content = result?.content || complexStore.masterComplexPage?.content || complexStore.complexList?.content || []
+    console.log('단지 목록 API result:', result)
+    console.log('store.masterComplexPage:', complexStore.masterComplexPage)
+    console.log('store.complexList:', complexStore.complexList)
 
-  state.complexes = content.filter((complex) => {
-    const status = complex.status
-    return status !== '03' && status !== '삭제' && status !== 'DELETED'
-  })
+    const content =
+      result?.content ||
+      complexStore.masterComplexPage?.content ||
+      complexStore.complexList?.content ||
+      []
 
-  complexStore.restoreSelectedComplex?.()
+    console.log('단지 목록 content:', content)
 
-  if (complexStore.selectedComplex?.code) {
-    state.selectedCode = complexStore.selectedComplex.code
+    state.complexes = content.filter((complex) => {
+      const status = complex.status
+      return status !== '03' && status !== '삭제' && status !== 'DELETED'
+    })
+
+    console.log('select에 들어간 단지 목록:', state.complexes)
+
+    complexStore.restoreSelectedComplex?.()
+
+    if (complexStore.selectedComplex?.code) {
+      state.selectedCode = complexStore.selectedComplex.code
+    }
+  } catch (error) {
+    console.error('단지 목록 조회 실패:', error)
+    state.complexes = []
   }
 }
 

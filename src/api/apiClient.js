@@ -1,7 +1,7 @@
 // 공통 axios 인스턴스를 생성합니다.
 import axios from 'axios'
 
-const apiBaseURL = import.meta.env.VITE_API_BASE_URL || ''
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000'
 
 const apiClient = axios.create({
   baseURL: apiBaseURL,
