@@ -3,16 +3,32 @@ import {ref, reactive} from 'vue'
 import {useAuthStore} from '@/stores/useAuthStore'
 import authApi from '@/api/authApi'
 
+// 인증 상태 관리 store
+// login() 호출 시 내부에서 역할별 리다이렉트 처리
 const authStore = useAuthStore()
 
-const form = reactive({email: '', password: ''})
-const errors = reactive({email: '', password: ''})
+// 폼 입력값
+const form = reactive({
+  email: '',
+  password: '',
+})
+
+// 클라이언트 유효성 검사 에러 메시지
+const errors = reactive({
+  email: '',
+  password: '',
+})
+
+// 비밀번호 보이기/숨기기 토글 상태
 const showPw = ref(false)
 
+// 소셜 로그인 URL — 백엔드 OAuth2 엔드포인트로 직접 리다이렉트
 const googleUrl = authApi.getGoogleLoginUrl()
-const kakaoUrl = authApi.getKakaoLoginUrl()
-const naverUrl = authApi.getNaverLoginUrl()
+const kakaoUrl  = authApi.getKakaoLoginUrl()
+const naverUrl  = authApi.getNaverLoginUrl()
 
+// 클라이언트 유효성 검사
+// 서버 요청 전에 빈 값, 이메일 형식 체크
 function validate() {
   errors.email = ''
   errors.password = ''
@@ -20,9 +36,6 @@ function validate() {
 
   if (!form.email) {
     errors.email = '이메일을 입력해주세요.'
-    valid = false
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-    errors.email = '올바른 이메일 형식이 아닙니다.'
     valid = false
   }
 
@@ -34,9 +47,13 @@ function validate() {
   return valid
 }
 
+
+// 로그인 처리
+// 유효성 검사 통과 시 authStore.login() 호출
+// 성공 시 store 내부에서 역할(USER/ADMIN/MASTER)에 따라 페이지 이동
 async function handleLogin() {
   if (!validate()) return
-  await authStore.login({email: form.email, password: form.password})
+  await authStore.login({ email: form.email, password: form.password })
 }
 </script>
 
@@ -113,7 +130,7 @@ async function handleLogin() {
 
       <!-- 서버 에러 -->
       <p v-if="authStore.error" class="login-error">
-        이메일 또는 비밀번호를 확인해주세요.
+        {{ authStore.error }}
       </p>
 
       <!-- 로그인 버튼 -->
