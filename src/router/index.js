@@ -12,10 +12,6 @@ function canAccess(userRole, allowedRoles = []) {
 }
 
 const routes = [
-  {
-    path: '/',
-    redirect: '/login',
-  },
   ...authRoutes,
   ...masterRoutes,
   ...adminRoutes,
