@@ -1,99 +1,54 @@
 <script setup>
-// TODO: 관리자 화면에서 공통으로 사용하는 검색/필터 래퍼 컴포넌트입니다.
-const emit = defineEmits(['reset', 'search'])
-
-// 필터 초기화
-const handleReset = () => {
-  emit('reset')
-}
-
-// 검색 이벤트를 상위 화면으로 전달합니다.
-const handleSearch = () => {
-  emit('search')
-}
+// 1차 관리자 화면 스타일을 유지한 공통 필터바이다.
+// 검색 실행과 초기화 이벤트를 부모 컴포넌트로 전달한다.
+const emit = defineEmits(['search', 'reset'])
 </script>
 
 <template>
-  <section class="admin-filter-bar">
-    <div class="admin-filter-bar__controls">
+  <div class="filter-bar">
+    <div class="filter-left">
+      <!-- 검색 입력과 필터 요소는 slot으로 주입한다. -->
       <slot />
-    </div>
-
-    <div class="admin-filter-bar__actions">
-      <button type="button" class="admin-filter-bar__button admin-filter-bar__button--ghost" @click="handleReset">
-        <span class="admin-filter-bar__icon" aria-hidden="true">↺</span>
+      <button class="btn-reset" @click="emit('reset')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10" />
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+        </svg>
         초기화
       </button>
-      <button type="button" class="admin-filter-bar__button admin-filter-bar__button--primary" @click="handleSearch">
-        조회
-      </button>
     </div>
-  </section>
+  </div>
 </template>
 
 <style scoped>
-.admin-filter-bar {
+.filter-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
   padding: 14px 20px;
   border-bottom: 1px solid #E2E8F0;
-  border-radius: var(--radius-12) var(--radius-12) 0 0;
-  background: #F5F6F8;
 }
 
-.admin-filter-bar__controls {
+.filter-left {
   display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  gap: 12px;
   align-items: center;
-}
-
-.admin-filter-bar__actions {
-  display: flex;
   gap: 8px;
-  align-items: center;
+  flex-wrap: wrap;
 }
 
-.admin-filter-bar__button {
-  display: inline-flex;
+.btn-reset {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: var(--radius-8);
-  font: inherit;
+  gap: 5px;
+  padding: 7px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 7px;
+  background: #FFFFFF;
+  font-size: 12px;
+  color: #687282;
   cursor: pointer;
 }
 
-.admin-filter-bar__button--ghost {
-  border: 1px solid #E2E8F0;
-  background: var(--color-card-bg);
-  color: #1E2A3E;
-}
-
-.admin-filter-bar__button--primary {
-  border: none;
-  background: #2B3A55;
-  color: var(--color-white);
-}
-
-.admin-filter-bar__icon {
-  font-size: 14px;
-  line-height: 1;
-}
-
-@media (max-width: 960px) {
-  .admin-filter-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .admin-filter-bar__actions {
-    justify-content: flex-end;
-  }
+.btn-reset:hover {
+  background: #F5F6F8;
 }
 </style>

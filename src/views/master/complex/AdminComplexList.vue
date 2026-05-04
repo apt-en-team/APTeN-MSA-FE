@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import BaseModal from '@/components/common/BaseModal.vue'
+import AdminComplexCreate from '@/views/master/complex/AdminComplexCreate.vue'
+import AdminComplexEdit from '@/views/master/complex/AdminComplexEdit.vue'
 
 const router = useRouter()
 const complexStore = useComplexStore()
@@ -12,7 +14,11 @@ const authStore = useAuthStore()
 const state = reactive({
   selectedCode: '',
   complexes: [],
+  loading: false,
+  errorMessage: '',
   showNeedSelectModal: false,
+  showCreateModal: false,
+  showEditModal: false,
 })
 
 // 선택된 단지 객체를 찾는다.
@@ -20,17 +26,19 @@ const selectedComplex = computed(() => {
   return state.complexes.find((complex) => complex.code === state.selectedCode) || null
 })
 
+// 드롭다운에 표시할 단지가 있는지 확인한다.
+const hasComplexes = computed(() => state.complexes.length > 0)
+
 // 단지 목록을 드롭다운용으로 조회한다.
 async function fetchComplexes() {
+  state.loading = true
+  state.errorMessage = ''
+
   try {
     const result = await complexStore.fetchMasterComplexes({
       page: 0,
       size: 100,
     })
-
-    console.log('단지 목록 API result:', result)
-    console.log('store.masterComplexPage:', complexStore.masterComplexPage)
-    console.log('store.complexList:', complexStore.complexList)
 
     const content =
       result?.content ||
@@ -38,23 +46,33 @@ async function fetchComplexes() {
       complexStore.complexList?.content ||
       []
 
-    console.log('단지 목록 content:', content)
-
     state.complexes = content.filter((complex) => {
       const status = complex.status
       return status !== '03' && status !== '삭제' && status !== 'DELETED'
     })
 
-    console.log('select에 들어간 단지 목록:', state.complexes)
-
+    // 선택한 단지를 새로고침 후에도 유지하기 위해 store에서 복구를 시도한다.
     complexStore.restoreSelectedComplex?.()
 
     if (complexStore.selectedComplex?.code) {
       state.selectedCode = complexStore.selectedComplex.code
     }
+
+    // 재조회 후 선택된 단지가 목록에 없으면 선택 상태를 안전하게 초기화한다.
+    const selectedExists = state.complexes.some((complex) => complex.code === state.selectedCode)
+
+    if (!selectedExists) {
+      state.selectedCode = ''
+      complexStore.clearSelectedComplex?.()
+    }
   } catch (error) {
     console.error('단지 목록 조회 실패:', error)
+    // 조회 실패 시 드롭다운 데이터는 빈 배열로 안전하게 초기화한다.
     state.complexes = []
+    state.selectedCode = ''
+    state.errorMessage = '단지 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+  } finally {
+    state.loading = false
   }
 }
 
@@ -70,19 +88,19 @@ function openNeedSelectModal() {
   state.showNeedSelectModal = true
 }
 
-// 단지 등록 화면으로 이동한다.
+// 단지 등록 모달을 연다.
 function goCreateComplex() {
-  router.push('/admin/master/complexes/create')
+  state.showCreateModal = true
 }
 
-// 단지 수정 화면으로 이동한다.
+// 단지 선택 여부를 확인한 뒤 수정 모달을 연다.
 function goEditComplex() {
   if (!selectedComplex.value) {
     openNeedSelectModal()
     return
   }
 
-  router.push(`/admin/master/complexes/${selectedComplex.value.code}/edit`)
+  state.showEditModal = true
 }
 
 // 입주민 미리보기 화면으로 이동한다.
@@ -119,6 +137,16 @@ function handleLogout() {
 onMounted(() => {
   fetchComplexes()
 })
+
+// 단지 등록 성공 후 목록을 다시 조회한다.
+async function handleCreated() {
+  await fetchComplexes()
+}
+
+// 단지 수정 성공 후 목록을 다시 조회한다.
+async function handleUpdated() {
+  await fetchComplexes()
+}
 </script>
 
 <template>
@@ -143,8 +171,18 @@ onMounted(() => {
       <p class="main-desc">스마트 주거·생활 통합 관리 시스템</p>
       <div class="divider-bar"></div>
       <div class="complex-control-row">
-          <select class="complex-select" v-model="state.selectedCode" @change="handleSelectComplex">
-            <option value="">단지 선택</option>
+          <select
+            class="complex-select"
+            v-model="state.selectedCode"
+            :disabled="state.loading"
+            @change="handleSelectComplex"
+          >
+            <option value="">
+              {{ state.loading ? '단지 목록을 불러오는 중입니다.' : '단지 선택' }}
+            </option>
+            <option v-if="!state.loading && !hasComplexes" value="" disabled>
+              등록된 단지가 없습니다.
+            </option>
             <option
               v-for="complex in state.complexes"
               :key="complex.code"
@@ -164,6 +202,16 @@ onMounted(() => {
             등록
           </button>
         </div>
+
+      <!-- 단지 목록 조회 실패 문구를 표시한다. -->
+      <p v-if="state.errorMessage" class="complex-guide error">
+        {{ state.errorMessage }}
+      </p>
+
+      <!-- 등록된 단지가 없을 때 안내 문구를 표시한다. -->
+      <p v-else-if="!state.loading && !hasComplexes" class="complex-guide">
+        등록된 단지가 없습니다.
+      </p>
 
       <!-- 선택 카드 2개 -->
       <div class="card-row">
@@ -224,6 +272,22 @@ onMounted(() => {
     </button>
   </template>
 </BaseModal>
+
+  <AdminComplexCreate
+    v-if="state.showCreateModal"
+    :visible="state.showCreateModal"
+    @close="state.showCreateModal = false"
+    @created="handleCreated"
+  />
+
+  <AdminComplexEdit
+    v-if="state.showEditModal && selectedComplex"
+    :visible="state.showEditModal"
+    :selected-complex="selectedComplex"
+    :complex-code="selectedComplex.code"
+    @close="state.showEditModal = false"
+    @updated="handleUpdated"
+  />
 </template>
 
 <style scoped>
@@ -485,6 +549,17 @@ onMounted(() => {
 
 .small-action-btn.primary:hover {
   background: rgba(73, 115, 229, 0.06);
+}
+
+.complex-guide {
+  margin: -14px 0 24px;
+  color: #687282;
+  font-size: 13px;
+  text-align: center;
+}
+
+.complex-guide.error {
+  color: #E53E3E;
 }
 
 .small-action-icon {

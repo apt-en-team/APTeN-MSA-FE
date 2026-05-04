@@ -1,12 +1,22 @@
 <script setup>
-// TODO: MASTER가 단지를 등록하고 최초 관리자 계정을 함께 생성하는 화면입니다.
-import { reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, watch } from 'vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import ConfirmModal from '@/components/common/ConfirmModal.vue'
+import ActionResultModal from '@/components/common/ActionResultModal.vue'
 import { useComplexStore } from '@/stores/useComplexStore'
 
-const router = useRouter()
 const complexStore = useComplexStore()
+
+// 부모 컴포넌트에서 모달 열림 여부를 제어한다.
+const props = defineProps({
+  visible: {
+    type: Boolean,
+    default: true,
+  },
+})
+
+// 모달 닫기와 등록 완료 이벤트를 부모 컴포넌트로 전달한다.
+const emit = defineEmits(['close', 'created'])
 
 const state = reactive({
   form: {
@@ -23,41 +33,96 @@ const state = reactive({
   addressKeyword: '',
   addressResults: [],
   loading: false,
+  errorMessage: '',
   showAddressModal: false,
+  showConfirmModal: false,
   resultModal: {
     show: false,
+    type: 'success',
     title: '',
     subtitle: '',
-    confirmText: '확인',
-    onConfirm: null,
+    desc: '',
+    shouldEmitCreated: false,
+    shouldCloseParent: false,
   },
 })
 
-// alert 대신 결과 모달로 사용자에게 처리 결과를 안내합니다.
-const openResultModal = ({ title, subtitle, confirmText = '확인', onConfirm = null }) => {
-  state.resultModal.show = true
-  state.resultModal.title = title
-  state.resultModal.subtitle = subtitle
-  state.resultModal.confirmText = confirmText
-  state.resultModal.onConfirm = onConfirm
+// 등록 모달이 다시 열릴 때 이전 입력 상태가 남지 않도록 초기화한다.
+function resetState() {
+  state.form.name = ''
+  state.form.address = ''
+  state.form.addressDetail = ''
+  state.form.zipCode = ''
+  state.form.description = ''
+  state.form.managerEmail = ''
+  state.form.managerPassword = ''
+  state.form.managerName = ''
+  state.form.managerPhone = ''
+  state.addressKeyword = ''
+  state.addressResults = []
+  state.loading = false
+  state.errorMessage = ''
+  state.showAddressModal = false
+  state.showConfirmModal = false
+  state.resultModal.show = false
+  state.resultModal.type = 'success'
+  state.resultModal.title = ''
+  state.resultModal.subtitle = ''
+  state.resultModal.desc = ''
+  state.resultModal.shouldEmitCreated = false
+  state.resultModal.shouldCloseParent = false
 }
 
-// 결과 모달 확인 버튼을 처리합니다.
-const handleResultConfirm = () => {
-  const callback = state.resultModal.onConfirm
+// 결과 모달을 열어 등록 처리 결과를 안내한다.
+function openResultModal({
+  type = 'success',
+  title,
+  subtitle = '',
+  desc = '',
+  shouldEmitCreated = false,
+  shouldCloseParent = false,
+}) {
+  state.showConfirmModal = false
+  state.resultModal.show = true
+  state.resultModal.type = type
+  state.resultModal.title = title
+  state.resultModal.subtitle = subtitle
+  state.resultModal.desc = desc
+  state.resultModal.shouldEmitCreated = shouldEmitCreated
+  state.resultModal.shouldCloseParent = shouldCloseParent
+}
+
+// 결과 모달 확인 시 부모에 완료 이벤트를 전달하고 모달을 닫는다.
+function handleResultConfirm() {
+  const shouldEmitCreated = state.resultModal.shouldEmitCreated
+  const shouldCloseParent = state.resultModal.shouldCloseParent
 
   state.resultModal.show = false
-  state.resultModal.onConfirm = null
+  state.resultModal.shouldEmitCreated = false
+  state.resultModal.shouldCloseParent = false
 
-  if (typeof callback === 'function') {
-    callback()
+  if (shouldEmitCreated) {
+    emit('created')
+  }
+
+  if (shouldCloseParent) {
+    emit('close')
   }
 }
 
-// 주소 검색
-const handleSearchAddress = async () => {
+// 부모가 모달을 닫을 때 내부 상태도 함께 초기화한다.
+function handleClose() {
+  resetState()
+  emit('close')
+}
+
+// 주소 검색을 위해 백엔드 단지 주소 API만 호출한다.
+async function handleSearchAddress() {
+  if (state.loading) return
+
   if (!state.addressKeyword.trim()) {
     openResultModal({
+      type: 'warning',
       title: '주소 검색어를 입력해주세요.',
       subtitle: '단지 주소를 찾으려면 검색어를 먼저 입력해야 합니다.',
     })
@@ -67,32 +132,45 @@ const handleSearchAddress = async () => {
   state.loading = true
 
   try {
-    // 프론트는 VWorld를 직접 호출하지 않고 백엔드 주소 검색 API만 호출한다.
     const results = await complexStore.searchComplexAddress(state.addressKeyword.trim())
     state.addressResults = Array.isArray(results) ? results : []
+    state.errorMessage = ''
     state.showAddressModal = true
   } catch (error) {
     console.error(error)
+    state.addressResults = []
+    state.errorMessage = error?.message || '주소 검색에 실패했습니다.'
     openResultModal({
+      type: 'danger',
       title: '주소 검색에 실패했습니다.',
-      subtitle: error?.message || '잠시 후 다시 시도해주세요.',
+      subtitle: state.errorMessage || '잠시 후 다시 시도해주세요.',
     })
   } finally {
     state.loading = false
   }
 }
 
-// 주소 검색 결과 선택
-const handleSelectAddress = (address) => {
+// 주소 검색 결과를 선택하면 폼 값에 반영한다.
+function handleSelectAddress(address) {
   state.form.address = address?.address || ''
   state.form.addressDetail = address?.addressDetail || ''
   state.form.zipCode = address?.zipCode || ''
   state.showAddressModal = false
 }
 
-// 단지 등록 요청
-const handleSubmit = async () => {
+// 등록 전 확인 모달을 연다.
+function openCreateConfirm() {
+  if (state.loading) return
+  state.showConfirmModal = true
+}
+
+// 단지 등록 요청을 보내고 성공 시 결과 모달을 표시한다.
+async function handleCreateConfirm() {
+  if (state.loading) return
+
+  state.showConfirmModal = false
   state.loading = true
+  state.errorMessage = ''
 
   try {
     // 단지 등록 시 최초 관리자 정보 포함
@@ -108,253 +186,245 @@ const handleSubmit = async () => {
       managerPhone: state.form.managerPhone,
     })
 
-    // 관리자 생성은 백엔드에서 Auth 내부 호출 처리
-    // 단지 등록 성공 모달
+    // 관리자 계정 생성은 단지 API를 호출하면 백엔드가 Auth Service 내부 호출로 처리한다.
     openResultModal({
+      type: 'success',
       title: '단지 생성이 완료되었습니다.',
-      subtitle: '목록 화면으로 이동해 방금 등록한 단지를 확인할 수 있습니다.',
-      onConfirm: () => {
-        // 단지 등록 성공 후 마스터 홈 이동
-        router.push('/admin/master')
-      },
+      subtitle: '목록을 갱신해 새로 등록된 단지를 확인합니다.',
+      shouldEmitCreated: true,
+      shouldCloseParent: true,
     })
   } catch (error) {
     console.error(error)
+    state.errorMessage = error?.message || '입력값을 확인한 뒤 다시 시도해주세요.'
     openResultModal({
+      type: 'danger',
       title: '단지 생성에 실패했습니다.',
-      subtitle: error?.message || '입력값을 확인한 뒤 다시 시도해주세요.',
+      subtitle: state.errorMessage,
     })
   } finally {
     state.loading = false
   }
 }
 
-// 목록 화면으로 이동합니다.
-const goToList = () => {
-  router.push('/admin/master')
-}
+// 모달이 다시 열릴 때 이전 입력 상태가 남지 않도록 초기화한다.
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible) {
+      resetState()
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <section class="master-complex-form page-container">
-    <div class="master-complex-form__shell">
-      <div class="master-complex-form__header">
-        <div>
-          <p class="master-complex-form__eyebrow">MASTER</p>
-          <h1 class="master-complex-form__title">새 단지 추가</h1>
-          <p class="master-complex-form__description">
-            단지를 등록하면 최초 관리자 계정도 함께 생성됩니다.
-          </p>
-        </div>
-        <button type="button" class="master-complex-form__ghost-button" @click="goToList">
-          홈으로
-        </button>
-      </div>
+  <BaseModal
+    :visible="props.visible"
+    title="새 단지 추가"
+    subtitle="단지를 등록하면 최초 관리자 계정도 함께 생성됩니다."
+    @close="handleClose"
+  >
+    <div class="master-complex-form">
+      <div class="master-complex-form__section">
+        <h2 class="master-complex-form__section-title">단지 정보</h2>
 
-      <div class="master-complex-form__body">
-        <div class="master-complex-form__section">
-          <h2 class="master-complex-form__section-title">단지 정보</h2>
+        <label class="master-complex-form__field">
+          <span>단지명</span>
+          <input v-model="state.form.name" type="text" placeholder="단지명을 입력해주세요." />
+        </label>
 
-          <label class="master-complex-form__field">
-            <span>단지명</span>
-            <input v-model="state.form.name" type="text" placeholder="단지명을 입력해주세요." />
-          </label>
-
-          <div class="master-complex-form__field">
-            <span>주소 찾기</span>
-            <div class="master-complex-form__inline">
-              <input
-                v-model="state.addressKeyword"
-                type="text"
-                placeholder="주소 또는 아파트명을 검색해주세요."
-              />
-              <button
-                type="button"
-                class="master-complex-form__secondary-button"
-                :disabled="state.loading"
-                @click="handleSearchAddress"
-              >
-                주소 검색
-              </button>
-            </div>
-          </div>
-
-          <div class="master-complex-form__grid">
-            <label class="master-complex-form__field">
-              <span>주소</span>
-              <input v-model="state.form.address" type="text" readonly />
-            </label>
-            <label class="master-complex-form__field">
-              <span>상세주소</span>
-              <input v-model="state.form.addressDetail" type="text" readonly />
-            </label>
-          </div>
-
-          <label class="master-complex-form__field">
-            <span>우편번호</span>
-            <input v-model="state.form.zipCode" type="text" readonly />
-          </label>
-
-          <label class="master-complex-form__field">
-            <span>설명</span>
-            <textarea
-              v-model="state.form.description"
-              rows="4"
-              placeholder="단지 설명을 입력해주세요."
-            />
-          </label>
-        </div>
-
-        <div class="master-complex-form__section">
-          <h2 class="master-complex-form__section-title">초기 관리자 계정</h2>
-
-          <label class="master-complex-form__field">
-            <span>이메일</span>
-            <input v-model="state.form.managerEmail" type="email" placeholder="admin@example.com" />
-          </label>
-
-          <label class="master-complex-form__field">
-            <span>비밀번호</span>
+        <div class="master-complex-form__field">
+          <span>주소 찾기</span>
+          <div class="master-complex-form__inline">
             <input
-              v-model="state.form.managerPassword"
-              type="password"
-              placeholder="초기 비밀번호를 입력해주세요."
+              v-model="state.addressKeyword"
+              type="text"
+              placeholder="주소 또는 아파트명을 검색해주세요."
             />
-          </label>
-
-          <div class="master-complex-form__grid">
-            <label class="master-complex-form__field">
-              <span>관리자 이름</span>
-              <input v-model="state.form.managerName" type="text" placeholder="이름" />
-            </label>
-            <label class="master-complex-form__field">
-              <span>연락처</span>
-              <input v-model="state.form.managerPhone" type="text" placeholder="010-0000-0000" />
-            </label>
+            <button
+              type="button"
+              class="master-complex-form__secondary-button"
+              :disabled="state.loading"
+              @click="handleSearchAddress"
+            >
+              주소 검색
+            </button>
           </div>
+        </div>
+
+        <div class="master-complex-form__grid">
+          <label class="master-complex-form__field">
+            <span>주소</span>
+            <input v-model="state.form.address" type="text" readonly />
+          </label>
+          <label class="master-complex-form__field">
+            <span>상세주소</span>
+            <input v-model="state.form.addressDetail" type="text" readonly />
+          </label>
+        </div>
+
+        <label class="master-complex-form__field">
+          <span>우편번호</span>
+          <input v-model="state.form.zipCode" type="text" readonly />
+        </label>
+
+        <label class="master-complex-form__field">
+          <span>설명</span>
+          <textarea
+            v-model="state.form.description"
+            rows="4"
+            placeholder="단지 설명을 입력해주세요."
+          />
+        </label>
+      </div>
+
+      <div class="master-complex-form__section">
+        <h2 class="master-complex-form__section-title">초기 관리자 계정</h2>
+
+        <label class="master-complex-form__field">
+          <span>이메일</span>
+          <input v-model="state.form.managerEmail" type="email" placeholder="admin@example.com" />
+        </label>
+
+        <label class="master-complex-form__field">
+          <span>비밀번호</span>
+          <input
+            v-model="state.form.managerPassword"
+            type="password"
+            placeholder="초기 비밀번호를 입력해주세요."
+          />
+        </label>
+
+        <div class="master-complex-form__grid">
+          <label class="master-complex-form__field">
+            <span>관리자 이름</span>
+            <input v-model="state.form.managerName" type="text" placeholder="이름" />
+          </label>
+          <label class="master-complex-form__field">
+            <span>연락처</span>
+            <input v-model="state.form.managerPhone" type="text" placeholder="010-0000-0000" />
+          </label>
         </div>
       </div>
 
-      <div class="master-complex-form__footer">
-        <button type="button" class="master-complex-form__ghost-button" @click="goToList">
-          취소
-        </button>
-        <button
-          type="button"
-          class="master-complex-form__primary-button"
-          :disabled="state.loading"
-          @click="handleSubmit"
-        >
-          {{ state.loading ? '등록 중...' : '등록' }}
-        </button>
-      </div>
+      <p v-if="state.errorMessage" class="master-complex-form__feedback is-error">
+        {{ state.errorMessage }}
+      </p>
     </div>
 
-    <BaseModal
-      :visible="state.showAddressModal"
-      title="주소 검색 결과"
-      subtitle="백엔드 주소 검색 API 결과를 선택하면 폼에 자동 반영됩니다."
-      @close="state.showAddressModal = false"
-    >
-      <div v-if="state.addressResults.length === 0" class="master-complex-form__modal-empty">
-        검색 결과가 없습니다.
-      </div>
-      <div v-else class="master-complex-form__address-list">
-        <button
-          v-for="address in state.addressResults"
-          :key="`${address.address}-${address.zipCode}`"
-          type="button"
-          class="master-complex-form__address-item"
-          @click="handleSelectAddress(address)"
-        >
-          <strong>{{ address.apartmentName || '주소 결과' }}</strong>
-          <span>{{ address.address }}</span>
-          <span>{{ address.addressDetail || '-' }} / {{ address.zipCode || '-' }}</span>
-        </button>
-      </div>
-    </BaseModal>
+    <template #footer>
+      <button type="button" class="master-complex-form__ghost-button" @click="handleClose">
+        취소
+      </button>
+      <button
+        type="button"
+        class="master-complex-form__primary-button"
+        :disabled="state.loading"
+        @click="openCreateConfirm"
+      >
+        {{ state.loading ? '등록 중...' : '등록' }}
+      </button>
+    </template>
+  </BaseModal>
 
-    <BaseModal
-      :visible="state.resultModal.show"
-      :title="state.resultModal.title"
-      :subtitle="state.resultModal.subtitle"
-      @close="handleResultConfirm"
-    >
-      <template #footer>
-        <button type="button" class="master-complex-form__primary-button" @click="handleResultConfirm">
-          {{ state.resultModal.confirmText }}
-        </button>
-      </template>
-    </BaseModal>
-  </section>
+  <BaseModal
+    :visible="state.showAddressModal"
+    title="주소 검색 결과"
+    subtitle="백엔드 주소 검색 API 결과를 선택하면 폼에 자동 반영됩니다."
+    @close="state.showAddressModal = false"
+  >
+    <div v-if="state.addressResults.length === 0" class="master-complex-form__modal-empty">
+      검색 결과가 없습니다.
+    </div>
+    <div v-else class="master-complex-form__address-list">
+      <button
+        v-for="address in state.addressResults"
+        :key="`${address.address}-${address.zipCode}`"
+        type="button"
+        class="master-complex-form__address-item"
+        @click="handleSelectAddress(address)"
+      >
+        <strong>{{ address.apartmentName || '주소 결과' }}</strong>
+        <span>{{ address.address }}</span>
+        <span>{{ address.addressDetail || '-' }} / {{ address.zipCode || '-' }}</span>
+      </button>
+    </div>
+  </BaseModal>
+
+  <ConfirmModal
+    :visible="state.showConfirmModal"
+    title="단지를 등록할까요?"
+    subtitle="입력한 단지 정보와 최초 관리자 계정을 생성합니다."
+    confirm-text="등록"
+    cancel-text="취소"
+    confirm-type="primary"
+    :loading="state.loading"
+    @confirm="handleCreateConfirm"
+    @cancel="state.showConfirmModal = false"
+  />
+
+  <ActionResultModal
+    :visible="state.resultModal.show"
+    :type="state.resultModal.type"
+    :title="state.resultModal.title"
+    :subtitle="state.resultModal.subtitle"
+    :desc="state.resultModal.desc"
+    @close="handleResultConfirm"
+  />
 </template>
 
 <style scoped>
 .master-complex-form {
-  display: flex;
-  justify-content: center;
-}
-
-.master-complex-form__shell {
-  width: min(100%, 860px);
-  border-radius: var(--radius-12);
-  background: var(--color-card-bg);
-  box-shadow: var(--shadow-medium);
-}
-
-.master-complex-form__header,
-.master-complex-form__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 24px 28px;
-}
-
-.master-complex-form__header {
-  border-bottom: 1px solid var(--color-border);
-}
-
-.master-complex-form__footer {
-  border-top: 1px solid var(--color-border);
-}
-
-.master-complex-form__eyebrow {
-  margin: 0 0 8px;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-label);
-  letter-spacing: 0.08em;
-}
-
-.master-complex-form__title {
-  margin: 0;
-  font-size: var(--font-size-heading-2);
-  color: var(--color-text-primary);
-}
-
-.master-complex-form__description {
-  margin: 8px 0 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-body-sm);
-}
-
-.master-complex-form__body {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  padding: 28px;
+  display: grid;
+  gap: 24px;
 }
 
 .master-complex-form__section {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 16px;
 }
 
 .master-complex-form__section-title {
   margin: 0;
-  font-size: var(--font-size-heading-3);
   color: var(--color-text-primary);
+  font-size: var(--font-size-modal-title);
+  font-weight: 700;
+}
+
+.master-complex-form__field {
+  display: grid;
+  gap: 8px;
+}
+
+.master-complex-form__field span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+}
+
+.master-complex-form__field input,
+.master-complex-form__field textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-card-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.master-complex-form__field textarea {
+  min-height: 110px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.master-complex-form__field input[readonly],
+.master-complex-form__field textarea[readonly] {
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
 }
 
 .master-complex-form__grid {
@@ -363,106 +433,92 @@ const goToList = () => {
   gap: 16px;
 }
 
-.master-complex-form__field {
-  display: flex;
-  flex-direction: column;
+.master-complex-form__inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
 }
 
-.master-complex-form__field span {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-body-sm);
-}
-
-.master-complex-form__field input,
-.master-complex-form__field textarea {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-8);
-  background: var(--color-card-bg);
-  color: var(--color-text-primary);
-  font: inherit;
-}
-
-.master-complex-form__field input[readonly] {
-  background: var(--color-bg-app);
-}
-
-.master-complex-form__inline {
-  display: flex;
-  gap: 12px;
-}
-
-.master-complex-form__inline input {
-  flex: 1;
-}
-
-.master-complex-form__primary-button,
+.master-complex-form__ghost-button,
 .master-complex-form__secondary-button,
-.master-complex-form__ghost-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.master-complex-form__primary-button {
+  min-width: 88px;
   height: 40px;
   padding: 0 16px;
-  border-radius: var(--radius-8);
+  border-radius: 8px;
   font: inherit;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+}
+
+.master-complex-form__ghost-button,
+.master-complex-form__secondary-button {
+  border: 1px solid var(--color-border);
+  background: var(--color-card-bg);
+  color: var(--color-text-secondary);
 }
 
 .master-complex-form__primary-button {
   border: none;
   background: var(--color-primary);
-  color: var(--color-primary-contrast);
+  color: var(--color-card-bg);
 }
 
-.master-complex-form__secondary-button,
-.master-complex-form__ghost-button {
-  border: 1px solid var(--color-border);
-  background: var(--color-card-bg);
-  color: var(--color-text-primary);
+.master-complex-form__primary-button:disabled,
+.master-complex-form__secondary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .master-complex-form__modal-empty {
   color: var(--color-text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.master-complex-form__feedback {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.master-complex-form__feedback.is-error {
+  color: var(--color-danger);
 }
 
 .master-complex-form__address-list {
-  display: flex;
-  max-height: 320px;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
+  display: grid;
+  gap: 10px;
 }
 
 .master-complex-form__address-item {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 4px;
   padding: 14px 16px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-8);
+  border-radius: 10px;
   background: var(--color-card-bg);
   color: var(--color-text-primary);
   text-align: left;
   cursor: pointer;
 }
 
-.master-complex-form__address-item span {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-detail);
+.master-complex-form__address-item strong {
+  font-size: 13px;
 }
 
-@media (max-width: 960px) {
-  .master-complex-form__header,
-  .master-complex-form__footer,
-  .master-complex-form__inline {
-    flex-direction: column;
-    align-items: stretch;
+.master-complex-form__address-item span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .master-complex-form__grid {
+    grid-template-columns: 1fr;
   }
 
-  .master-complex-form__grid {
+  .master-complex-form__inline {
     grid-template-columns: 1fr;
   }
 }

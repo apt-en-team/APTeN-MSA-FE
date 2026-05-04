@@ -1,8 +1,7 @@
-import MasterAdminLayout from '@/layouts/MasterAdminLayout.vue'
 import ResidentPreviewLayout from '@/layouts/ResidentPreviewLayout.vue'
-import AdminComplexAdmin from '@/views/master/complex/AdminComplexAdmin.vue'
 import AdminComplexCreate from '@/views/master/complex/AdminComplexCreate.vue'
 import AdminComplexDashboard from '@/views/master/complex/AdminComplexDashboard.vue'
+import ComplexAdminManage from '@/views/master/complex/ComplexAdminManage.vue'
 import AdminComplexDetail from '@/views/master/complex/AdminComplexDetail.vue'
 import AdminComplexEdit from '@/views/master/complex/AdminComplexEdit.vue'
 import AdminComplexList from '@/views/master/complex/AdminComplexList.vue'
@@ -43,18 +42,16 @@ const masterRoutes = [
     meta: masterRouteMeta,
   },
   {
-    // 선택 단지 관리 화면부터는 MasterAdminLayout을 사용한다.
+    // MASTER 전용 관리자형 화면은 각 페이지가 legacy AdminLayout을 직접 사용한다.
     path: '/admin/master/complexes/:code/dashboard',
-    component: MasterAdminLayout,
+    component: AdminComplexDashboard,
     meta: masterRouteMeta,
-    children: [{ path: '', component: AdminComplexDashboard, meta: masterRouteMeta }],
   },
   {
-    // 선택 단지 관리 화면부터는 MasterAdminLayout을 사용한다.
+    // 선택 단지의 관리자 관리 화면은 별도 페이지 컴포넌트로 분리한다.
     path: '/admin/master/complexes/:code/admins',
-    component: MasterAdminLayout,
+    component: ComplexAdminManage,
     meta: masterRouteMeta,
-    children: [{ path: '', component: AdminComplexAdmin, meta: masterRouteMeta }],
   },
   {
     path: '/admin/complexes/:code/resident-preview',
