@@ -2,7 +2,7 @@ import AuthLayout from '@/layouts/AuthLayout.vue'
 import Forbidden from '@/views/common/Forbidden.vue'
 import LandingPage from '@/views/common/LandingPage.vue'
 import ResidentLogin from '@/views/auth/login/ResidentLogin.vue'
-import AdminLogin from '@/views/auth/AdminLogin.vue'
+import AdminLogin from '@/views/auth/login/AdminLogin.vue'
 
 const authRoutes = [
   // 랜딩 페이지
