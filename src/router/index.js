@@ -32,6 +32,11 @@ router.beforeEach((to, from, next) => {
 
   authStore.initializeAuth()
 
+  // 개발 중 화면 확인용 임시 처리이며 로그인 구현 후 제거합니다.
+  if (import.meta.env.DEV && to.path.startsWith('/admin/master') && !authStore.isAuthenticated) {
+    authStore.setDevMasterAuth()
+  }
+
   // 로그인 필요 여부 확인
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return next('/login')

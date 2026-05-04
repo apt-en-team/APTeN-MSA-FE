@@ -29,10 +29,10 @@ const handleSelectComplex = () => {
   complexStore.setSelectedComplex(complexDetail.value)
 }
 
-// 선택 단지 기준 관리자 화면 이동
+// MASTER 전용 대시보드 진입
 const goToAdminDashboard = () => {
   handleSelectComplex()
-  router.push('/admin/dashboard')
+  router.push(`/admin/master/complexes/${complexCode.value}/dashboard`)
 }
 
 // 단지 수정 화면으로 이동합니다.
@@ -77,7 +77,7 @@ onMounted(loadComplexDetail)
           관리자 배정
         </button>
         <button type="button" class="master-complex-detail__primary-button" @click="goToAdminDashboard">
-          이 단지로 관리자 화면 보기
+          이 단지로 대시보드 보기
         </button>
         <button type="button" class="master-complex-detail__secondary-button" @click="goToResidentPreview">
           입주민 미리보기
