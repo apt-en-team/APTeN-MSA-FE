@@ -670,13 +670,18 @@ function handleSuccessClose() {
   margin: 0;
 }
 
-/* 이메일/동호 가로 행 */
+/* 가로 행 */
 .field__row {
   display: flex;
   gap: var(--space-8);
 }
-.field__row .field__input { flex: 1; }
-.field__row .field { flex: 1; }
+.field__row .field {
+  flex: 1;
+  min-width: 0; /* 넘침 방지 */
+}
+.field__row .field .field__input {
+  width: 100%;
+}
 
 /* 이메일 중복 확인 버튼 */
 .btn-check {

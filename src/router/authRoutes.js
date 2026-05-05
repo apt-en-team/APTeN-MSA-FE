@@ -7,6 +7,7 @@ import Register from '@/views/auth/signup/Register.vue'
 import SocialSignup from '@/views/auth/signup/SocialSignup.vue'
 import ForgotPassword from '@/views/auth/password/ForgotPassword.vue'
 import ResetPassword from '@/views/auth/password/ResetPassword.vue'
+import SocialCallback from '@/views/auth/login/SocialCallback.vue'
 
 const authRoutes = [
   // 랜딩 페이지
@@ -105,6 +106,11 @@ const authRoutes = [
         meta: { requiresAuth: false, roles: ['GUEST', 'USER', 'ADMIN', 'MASTER'] },
       },
     ],
+  },
+  {
+    path: '/social/callback',
+    component: SocialCallback,
+    meta: { requiresAuth: false },
   },
 ]
 
