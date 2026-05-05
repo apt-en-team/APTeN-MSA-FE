@@ -3,7 +3,7 @@ import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import authApi from '@/api/authApi'
 import { getPublicComplexes } from '@/api/apartmentComplexApi'
-import ActionResultModal from '@/components/common/ActionResultModal.vue' // 회원가입 성공 모달
+import ResidentModal from '@/components/resident/ResidentModal.vue' // 회원가입 성공 모달
 
 const router = useRouter()
 
@@ -314,8 +314,8 @@ function handleSuccessClose() {
           <option value="">단지를 선택해주세요</option>
           <option
             v-for="complex in complexes"
-            :key="complex.code"
-            :value="complex.code"
+            :key="complex.complexId"
+            :value="complex.complexId"
           >
             {{ complex.name }}
           </option>
@@ -536,12 +536,12 @@ function handleSuccessClose() {
     </p>
 
     <!-- 회원가입 성공 모달 — 확인 버튼 클릭 시 로그인 페이지로 이동 -->
-    <ActionResultModal
+    <ResidentModal
       :visible="showSuccessModal"
       type="success"
       title="회원가입 완료"
       subtitle="관리자 승인 후 서비스를 이용하실 수 있습니다."
-      confirmText="로그인하러 가기"
+      confirm-text="로그인하러 가기"
       @close="handleSuccessClose"
     />
 
