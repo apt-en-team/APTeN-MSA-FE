@@ -12,6 +12,8 @@ export const useAuthStore = defineStore('auth', {
     name: null,
     role: 'USER',
     status: null,
+    building: null, // 입주민 동
+    unit: null,     // 입주민 호
   }),
 
   getters: {
@@ -71,11 +73,13 @@ export const useAuthStore = defineStore('auth', {
 
       this.accessToken  = data?.accessToken  || data?.tokens?.accessToken  || null
       this.refreshToken = data?.refreshToken || data?.tokens?.refreshToken || null
-      this.userId  = userInfo?.userId  || data?.userId  || null
-      this.userUid = userInfo?.userUid || data?.userUid || null
-      this.name    = userInfo?.name    || data?.name    || null
-      this.role    = userInfo?.role    || data?.role    || 'USER'
-      this.status  = userInfo?.status  || data?.status  || null
+      this.userId   = userInfo?.userId   || data?.userId   || null
+      this.userUid  = userInfo?.userUid  || data?.userUid  || null
+      this.name     = userInfo?.name     || data?.name     || null
+      this.role     = userInfo?.role     || data?.role     || 'USER'
+      this.status   = userInfo?.status   || data?.status   || null
+      this.building = userInfo?.building || data?.building || null // 입주민 동
+      this.unit     = userInfo?.unit     || data?.unit     || null // 입주민 호
 
       if (this.accessToken) {
         localStorage.setItem('accessToken', this.accessToken)
@@ -85,11 +89,13 @@ export const useAuthStore = defineStore('auth', {
       }
 
       localStorage.setItem('userInfo', JSON.stringify({
-        userId:  this.userId,
-        userUid: this.userUid,
-        name:    this.name,
-        role:    this.role,
-        status:  this.status,
+        userId:   this.userId,
+        userUid:  this.userUid,
+        name:     this.name,
+        role:     this.role,
+        status:   this.status,
+        building: this.building, // 입주민 동
+        unit:     this.unit,     // 입주민 호
       }))
     },
 
@@ -114,12 +120,14 @@ export const useAuthStore = defineStore('auth', {
     clearAuth() {
       this.accessToken  = null
       this.refreshToken = null
-      this.userId  = null
-      this.userUid = null
-      this.name    = null
-      this.role    = 'USER'
-      this.status  = null
-      this.error   = null
+      this.userId   = null
+      this.userUid  = null
+      this.name     = null
+      this.role     = 'USER'
+      this.status   = null
+      this.building = null // 입주민 동
+      this.unit     = null // 입주민 호
+      this.error    = null
 
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
@@ -140,11 +148,13 @@ export const useAuthStore = defineStore('auth', {
 
         this.accessToken  = accessToken  || null
         this.refreshToken = refreshToken || null
-        this.userId  = userInfo?.userId  || null
-        this.userUid = userInfo?.userUid || null
-        this.name    = userInfo?.name    || null
-        this.role    = userInfo?.role    || 'USER'
-        this.status  = userInfo?.status  || null
+        this.userId   = userInfo?.userId   || null
+        this.userUid  = userInfo?.userUid  || null
+        this.name     = userInfo?.name     || null
+        this.role     = userInfo?.role     || null
+        this.status   = userInfo?.status   || null
+        this.building = userInfo?.building || null // 입주민 동
+        this.unit     = userInfo?.unit     || null // 입주민 호
       } catch (e) {
         // localStorage 파싱 실패 시 초기화
         this.clearAuth()
