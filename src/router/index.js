@@ -11,7 +11,9 @@ import residentRoutes from './residentRoutes'
 function canAccess(userRole, allowedRoles = []) {
   if (!allowedRoles || allowedRoles.length === 0) return true
   if (userRole === 'MASTER') return true
-  return allowedRoles.includes(userRole)
+  // 비로그인(null) 상태는 GUEST로 처리
+  const role = userRole || 'GUEST'
+  return allowedRoles.includes(role)
 }
 
 const routes = [
@@ -26,11 +28,19 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, from) => {
   const authStore = useAuthStore()
-
-  // localStorage에서 인증 정보 복원 (새로고침 시 상태 유지)
   authStore.initializeAuth()
+
+  // 디버깅용 — 확인 후 제거
+  console.log('가드 체크:', {
+    path: to.path,
+    isAuthenticated: authStore.isAuthenticated,
+    role: authStore.role,
+    status: authStore.status,
+  })
+
+  // 나머지 기존 코드...
 
   // 개발 중 화면 확인용 임시 처리 — 로그인 구현 후 제거
   if (import.meta.env.DEV && to.path.startsWith('/admin/master') && !authStore.isAuthenticated) {
@@ -42,28 +52,32 @@ router.beforeEach((to, from, next) => {
   if (authStore.isAuthenticated) {
     const guestOnlyPaths = ['/', '/login', '/admin/login']
     if (guestOnlyPaths.includes(to.path)) {
-      if (authStore.role === 'USER') return next('/resident/home')
-      if (authStore.role === 'ADMIN') return next('/admin/dashboard')
-      if (authStore.role === 'MASTER') return next('/admin/master/complexes')
+      if (authStore.role === 'USER') return '/resident/home'
+      if (authStore.role === 'ADMIN') return '/admin/dashboard'
+      if (authStore.role === 'MASTER') return '/admin/master/complexes'
     }
   }
 
   // 로그인이 필요한 페이지인데 비로그인 상태면 로그인 페이지로 이동
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    return next('/login')
+    return '/login'
   }
+
+  // forbidden 페이지는 canAccess 체크 제외 — 무한 루프 방지
+  if (to.path === '/forbidden') return true
 
   // 역할 권한 없으면 forbidden 페이지로 이동
   if (!canAccess(authStore.role, to.meta.roles)) {
-    return next('/forbidden')
+    return '/forbidden'
   }
 
   // 입주민 승인 대기 상태면 대기 페이지로 이동
   if (authStore.role === 'USER' && authStore.status === 'PENDING' && to.path !== '/resident/pending') {
-    return next('/resident/pending')
+    return '/resident/pending'
   }
 
-  next()
+  // 명시적으로 true 반환 — 통과
+  return true
 })
 
 export default router
