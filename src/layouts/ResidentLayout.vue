@@ -33,7 +33,7 @@ import BottomNav from '@/components/resident/BottomNav.vue'
   max-width: 430px;
   min-height: 100vh;
   flex-direction: column;
-  background-color: rgba(255, 255, 255, 0.56);
+  background: #EEF3FB; /* 입주민 배경색 */
   box-shadow: 0 0 0 1px rgba(73, 115, 229, 0.08);
 }
 
