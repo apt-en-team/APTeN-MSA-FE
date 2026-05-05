@@ -19,14 +19,14 @@ export const register = async (body) => {
   return unwrapApiData(res)
 }
 
-// Google 로그인 URL 반환
-export const getGoogleLoginUrl = () => '/oauth2/authorization/google'
+// Google 로그인 URL 반환 — auth-service 직접 호출
+export const getGoogleLoginUrl = () => 'http://localhost:9080/oauth2/authorization/google'
 
 // Kakao 로그인 URL 반환
-export const getKakaoLoginUrl = () => '/oauth2/authorization/kakao'
+export const getKakaoLoginUrl = () => 'http://localhost:9080/oauth2/authorization/kakao'
 
 // Naver 로그인 URL 반환
-export const getNaverLoginUrl = () => '/oauth2/authorization/naver'
+export const getNaverLoginUrl = () => 'http://localhost:9080/oauth2/authorization/naver'
 
 // 소셜 추가정보 회원가입
 export const socialSignup = async (body) => {
