@@ -8,6 +8,7 @@ import SocialSignup from '@/views/auth/signup/SocialSignup.vue'
 import ForgotPassword from '@/views/auth/password/ForgotPassword.vue'
 import ResetPassword from '@/views/auth/password/ResetPassword.vue'
 import SocialCallback from '@/views/auth/login/SocialCallback.vue'
+import MasterLogin from '@/views/auth/login/MasterLogin.vue'
 
 const authRoutes = [
   // 랜딩 페이지
@@ -41,6 +42,13 @@ const authRoutes = [
         meta: { requiresAuth: false, roles: ['GUEST', 'ADMIN', 'MASTER'] },
       },
     ],
+  },
+
+  // 마스터 로그인
+  {
+    path: '/master/login',
+    component: MasterLogin,
+    meta: { requiresAuth: false, roles: ['GUEST', 'MASTER'] },
   },
 
   // 회원가입

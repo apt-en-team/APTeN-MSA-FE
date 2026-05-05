@@ -35,7 +35,10 @@ export const updateComplexStatus = async (code, body) => {
 // 주소 검색
 export const searchAddress = async (params) => {
   // 프론트는 VWorld를 직접 호출하지 않고 백엔드 주소 검색 API만 호출합니다.
-  const res = await apiClient.get('/api/admin/master/address/search', { params })
+  const res = await apiClient.get('/api/admin/master/apartment-complexes/address/search', {
+    params,
+  })
+
   return unwrapApiData(res)
 }
 

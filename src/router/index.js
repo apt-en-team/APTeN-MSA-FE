@@ -42,11 +42,6 @@ router.beforeEach((to, from) => {
 
   // 나머지 기존 코드...
 
-  // 개발 중 화면 확인용 임시 처리 — 로그인 구현 후 제거
-  if (import.meta.env.DEV && to.path.startsWith('/admin/master') && !authStore.isAuthenticated) {
-    authStore.setDevMasterAuth()
-  }
-
   // 이미 로그인 상태에서 랜딩/로그인 페이지 접근 시 역할별 대시보드로 이동
   // 입주민이 PWA 아이콘 눌렀을 때 로그인 화면 대신 바로 대시보드로 가게 함
   if (authStore.isAuthenticated) {

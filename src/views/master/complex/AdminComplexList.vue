@@ -123,15 +123,18 @@ function goAdminDashboard() {
   router.push(`/admin/master/complexes/${selectedComplex.value.code}/dashboard`)
 }
 
-// 로그아웃 후 로그인 화면으로 이동한다.
-function handleLogout() {
-  if (authStore.logout) {
-    authStore.logout()
-  } else {
-    localStorage.clear()
+// 로그아웃 후 마스터 로그인 화면으로 이동한다.
+async function handleLogout() {
+  try {
+    if (authStore.logout) {
+      await authStore.logout()
+    } else {
+      localStorage.clear()
+      sessionStorage.clear()
+    }
+  } finally {
+    await router.replace('/master/login')
   }
-
-  router.push('/admin/login')
 }
 
 onMounted(() => {
@@ -156,10 +159,14 @@ async function handleUpdated() {
 
     <!-- 상단 헤더 -->
     <header class="landing-header">
-      <div class="header-logo">
-        <div class="logo-icon">A</div>
-        <span class="logo-text">아파트엔 마스터</span>
-      </div>
+      <RouterLink to="/" class="master-login-header__brand">
+        <img
+          src="/APTeNLOGO.png"
+          alt="아파트엔 로고"
+          class="master-login-header__logo"
+        />
+        <span>아파트엔 마스터</span>
+      </RouterLink>
 
       <button class="logout-btn" @click="handleLogout">로그아웃</button>
     </header>
@@ -317,30 +324,29 @@ async function handleUpdated() {
 .landing-header {
   width: 100%;
   padding: 20px 40px;
+  height: 64px;
   background-color: #0F1923;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.header-logo {
+.master-login-header__brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-.logo-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: #4973E5;
-  color: #fff;
+  gap: 8px;
   font-size: 14px;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-weight: 700;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.master-login-header__logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
 }
 .logo-text {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: #fff;
 }
