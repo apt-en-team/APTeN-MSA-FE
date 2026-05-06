@@ -65,6 +65,10 @@ const state = reactive({
     title: '',
     subtitle: '',
     desc: '',
+    itemName: '',
+    time: '',
+    actionLabel: '',
+    actor: '',
     afterConfirm: null,
   },
 })
@@ -216,12 +220,55 @@ const summaryItems = computed(() => {
   ]
 })
 
+// API 실패 응답에서 사용자에게 보여줄 메시지를 꺼낸다.
+function getErrorMessage(error, fallback = '잠시 후 다시 시도해주세요.') {
+  const responseData = error?.response?.data
+
+  if (responseData?.message) {
+    return responseData.message
+  }
+
+  if (responseData?.data?.message) {
+    return responseData.data.message
+  }
+
+  if (error?.data?.message) {
+    return error.data.message
+  }
+
+  if (error?.message && !error.message.startsWith('Request failed with status code')) {
+    return error.message
+  }
+
+  return fallback
+}
+
+// 처리 시각을 결과 모달에 표시할 문자열로 만든다.
+function getCurrentTimeText() {
+  return new Date().toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+// 로그인한 사용자 이름을 결과 모달 처리자로 표시한다.
+function getCurrentActorName() {
+  return authStore.userInfo?.name || authStore.user?.name || authStore.name || '마스터 관리자'
+}
+
 // 명시적 사용자 액션 결과는 ActionResultModal로 안내한다.
 function openResultModal({
   type = 'success',
   title,
   subtitle = '',
   desc = '',
+  itemName = '',
+  time = '',
+  actionLabel = '',
+  actor = '',
   afterConfirm = null,
 }) {
   state.resultModal.visible = true
@@ -229,6 +276,10 @@ function openResultModal({
   state.resultModal.title = title
   state.resultModal.subtitle = subtitle
   state.resultModal.desc = desc
+  state.resultModal.itemName = itemName
+  state.resultModal.time = time
+  state.resultModal.actionLabel = actionLabel
+  state.resultModal.actor = actor
   state.resultModal.afterConfirm = afterConfirm
 }
 
@@ -423,9 +474,13 @@ async function handleCreateAdmin() {
   state.modals.createConfirm = false
   state.createSubmitting = true
   state.createErrorMessage = ''
+  state.resultModal.visible = false
 
   try {
     await complexStore.createAdminForComplex(complexCode.value, buildCreatePayload())
+
+    const createdName = state.createForm.name || '관리자 계정'
+    const createdRole = getComplexAdminRoleLabel(state.createForm.adminRole)
 
     state.modals.create = false
     resetCreateForm()
@@ -434,18 +489,23 @@ async function handleCreateAdmin() {
       type: 'success',
       title: '관리자 계정이 등록되었습니다.',
       subtitle: '선택한 단지에 관리자 또는 스태프 계정이 추가되었습니다.',
+      itemName: createdName,
+      time: getCurrentTimeText(),
+      actionLabel: `${createdRole} 등록`,
+      actor: getCurrentActorName(),
       afterConfirm: async () => {
         await loadAdmins()
       },
     })
   } catch (error) {
     console.error(error)
-    state.createErrorMessage = error?.message || '입력값을 확인한 뒤 다시 시도해주세요.'
-    openResultModal({
-      type: 'danger',
-      title: '관리자 계정 등록에 실패했습니다.',
-      subtitle: state.createErrorMessage,
-    })
+
+    // 등록 실패는 별도 결과 모달을 띄우지 않고 입력 폼 하단에만 표시한다.
+    state.resultModal.visible = false
+    state.createErrorMessage = getErrorMessage(
+      error,
+      '관리자 계정 등록에 실패했습니다. 입력값을 확인한 뒤 다시 시도해주세요.',
+    )
   } finally {
     state.createSubmitting = false
   }
@@ -466,6 +526,9 @@ async function handleUpdateAdmin() {
       buildUpdatePayload(),
     )
 
+    const updatedName = state.editForm.name || '관리자 계정'
+    const updatedRole = getComplexAdminRoleLabel(state.editForm.adminRole)
+
     state.modals.edit = false
     resetEditForm()
 
@@ -473,18 +536,17 @@ async function handleUpdateAdmin() {
       type: 'success',
       title: '관리자 계정 정보가 수정되었습니다.',
       subtitle: '권한과 활성 여부가 최신 상태로 반영되었습니다.',
+      itemName: updatedName,
+      time: getCurrentTimeText(),
+      actionLabel: `${updatedRole} 정보 수정`,
+      actor: getCurrentActorName(),
       afterConfirm: async () => {
         await loadAdmins()
       },
     })
   } catch (error) {
     console.error(error)
-    state.editErrorMessage = error?.message || '잠시 후 다시 시도해주세요.'
-    openResultModal({
-      type: 'danger',
-      title: '관리자 계정 수정에 실패했습니다.',
-      subtitle: state.editErrorMessage,
-    })
+    state.editErrorMessage = getErrorMessage(error, '잠시 후 다시 시도해주세요.')
   } finally {
     state.editSubmitting = false
   }
@@ -499,6 +561,10 @@ async function handleDeleteAdmin() {
   state.editErrorMessage = ''
 
   try {
+    const deletedName = state.selectedAdmin?.name || '관리자 계정'
+    const deletedRole =
+      state.selectedAdmin?.adminRoleName || getComplexAdminRoleLabel(state.selectedAdmin?.adminRole)
+
     await complexStore.deleteAdminFromComplex(complexCode.value, state.selectedAdmin.userId)
     resetEditForm()
 
@@ -506,18 +572,17 @@ async function handleDeleteAdmin() {
       type: 'success',
       title: '관리자 계정이 소속 해제되었습니다.',
       subtitle: '해당 계정의 단지 소속 해제 요청이 처리되었습니다.',
+      itemName: deletedName,
+      time: getCurrentTimeText(),
+      actionLabel: `${deletedRole} 소속 해제`,
+      actor: getCurrentActorName(),
       afterConfirm: async () => {
         await loadAdmins()
       },
     })
   } catch (error) {
     console.error(error)
-    state.editErrorMessage = error?.message || '잠시 후 다시 시도해주세요.'
-    openResultModal({
-      type: 'danger',
-      title: '관리자 계정 소속 해제에 실패했습니다.',
-      subtitle: state.editErrorMessage,
-    })
+    state.editErrorMessage = getErrorMessage(error, '잠시 후 다시 시도해주세요.')
   } finally {
     state.deleteSubmitting = false
   }
@@ -565,15 +630,15 @@ onMounted(async () => {
         <button type="button" class="page-button page-button--ghost" @click="goToComplexList">
           단지 선택
         </button>
-        <button type="button" class="page-button page-button--primary" @click="goToDashboard">
-          대시보드
+        <button type="button" class="page-button page-button--primary" @click="openCreateModal">
+          신규 등록
         </button>
       </div>
     </template>
 
     <!-- 선택 단지 요약 카드와 목록 영역을 순서대로 배치한다. -->
     <section class="manage-page">
-      <div class="manage-page__context card-shell">
+      <!-- <div class="manage-page__context card-shell">
         <div class="manage-page__context-main">
           <p class="manage-page__eyebrow">SELECTED COMPLEX</p>
           <h2 class="manage-page__title">{{ currentComplex.name || '선택 단지 없음' }}</h2>
@@ -588,7 +653,7 @@ onMounted(async () => {
         <button type="button" class="page-button page-button--primary" @click="openCreateModal">
           신규 등록
         </button>
-      </div>
+      </div> -->
 
       <!-- 운영 상태와 관리자 수를 요약 카드로 표시한다. -->
       <div class="summary-grid">
@@ -769,8 +834,14 @@ onMounted(async () => {
     <!-- 등록 확인 모달 영역이다. -->
     <ConfirmModal
       :visible="state.modals.createConfirm"
-      title="관리자 계정을 등록할까요?"
+      title="관리자 계정을 등록하시겠습니까?"
       subtitle="선택한 단지에 새로운 관리자 또는 스태프 계정을 생성합니다."
+      item-label="계정"
+      :item-name="state.createForm.name || '신규 관리자'"
+      :action-label="getComplexAdminRoleLabel(state.createForm.adminRole)"
+      action-text="관리자 계정 생성"
+      :extra-value="state.createForm.email"
+      extra-label="이메일"
       confirm-text="등록"
       cancel-text="취소"
       confirm-type="primary"
@@ -782,8 +853,14 @@ onMounted(async () => {
     <!-- 수정 확인 모달 영역이다. -->
     <ConfirmModal
       :visible="state.modals.editConfirm"
-      title="관리자 계정 정보를 수정할까요?"
+      title="관리자 계정 정보를 수정하시겠습니까?"
       subtitle="이름, 연락처, 권한, 활성 상태 변경 내용을 저장합니다."
+      item-label="계정"
+      :item-name="state.editForm.name || '관리자 계정'"
+      :action-label="getComplexAdminRoleLabel(state.editForm.adminRole)"
+      action-text="관리자 계정 수정"
+      :extra-value="state.editForm.email"
+      extra-label="이메일"
       confirm-text="수정"
       cancel-text="취소"
       confirm-type="primary"
@@ -795,8 +872,15 @@ onMounted(async () => {
     <!-- 소속 해제 확인 모달 영역이다. -->
     <ConfirmModal
       :visible="state.modals.deleteConfirm"
-      title="관리자 계정 소속 해제"
-      subtitle="해당 관리자 계정의 단지 소속을 해제하시겠습니까?"
+      title="관리자 계정 소속을 해제하시겠습니까?"
+      subtitle="해당 관리자 계정은 선택 단지에서 더 이상 관리 권한을 갖지 않습니다."
+      subtitle-color="#E53E3E"
+      item-label="계정"
+      :item-name="state.selectedAdmin?.name || '관리자 계정'"
+      :action-label="state.selectedAdmin?.adminRoleName || getComplexAdminRoleLabel(state.selectedAdmin?.adminRole)"
+      action-text="단지 소속 해제"
+      :extra-value="state.selectedAdmin?.email"
+      extra-label="이메일"
       confirm-text="소속 해제"
       cancel-text="취소"
       confirm-type="danger"
@@ -812,6 +896,10 @@ onMounted(async () => {
       :title="state.resultModal.title"
       :subtitle="state.resultModal.subtitle"
       :desc="state.resultModal.desc"
+      :item-name="state.resultModal.itemName"
+      :time="state.resultModal.time"
+      :action-label="state.resultModal.actionLabel"
+      :actor="state.resultModal.actor"
       @close="handleResultConfirm"
     />
   </AdminLayout>
