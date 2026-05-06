@@ -72,8 +72,8 @@ defineProps({
 
 .stat-value {
   color: #333333;
-  font-size: 30px;
-  font-weight: 800;
+  font-size: 25px;
+  font-weight: 700;
   line-height: 1.2;
 }
 

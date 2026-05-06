@@ -9,7 +9,7 @@ import StatsCards from '@/components/admin/StatsCards.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
-import { getComplexAdminRoleLabel, getComplexStatusLabel } from '@/constants/complexCodes'
+import { getComplexAdminRoleLabel } from '@/constants/complexCodes'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 
@@ -203,8 +203,8 @@ const summaryItems = computed(() => {
 
   return [
     {
-      label: '운영 상태',
-      value: getComplexStatusLabel(currentComplex.value?.status),
+      label: '관리 단지',
+      value: currentComplex.value?.name || '선택 단지',
       unit: '',
       desc: currentComplex.value?.code || '-',
       descClass: '',
