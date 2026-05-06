@@ -5,11 +5,12 @@ defineProps({
   stats: {
     type: Array,
     default: () => [],
+     // 형식: [{ label, value, unit, desc, descClass, iconClass }]
   },
   showIcon: {
     type: Boolean,
     default: false,
-  },
+  }, // 아이콘 영역 표시 여부
 })
 </script>
 
@@ -29,7 +30,7 @@ defineProps({
         </div>
         <div class="stat-desc" :class="item.descClass">{{ item.desc }}</div>
       </div>
-
+      <!-- 아이콘 (대시보드용) -->
       <div v-if="showIcon && item.iconClass" :class="['card-icon', item.iconClass]">
         <slot :name="'icon-' + index" />
       </div>

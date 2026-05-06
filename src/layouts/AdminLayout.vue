@@ -1,83 +1,90 @@
 <script setup>
-// TODO: 일반 ADMIN 사용자를 기준으로 사용하는 데스크톱 관리자 레이아웃입니다.
+// 일반 ADMIN과 MASTER 선택 단지 모드가 공통으로 사용하는 데스크톱 관리자 레이아웃이다.
 import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 
-// 사이드바와 헤더에서 사용할 현재 라우트 정보를 가져옵니다.
 const route = useRoute()
-// 로그인 사용자 정보를 표시하기 위해 인증 store를 사용합니다.
 const authStore = useAuthStore()
-// AdminLayout에서 MASTER 분기 제거/축소 이유는 MASTER 전용 흐름을 MasterLayout으로 분리하기 위해서입니다.
 
-// 사이드바의 메인 관리자 메뉴를 그룹 단위로 정리합니다.
-const adminMenuGroups = [
+// 일반 ADMIN과 MASTER 모드가 공유하는 대표 메뉴 정의이다.
+const adminMenuDefinitions = [
   {
     label: 'MAIN',
-    items: [
-      // 대시보드 메뉴 경로입니다.
-      { label: '대시보드', to: '/admin/dashboard' },
-    ],
+    items: [{ label: '대시보드', path: 'dashboard' }],
   },
   {
     label: 'ACCOUNT',
-    items: [
-      // 관리자 관리 메뉴 경로입니다.
-      { label: '관리자 관리', to: '/admin/admins' },
-    ],
+    items: [{ label: '관리자 관리', path: 'admins' }],
   },
   {
     label: 'HOUSEHOLD',
     items: [
-      // 세대 관리 메뉴 경로입니다.
-      { label: '세대 관리', to: '/admin/households' },
-      // 관리비 관리 메뉴 경로입니다.
-      { label: '관리비 관리', to: '/admin/bills' },
+      { label: '세대 관리', path: 'households' },
+      { label: '관리비 관리', path: 'bills' },
     ],
   },
   {
     label: 'VEHICLE',
     items: [
-      // 차량 관리 메뉴 경로입니다.
-      { label: '입주민 차량 목록', to: '/admin/vehicles' },
-      // 방문차량 관리 메뉴 경로입니다.
-      { label: '방문차량 목록', to: '/admin/visitor-vehicles' },
-      // 입출차 기록 메뉴 경로입니다.
-      { label: '입출차 기록', to: '/admin/parking-logs' },
-      // 주차 현황 메뉴 경로입니다.
-      { label: '주차 현황', to: '/admin/parking/dashboard' },
+      { label: '입주민 차량 목록', path: 'vehicles' },
+      { label: '방문차량 목록', path: 'visitor-vehicles' },
+      { label: '입출차 기록', path: 'parking-logs' },
+      { label: '주차 현황', path: 'parking/dashboard' },
     ],
   },
   {
     label: 'COMMUNITY',
     items: [
-      // 게시판 통계 메뉴 경로입니다.
-      { label: '게시판 통계', to: '/admin/boards/statistics' },
-      // 공지사항 관리 메뉴 경로입니다.
-      { label: '공지사항 관리', to: '/admin/notices' },
-      // 투표 관리 메뉴 경로입니다.
-      { label: '투표 관리', to: '/admin/votes' },
+      { label: '게시판 통계', path: 'boards/statistics' },
+      { label: '공지사항 관리', path: 'notices' },
+      { label: '투표 관리', path: 'votes' },
     ],
   },
   {
     label: 'FACILITY / RESERVATION',
     items: [
-      // 시설 관리 메뉴 경로입니다.
-      { label: '시설 관리', to: '/admin/facilities' },
-      // 예약 관리 메뉴 경로입니다.
-      { label: '예약 현황', to: '/admin/reservations' },
-      // GX 프로그램 메뉴 경로입니다.
-      { label: 'GX 프로그램 관리', to: '/admin/gx-programs' },
+      { label: '시설 관리', path: 'facilities' },
+      { label: '예약 현황', path: 'reservations' },
+      { label: 'GX 프로그램 관리', path: 'gx-programs' },
     ],
   },
 ]
 
-// 사용자 권한과 표시용 이름을 계산합니다.
+// route path와 params.code를 기준으로 MASTER 선택 단지 관리자 모드를 판별한다.
+const isMasterComplexMode = computed(() => {
+  return route.path.startsWith('/admin/master/complexes/') && !!route.params.code
+})
+
+// MASTER 모드에서는 현재 단지 code를 링크 생성 기준으로 사용한다.
+const currentComplexCode = computed(() => String(route.params.code || ''))
+
+// 같은 메뉴 구성을 현재 모드에 맞는 링크로 변환한다.
+function buildAdminPath(path) {
+  if (isMasterComplexMode.value && currentComplexCode.value) {
+    return `/admin/master/complexes/${currentComplexCode.value}/${path}`
+  }
+
+  return `/admin/${path}`
+}
+
+// 사이드바 메뉴는 동일하게 유지하고 링크만 MASTER/ADMIN 모드에 맞게 분기한다.
+const adminMenuGroups = computed(() => {
+  return adminMenuDefinitions.map((group) => ({
+    ...group,
+    items: (group.items || []).map((item) => ({
+      ...item,
+      to: buildAdminPath(item.path),
+    })),
+  }))
+})
+
+// 사용자 권한과 표시용 이름을 계산한다.
 const userName = computed(() => authStore.name || '관리자')
 const userRole = computed(() => authStore.role || 'ADMIN')
 const currentPageTitle = computed(() => route.meta?.title || '관리자 화면')
 
-// 상단 헤더에 표시할 오늘 날짜 문자열을 계산합니다.
+// 상단 헤더에 표시할 오늘 날짜 문자열을 계산한다.
 const todayStr = computed(() => {
   const days = ['일', '월', '화', '수', '목', '금', '토']
   const date = new Date()
@@ -89,15 +96,21 @@ const todayStr = computed(() => {
   return `${year}.${month}.${day} (${dayOfWeek})`
 })
 
-// 현재 경로와 메뉴 경로를 비교해 활성 상태를 표시합니다.
-const isMenuActive = (targetPath) => route.path === targetPath || route.path.startsWith(`${targetPath}/`)
+// 현재 경로와 메뉴 경로를 비교해 활성 상태를 표시한다.
+function isMenuActive(targetPath) {
+  return route.path === targetPath || route.path.startsWith(`${targetPath}/`)
+}
 
-// 관리자 헤더의 보조 문구를 권한 상태에 맞게 표시합니다.
+// 상단 보조 문구는 현재 모드와 단지 code를 기준으로 표시한다.
 const topbarSub = computed(() => {
+  if (isMasterComplexMode.value && currentComplexCode.value) {
+    return `${todayStr.value} · 선택 단지 ${currentComplexCode.value}`
+  }
+
   return `${todayStr.value} · APT-EN 아파트`
 })
 
-// 기존 store 액션을 사용해 로그아웃 버튼을 연결합니다.
+// 기존 store 액션을 사용해 로그아웃 버튼을 연결한다.
 const handleLogout = async () => {
   await authStore.logout()
 }
@@ -377,13 +390,6 @@ const handleLogout = async () => {
   font-size: var(--font-size-label);
 }
 
-.admin-layout__header-warning {
-  margin: 0 0 4px;
-  color: var(--color-warning);
-  font-size: var(--font-size-body-sm);
-  font-weight: 600;
-}
-
 .admin-layout__header-title {
   margin: 0;
   color: var(--color-text-primary);
@@ -399,37 +405,6 @@ const handleLogout = async () => {
 }
 
 .admin-layout__utility-button {
-  display: flex;
-  height: 36px;
-  align-items: center;
-  padding: 0 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-8);
-  background: var(--color-card-bg);
-  color: var(--color-text-primary);
-  cursor: pointer;
-  font-size: var(--font-size-detail);
-}
-
-.admin-layout__primary-button {
-  display: flex;
-  height: 36px;
-  align-items: center;
-  padding: 0 18px;
-  border: none;
-  border-radius: 7px;
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-  cursor: pointer;
-  font-size: var(--font-size-detail);
-  font-weight: 600;
-}
-
-.admin-layout__primary-button:hover {
-  filter: brightness(0.92);
-}
-
-.admin-layout__secondary-button {
   display: flex;
   height: 36px;
   align-items: center;
