@@ -1,6 +1,6 @@
 <script setup>
-// 선택된 단지의 관리자와 스태프 계정을 관리하는 공통 관리자 화면이다.
-import { computed, onMounted, reactive } from 'vue'
+// 선택된 단지의 관리자와 스태프 계정을 관리하는 공통 관리자 화면
+import { computed, inject, onMounted, onUnmounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BaseModal from '@/components/common/BaseModal.vue'
 import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
@@ -17,6 +17,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
+const registerOpenModal = inject('registerOpenModal', null)
 
 const state = reactive({
   listLoading: false,
@@ -25,7 +26,7 @@ const state = reactive({
   filters: {
     keyword: '',
     role: '',
-    active: '',
+    active: 'active',
   },
   pagination: {
     currentPage: 1,
@@ -87,15 +88,23 @@ const activeOptions = [
   { value: 'inactive', label: '비활성' },
 ]
 
-const adminColumns = [
-  { key: 'number', label: '번호' },
-  { key: 'name', label: '이름' },
-  { key: 'email', label: '이메일' },
-  { key: 'phone', label: '연락처' },
-  { key: 'role', label: '권한' },
-  { key: 'active', label: '활성 여부' },
-  { key: 'assignedAt', label: '배정일' },
-]
+// MASTER와 MANAGER만 관리자 관리 액션을 사용할 수 있다.
+const canManageAdmins = computed(() => {
+  return ['MASTER', 'MANAGER'].includes(authStore.role)
+})
+
+// 기본 관리자 목록 컬럼만 유지하고 관리 버튼은 action 슬롯으로만 처리한다.
+const adminColumns = computed(() => {
+  return [
+    { key: 'number', label: '번호' },
+    { key: 'name', label: '이름' },
+    { key: 'email', label: '이메일' },
+    { key: 'phone', label: '연락처' },
+    { key: 'role', label: '권한' },
+    { key: 'active', label: '활성 여부' },
+    { key: 'assignedAt', label: '배정일' },
+  ]
+})
 
 // route params의 code를 우선 사용하고, 일반 ADMIN 모드에서는 store 선택 단지 code를 보조로 사용한다.
 const complexCode = computed(() => {
@@ -366,7 +375,7 @@ async function loadAdmins() {
 function resetFilters() {
   state.filters.keyword = ''
   state.filters.role = ''
-  state.filters.active = ''
+  state.filters.active = 'active'
   state.pagination.currentPage = 1
 }
 
@@ -593,10 +602,22 @@ function formatDate(value) {
 
 // 화면 최초 진입 시 단지 컨텍스트를 복구하고 목록을 조회한다.
 onMounted(async () => {
+  // 관리자 관리 페이지에서는 레이아웃 상단 버튼으로 등록 모달을 열 수 있게 연결한다.
+  if (typeof registerOpenModal === 'function') {
+    registerOpenModal(openCreateModal)
+  }
+
   const isReady = await restoreComplexContext()
 
   if (isReady) {
     await loadAdmins()
+  }
+})
+
+// 페이지를 벗어날 때는 레이아웃 상단 버튼 연결을 정리한다.
+onUnmounted(() => {
+  if (typeof registerOpenModal === 'function') {
+    registerOpenModal(null)
   }
 })
 </script>
@@ -640,17 +661,10 @@ onMounted(async () => {
               {{ row.active }}
             </span>
           </template>
-          <template #action="{ row }">
+          <template v-if="canManageAdmins" #action="{ row }">
             <div class="table-actions">
               <button type="button" class="table-action-button" @click.stop="openEditModal(row)">
                 수정
-              </button>
-              <button
-                type="button"
-                class="table-action-button danger"
-                @click.stop="openDeleteConfirm(row)"
-              >
-                소속 해제
               </button>
             </div>
           </template>
@@ -753,12 +767,17 @@ onMounted(async () => {
         </label>
       </div>
 
-      <p class="form-help-text">비밀번호 수정은 별도 기능으로 분리 예정입니다.</p>
       <p v-if="state.editErrorMessage" class="form-feedback error">{{ state.editErrorMessage }}</p>
 
       <template #footer>
-        <button type="button" class="page-button page-button--ghost" @click="closeEditModal">
-          취소
+        <button
+          v-if="canManageAdmins"
+          type="button"
+          class="page-button page-button--danger"
+          :disabled="state.deleteSubmitting"
+          @click="openDeleteConfirm(state.selectedAdmin)"
+        >
+          {{ state.deleteSubmitting ? '삭제 중...' : '관리자 삭제' }}
         </button>
         <button
           type="button"
@@ -809,16 +828,16 @@ onMounted(async () => {
 
     <ConfirmModal
       :visible="state.modals.deleteConfirm"
-      title="관리자 계정 소속을 해제하시겠습니까?"
-      subtitle="해당 관리자 계정은 선택 단지에서 더 이상 관리 권한을 갖지 않습니다."
+      title="관리자 계정을 삭제하시겠습니까?"
+      subtitle="해당 관리자 계정의 단지 소속이 해제되고 계정이 비활성화됩니다."
       subtitle-color="#E53E3E"
       item-label="계정"
       :item-name="state.selectedAdmin?.name || '관리자 계정'"
       :action-label="state.selectedAdmin?.adminRoleName || getComplexAdminRoleLabel(state.selectedAdmin?.adminRole)"
-      action-text="단지 소속 해제"
+      action-text="관리자 삭제"
       :extra-value="state.selectedAdmin?.email"
       extra-label="이메일"
-      confirm-text="소속 해제"
+      confirm-text="관리자 삭제"
       cancel-text="취소"
       confirm-type="danger"
       :loading="state.deleteSubmitting"
@@ -872,6 +891,12 @@ onMounted(async () => {
 .page-button--primary {
   border: none;
   background: #2B3A55;
+  color: #FFFFFF;
+}
+
+.page-button--danger {
+  border: none;
+  background: #E53E3E;
   color: #FFFFFF;
 }
 
@@ -1034,7 +1059,6 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-.form-help-text,
 .form-feedback {
   margin: 16px 0 0;
   color: #687282;
