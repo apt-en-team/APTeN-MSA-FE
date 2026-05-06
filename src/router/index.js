@@ -58,12 +58,12 @@ router.beforeEach((to, from) => {
     return '/login'
   }
 
-  // forbidden 페이지는 canAccess 체크 제외 — 무한 루프 방지
-  if (to.path === '/forbidden') return true
-
-  // 역할 권한 없으면 forbidden 페이지로 이동
+  // 권한이 없으면 역할별 기본 화면으로 이동한다.
   if (!canAccess(authStore.role, to.meta.roles)) {
-    return '/forbidden'
+    if (authStore.role === 'USER') return '/resident/home'
+    if (authStore.role === 'MASTER') return '/admin/master'
+    if (authStore.role === 'MANAGER' || authStore.role === 'ADMIN') return '/admin/dashboard'
+    return '/'
   }
 
   // 입주민 승인 대기 상태면 대기 페이지로 이동
