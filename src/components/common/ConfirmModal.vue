@@ -70,7 +70,6 @@ defineEmits(['confirm', 'cancel'])
   <BaseModal
     :visible="visible"
     :title="title"
-    :subtitle="subtitle"
     @close="$emit('cancel')"
   >
     <!-- 경고 아이콘과 확인 대상 정보를 묶어서 보여준다. -->

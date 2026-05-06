@@ -160,17 +160,26 @@ export const useComplexStore = defineStore('complex', {
     },
 
     // 주소 검색
-    async searchComplexAddress(keyword) {
+    async searchComplexAddress(params) {
       this.loading = true
       this.error = null
       try {
         // 프론트는 VWorld를 직접 호출하지 않고 백엔드 주소 검색 API만 호출합니다.
-        const res = await apartmentComplexApi.searchAddress({
-          keyword,
-        })
-        // 주소 검색 결과를 화면에서 사용하기 쉬운 형태로 정리합니다.
-        this.addressSearchResults = Array.isArray(res) ? res : []
-        return this.addressSearchResults
+        const searchParams =
+          typeof params === 'string'
+            ? {
+                keyword: params,
+              }
+            : params
+
+        const res = await apartmentComplexApi.searchAddress(searchParams)
+        // 기존 배열 응답과 신규 페이지 응답을 모두 안전하게 처리합니다.
+        this.addressSearchResults = Array.isArray(res?.content)
+          ? res.content
+          : Array.isArray(res)
+            ? res
+            : []
+        return res
       } catch (e) {
         console.error(e)
         this.error = e

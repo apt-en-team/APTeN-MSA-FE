@@ -33,7 +33,6 @@ const state = reactive({
   form: {
     name: '',
     address: '',
-    addressDetail: '',
     zipCode: '',
     description: '',
     status: '',
@@ -65,7 +64,6 @@ function getTargetCode() {
 function resetState() {
   state.form.name = ''
   state.form.address = ''
-  state.form.addressDetail = ''
   state.form.zipCode = ''
   state.form.description = ''
   state.form.status = ''
@@ -138,7 +136,6 @@ function formatStatus(status) {
 function syncForm(detail) {
   state.form.name = detail?.name || ''
   state.form.address = detail?.address || ''
-  state.form.addressDetail = detail?.addressDetail || ''
   state.form.zipCode = detail?.zipCode || ''
   state.form.description = detail?.description || ''
   state.form.status = detail?.status || ''
@@ -317,11 +314,6 @@ onMounted(loadComplexDetail)
       </label>
 
       <div class="master-complex-form__grid">
-        <label class="master-complex-form__field">
-          <span>상세주소</span>
-          <input v-model="state.form.addressDetail" type="text" readonly />
-        </label>
-
         <label class="master-complex-form__field">
           <span>우편번호</span>
           <input v-model="state.form.zipCode" type="text" readonly />

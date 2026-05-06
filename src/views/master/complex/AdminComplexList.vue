@@ -19,6 +19,7 @@ const state = reactive({
   showNeedSelectModal: false,
   showCreateModal: false,
   showEditModal: false,
+  isComplexDropdownOpen: false,
 })
 
 // 선택된 단지 객체를 찾는다.
@@ -29,27 +30,23 @@ const selectedComplex = computed(() => {
 // 드롭다운에 표시할 단지가 있는지 확인한다.
 const hasComplexes = computed(() => state.complexes.length > 0)
 
+// 현재 선택바에 표시할 문구를 만든다.
+const selectedComplexName = computed(() => {
+  if (state.loading) return '단지 목록을 불러오는 중입니다.'
+  if (!hasComplexes.value) return '등록된 단지가 없습니다.'
+  return selectedComplex.value?.name || '단지 선택'
+})
+
 // 단지 목록을 드롭다운용으로 조회한다.
+// 마스터 랜딩 선택바는 활성 단지만 필요하므로 API-209를 사용한다.
 async function fetchComplexes() {
   state.loading = true
   state.errorMessage = ''
 
   try {
-    const result = await complexStore.fetchMasterComplexes({
-      page: 0,
-      size: 100,
-    })
+    const result = await complexStore.fetchPublicComplexes()
 
-    const content =
-      result?.content ||
-      complexStore.masterComplexPage?.content ||
-      complexStore.complexList?.content ||
-      []
-
-    state.complexes = content.filter((complex) => {
-      const status = complex.status
-      return status !== '03' && status !== '삭제' && status !== 'DELETED'
-    })
+    state.complexes = Array.isArray(result) ? result : []
 
     // 선택한 단지를 새로고침 후에도 유지하기 위해 store에서 복구를 시도한다.
     complexStore.restoreSelectedComplex?.()
@@ -67,7 +64,6 @@ async function fetchComplexes() {
     }
   } catch (error) {
     console.error('단지 목록 조회 실패:', error)
-    // 조회 실패 시 드롭다운 데이터는 빈 배열로 안전하게 초기화한다.
     state.complexes = []
     state.selectedCode = ''
     state.errorMessage = '단지 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
@@ -76,11 +72,17 @@ async function fetchComplexes() {
   }
 }
 
-// 선택한 단지를 store에 저장한다.
-function handleSelectComplex() {
-  if (!selectedComplex.value) return
+// 선택바를 열고 닫는다.
+function toggleComplexDropdown() {
+  if (state.loading || !hasComplexes.value) return
+  state.isComplexDropdownOpen = !state.isComplexDropdownOpen
+}
 
-  complexStore.setSelectedComplex(selectedComplex.value)
+// 단지를 선택하고 store에 저장한다.
+function selectComplex(complex) {
+  state.selectedCode = complex.code
+  state.isComplexDropdownOpen = false
+  complexStore.setSelectedComplex(complex)
 }
 
 // 단지 선택 전에는 BaseModal로 안내한다.
@@ -143,11 +145,13 @@ onMounted(() => {
 
 // 단지 등록 성공 후 목록을 다시 조회한다.
 async function handleCreated() {
+  state.showCreateModal = false
   await fetchComplexes()
 }
 
 // 단지 수정 성공 후 목록을 다시 조회한다.
 async function handleUpdated() {
+  state.showEditModal = false
   await fetchComplexes()
 }
 </script>
@@ -177,38 +181,47 @@ async function handleUpdated() {
       <h1 class="main-title">아파트엔 마스터</h1>
       <p class="main-desc">스마트 주거·생활 통합 관리 시스템</p>
       <div class="divider-bar"></div>
+
       <div class="complex-control-row">
-          <select
-            class="complex-select"
-            v-model="state.selectedCode"
-            :disabled="state.loading"
-            @change="handleSelectComplex"
+        <!-- 단지 선택 커스텀 드롭다운 -->
+        <div class="complex-dropdown" :class="{ open: state.isComplexDropdownOpen }">
+          <button
+            class="complex-dropdown__button"
+            type="button"
+            :disabled="state.loading || !hasComplexes"
+            @click="toggleComplexDropdown"
           >
-            <option value="">
-              {{ state.loading ? '단지 목록을 불러오는 중입니다.' : '단지 선택' }}
-            </option>
-            <option v-if="!state.loading && !hasComplexes" value="" disabled>
-              등록된 단지가 없습니다.
-            </option>
-            <option
+            <span class="complex-dropdown__button-text">
+              {{ selectedComplexName }}
+            </span>
+            <span class="complex-dropdown__arrow">⌄</span>
+          </button>
+
+          <div v-if="state.isComplexDropdownOpen" class="complex-dropdown__menu">
+            <button
               v-for="complex in state.complexes"
               :key="complex.code"
-              :value="complex.code"
+              class="complex-dropdown__item"
+              :class="{ selected: complex.code === state.selectedCode }"
+              type="button"
+              @click="selectComplex(complex)"
             >
-              {{ complex.name }}
-            </option>
-          </select>
-
-          <button class="small-action-btn" @click="goEditComplex">
-            <span>⚙</span>
-            수정
-          </button>
-
-          <button class="small-action-btn primary" @click="goCreateComplex">
-            <span>＋</span>
-            등록
-          </button>
+              <span class="complex-dropdown__name">{{ complex.name }}</span>
+              <span class="complex-dropdown__code">{{ complex.code }}</span>
+            </button>
+          </div>
         </div>
+
+        <button class="small-action-btn" @click="goEditComplex">
+          <span>⚙</span>
+          수정
+        </button>
+
+        <button class="small-action-btn primary" @click="goCreateComplex">
+          <span>＋</span>
+          등록
+        </button>
+      </div>
 
       <!-- 단지 목록 조회 실패 문구를 표시한다. -->
       <p v-if="state.errorMessage" class="complex-guide error">
@@ -260,25 +273,25 @@ async function handleUpdated() {
   </div>
 
   <BaseModal
-  v-if="state.showNeedSelectModal"
-  title="단지 선택 필요"
-  subtitle="관리할 단지를 먼저 선택해주세요."
-  @close="state.showNeedSelectModal = false"
->
-  <p class="modal-guide-text">
-    단지를 선택한 뒤 입주민 미리보기 또는 관리자 바로가기를 이용할 수 있습니다.
-  </p>
+    v-if="state.showNeedSelectModal"
+    title="단지 선택 필요"
+    subtitle="관리할 단지를 먼저 선택해주세요."
+    @close="state.showNeedSelectModal = false"
+  >
+    <p class="modal-guide-text">
+      단지를 선택한 뒤 입주민 미리보기 또는 관리자 바로가기를 이용할 수 있습니다.
+    </p>
 
-  <template #footer>
-    <button
-      class="modal-confirm-btn"
-      type="button"
-      @click="state.showNeedSelectModal = false"
-    >
-      확인
-    </button>
-  </template>
-</BaseModal>
+    <template #footer>
+      <button
+        class="modal-confirm-btn"
+        type="button"
+        @click="state.showNeedSelectModal = false"
+      >
+        확인
+      </button>
+    </template>
+  </BaseModal>
 
   <AdminComplexCreate
     v-if="state.showCreateModal"
@@ -330,6 +343,7 @@ async function handleUpdated() {
   align-items: center;
   justify-content: space-between;
 }
+
 .master-login-header__brand {
   display: flex;
   align-items: center;
@@ -345,6 +359,7 @@ async function handleUpdated() {
   height: 44px;
   object-fit: contain;
 }
+
 .logo-text {
   font-size: 14px;
   font-weight: 700;
@@ -360,6 +375,7 @@ async function handleUpdated() {
   justify-content: center;
   padding: 0 20px;
 }
+
 .sub-title {
   font-size: 11px;
   font-weight: 600;
@@ -367,17 +383,20 @@ async function handleUpdated() {
   letter-spacing: 4px;
   margin-bottom: 20px;
 }
+
 .main-title {
   font-size: 52px;
   font-weight: 800;
   color: #0F1923;
   margin: 0;
 }
+
 .main-desc {
   font-size: 16px;
   color: #8B92A0;
   margin-top: 12px;
 }
+
 .divider-bar {
   width: 50px;
   height: 3px;
@@ -391,6 +410,7 @@ async function handleUpdated() {
   display: flex;
   gap: 24px;
 }
+
 .select-card {
   width: 320px;
   padding: 32px;
@@ -400,6 +420,7 @@ async function handleUpdated() {
   position: relative;
   overflow: hidden;
 }
+
 .select-card:hover {
   transform: translateY(-6px);
   box-shadow: 0 16px 48px rgba(0,0,0,0.3);
@@ -409,6 +430,7 @@ async function handleUpdated() {
   background: linear-gradient(135deg, #4973E5 0%, #3B5BDB 100%);
   border: 1px solid rgba(255,255,255,0.12);
 }
+
 .admin-card {
   background: linear-gradient(135deg, #2D3142 0%, #1A1A2E 100%);
   border: 1px solid rgba(255,255,255,0.08);
@@ -423,27 +445,44 @@ async function handleUpdated() {
   justify-content: center;
   margin-bottom: 20px;
 }
-.resident-card .card-icon-wrap { background: rgba(255,255,255,0.15); }
-.admin-card .card-icon-wrap { background: rgba(255,255,255,0.08); }
-.card-icon { font-size: 22px; }
+
+.resident-card .card-icon-wrap {
+  background: rgba(255,255,255,0.15);
+}
+
+.admin-card .card-icon-wrap {
+  background: rgba(255,255,255,0.08);
+}
+
+.card-icon {
+  font-size: 22px;
+}
 
 .card-label {
   font-size: 11px;
   color: rgba(255,255,255,0.5);
   letter-spacing: 1px;
 }
+
 .card-title {
   font-size: 26px;
   font-weight: 700;
   color: #fff;
   margin: 8px 0 10px;
 }
+
 .card-desc {
   font-size: 13px;
   margin: 0;
 }
-.resident-card .card-desc { color: rgba(255,255,255,0.6); }
-.admin-card .card-desc { color: rgba(255,255,255,0.35); }
+
+.resident-card .card-desc {
+  color: rgba(255,255,255,0.6);
+}
+
+.admin-card .card-desc {
+  color: rgba(255,255,255,0.35);
+}
 
 .card-arrow {
   position: absolute;
@@ -459,24 +498,36 @@ async function handleUpdated() {
   color: #fff;
   transition: transform 0.2s;
 }
-.resident-card .card-arrow { background: rgba(255,255,255,0.2); }
-.admin-card .card-arrow { background: rgba(255,255,255,0.08); }
-.select-card:hover .card-arrow { transform: translateX(4px); }
+
+.resident-card .card-arrow {
+  background: rgba(255,255,255,0.2);
+}
+
+.admin-card .card-arrow {
+  background: rgba(255,255,255,0.08);
+}
+
+.select-card:hover .card-arrow {
+  transform: translateX(4px);
+}
 
 /* 푸터 */
 .landing-footer {
   padding: 28px;
   text-align: center;
 }
+
 .landing-footer p {
   font-size: 12px;
   color: #8B92A0;
   margin-bottom: 8px;
 }
+
 .footer-links {
   font-size: 11px;
   color: #5A6070;
 }
+
 .footer-links .sep {
   margin: 0 8px;
   color: #3A3F4E;
@@ -504,24 +555,121 @@ async function handleUpdated() {
   margin: 0 0 34px;
 }
 
-.complex-select {
+/* 단지 선택 커스텀 드롭다운 */
+.complex-dropdown {
+  position: relative;
   width: 390px;
+}
+
+.complex-dropdown__button {
+  width: 100%;
   height: 42px;
-  padding: 0 42px 0 16px;
+  padding: 0 14px 0 16px;
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 8px;
   background: #fff;
   color: #1A202C;
   font-size: 13px;
   font-family: 'Noto Sans KR', sans-serif;
-  text-align: center;
   cursor: pointer;
   outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.complex-select:focus {
+.complex-dropdown__button:disabled {
+  color: #8B92A0;
+  cursor: not-allowed;
+  background: #F5F6F8;
+}
+
+.complex-dropdown__button:focus,
+.complex-dropdown.open .complex-dropdown__button {
   border-color: #4973E5;
   box-shadow: 0 0 0 3px rgba(73, 115, 229, 0.14);
+}
+
+.complex-dropdown__button-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.complex-dropdown__arrow {
+  flex-shrink: 0;
+  color: #8B92A0;
+  font-size: 14px;
+  transition: transform 0.2s;
+}
+
+.complex-dropdown.open .complex-dropdown__arrow {
+  transform: rotate(180deg);
+}
+
+.complex-dropdown__menu {
+  position: absolute;
+  z-index: 20;
+  top: 48px;
+  left: 0;
+  width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(15, 25, 35, 0.14);
+  box-sizing: border-box;
+}
+
+.complex-dropdown__menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.complex-dropdown__menu::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #CBD5E1;
+}
+
+.complex-dropdown__item {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #1A202C;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+}
+
+.complex-dropdown__item:hover {
+  background: #F5F6F8;
+}
+
+.complex-dropdown__item.selected {
+  background: rgba(73, 115, 229, 0.08);
+  color: #4973E5;
+  font-weight: 700;
+}
+
+.complex-dropdown__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.complex-dropdown__code {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #8B92A0;
 }
 
 .small-action-btn {
@@ -601,8 +749,27 @@ async function handleUpdated() {
 
 /* 모바일 반응형 */
 @media (max-width: 700px) {
-  .card-row { flex-direction: column; }
-  .select-card { width: 100%; max-width: 340px; }
-  .main-title { font-size: 36px; }
+  .card-row {
+    flex-direction: column;
+  }
+
+  .select-card {
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .main-title {
+    font-size: 36px;
+  }
+
+  .complex-control-row {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .complex-dropdown {
+    width: 100%;
+    max-width: 340px;
+  }
 }
 </style>
