@@ -207,7 +207,11 @@ async function handleSubmit() {
           :disabled="complexesLoading"
         >
           <option value="">단지를 선택해주세요</option>
-          <option v-for="complex in complexes" :key="complex.code" :value="complex.code">
+          <option
+            v-for="complex in complexes"
+            :key="complex.complexId"
+            :value="complex.complexId"
+          >
             {{ complex.name }}
           </option>
         </select>
