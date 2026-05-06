@@ -90,7 +90,7 @@ const handleOverlayClick = () => {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-12);
-  padding: var(--space-20) var(--space-20) ;
+  padding: var(--space-16) var(--space-20) ;
 }
 
 .base-modal__header-copy {

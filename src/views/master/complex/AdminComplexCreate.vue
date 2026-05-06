@@ -382,9 +382,6 @@ watch(
     </div>
 
     <template #footer>
-      <button type="button" class="master-complex-form__ghost-button" @click="handleClose">
-        취소
-      </button>
       <button
         type="button"
         class="master-complex-form__primary-button"
@@ -443,17 +440,22 @@ watch(
     </div>
   </BaseModal>
 
-  <ConfirmModal
-    :visible="state.showConfirmModal"
-    title="단지 등록"
-    subtitle="입력한 단지 정보와 최초 관리자 계정을 생성합니다."
-    confirm-text="등록"
-    cancel-text="취소"
-    confirm-type="primary"
-    :loading="state.loading"
-    @confirm="handleCreateConfirm"
-    @cancel="state.showConfirmModal = false"
-  />
+<ConfirmModal
+  :visible="state.showConfirmModal"
+  title="단지를 등록하시겠습니까?"
+  subtitle="입력한 단지 정보와 최초 관리자 계정을 생성합니다."
+  item-label="단지명"
+  :item-name="state.form.name || '새 단지'"
+  action-text="관리자 계정 생성"
+  :extra-value="state.form.managerEmail"
+  extra-label="이메일"
+  confirm-text="등록"
+  cancel-text="취소"
+  confirm-type="primary"
+  :loading="state.loading"
+  @confirm="handleCreateConfirm"
+  @cancel="state.showConfirmModal = false"
+/>
 
   <ActionResultModal
     :visible="state.resultModal.show"
@@ -510,7 +512,7 @@ watch(
 }
 
 .master-complex-form__field textarea {
-  min-height: 110px;
+  max-height: 45px;
   padding: 12px 14px;
   resize: vertical;
 }
@@ -561,7 +563,7 @@ watch(
 
 .master-complex-form__primary-button {
   border: none;
-  background: var(--color-primary);
+  background: #1E2A3E;
   color: var(--color-card-bg);
 }
 

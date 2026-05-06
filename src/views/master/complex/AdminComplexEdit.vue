@@ -6,7 +6,9 @@ import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
 import { getComplexStatusLabel } from '@/constants/complexCodes'
 import { useComplexStore } from '@/stores/useComplexStore'
+import { useAuthStore } from '@/stores/useAuthStore'
 
+const authStore = useAuthStore()
 const route = useRoute()
 const complexStore = useComplexStore()
 
@@ -25,6 +27,11 @@ const props = defineProps({
     default: '',
   },
 })
+
+// 로그인한 사용자 이름을 결과 모달 처리자로 표시한다.
+function getCurrentActorName() {
+  return authStore.userInfo?.name || authStore.name || '마스터 관리자'
+}
 
 // 수정 완료와 모달 닫기 이벤트를 부모 컴포넌트로 전달한다.
 const emit = defineEmits(['close', 'updated'])
@@ -50,6 +57,10 @@ const state = reactive({
     title: '',
     subtitle: '',
     desc: '',
+    itemName: '',
+    time: '',
+    actionLabel: '',
+    actor: '',
     shouldEmitUpdated: false,
     shouldCloseParent: false,
   },
@@ -79,6 +90,10 @@ function resetState() {
   state.resultModal.title = ''
   state.resultModal.subtitle = ''
   state.resultModal.desc = ''
+  state.resultModal.itemName = ''
+  state.resultModal.time = ''
+  state.resultModal.actionLabel = ''
+  state.resultModal.actor = ''
   state.resultModal.shouldEmitUpdated = false
   state.resultModal.shouldCloseParent = false
 }
@@ -89,6 +104,10 @@ function openResultModal({
   title,
   subtitle = '',
   desc = '',
+  itemName = '',
+  time = '',
+  actionLabel = '',
+  actor = '',
   shouldEmitUpdated = false,
   shouldCloseParent = false,
 }) {
@@ -99,6 +118,10 @@ function openResultModal({
   state.resultModal.title = title
   state.resultModal.subtitle = subtitle
   state.resultModal.desc = desc
+  state.resultModal.itemName = itemName
+  state.resultModal.time = time
+  state.resultModal.actionLabel = actionLabel
+  state.resultModal.actor = actor
   state.resultModal.shouldEmitUpdated = shouldEmitUpdated
   state.resultModal.shouldCloseParent = shouldCloseParent
 }
@@ -130,6 +153,17 @@ function handleClose() {
 // 단지 상태 라벨을 화면에 표시하기 쉬운 문자열로 변환한다.
 function formatStatus(status) {
   return getComplexStatusLabel(status)
+}
+
+// 처리 시각을 결과 모달에 표시할 문자열로 만든다.
+function getCurrentTimeText() {
+  return new Date().toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 // 선택된 단지 정보가 있으면 기본 폼 값을 먼저 채운다.
@@ -211,6 +245,10 @@ async function handleUpdateConfirm() {
       type: 'success',
       title: '수정이 완료되었습니다.',
       subtitle: '변경된 단지 정보가 저장되었습니다.',
+      itemName: state.form.name || '선택 단지',
+      time: getCurrentTimeText(),
+      actionLabel: '단지 정보 수정',
+      actor: getCurrentActorName(),
       shouldEmitUpdated: true,
       shouldCloseParent: true,
     })
@@ -255,6 +293,10 @@ async function handleDeleteConfirm() {
       type: 'success',
       title: '삭제가 완료되었습니다.',
       subtitle: '단지 상태가 삭제로 변경되었습니다.',
+      itemName: state.form.name || '선택 단지',
+      time: getCurrentTimeText(),
+      actionLabel: '단지 삭제',
+      actor: getCurrentActorName(),
       shouldEmitUpdated: true,
       shouldCloseParent: true,
     })
@@ -263,8 +305,12 @@ async function handleDeleteConfirm() {
     state.errorMessage = error?.message || '잠시 후 다시 시도해주세요.'
     openResultModal({
       type: 'danger',
-      title: '삭제 처리에 실패했습니다.',
+      title: '수정에 실패했습니다.',
       subtitle: state.errorMessage,
+      itemName: state.form.name || '선택 단지',
+      time: getCurrentTimeText(),
+      actionLabel: '수정 실패',
+      actor: getCurrentActorName(),
     })
   } finally {
     state.loading = false
@@ -303,8 +349,8 @@ onMounted(loadComplexDetail)
         </label>
 
         <label class="master-complex-form__field">
-          <span>상태</span>
-          <input :value="formatStatus(state.form.status)" type="text" readonly />
+          <span>우편번호</span>
+          <input v-model="state.form.zipCode" type="text" readonly />
         </label>
       </div>
 
@@ -312,13 +358,6 @@ onMounted(loadComplexDetail)
         <span>주소</span>
         <input v-model="state.form.address" type="text" readonly />
       </label>
-
-      <div class="master-complex-form__grid">
-        <label class="master-complex-form__field">
-          <span>우편번호</span>
-          <input v-model="state.form.zipCode" type="text" readonly />
-        </label>
-      </div>
 
       <label class="master-complex-form__field">
         <span>설명</span>
@@ -342,17 +381,14 @@ onMounted(loadComplexDetail)
 
     <template #footer>
       <div class="master-complex-form__footer">
-        <button
-          type="button"
-          class="master-complex-form__danger-button"
-          :disabled="state.loading"
-          @click="openDeleteConfirm"
-        >
-          삭제
-        </button>
         <div class="master-complex-form__footer-actions">
-          <button type="button" class="master-complex-form__ghost-button" @click="handleClose">
-            취소
+          <button
+            type="button"
+            class="master-complex-form__danger-button"
+            :disabled="state.loading"
+            @click="openDeleteConfirm"
+          >
+            단지 삭제
           </button>
           <button
             type="button"
@@ -360,7 +396,7 @@ onMounted(loadComplexDetail)
             :disabled="state.loading"
             @click="openUpdateConfirm"
           >
-            {{ state.loading ? '저장 중...' : '수정 저장' }}
+            {{ state.loading ? '저장 중...' : '수정' }}
           </button>
         </div>
       </div>
@@ -369,8 +405,14 @@ onMounted(loadComplexDetail)
 
   <ConfirmModal
     :visible="state.showUpdateConfirm"
-    title="단지 정보를 수정할까요?"
+    title="단지 정보를 수정하시겠습니까?"
     subtitle="변경된 단지명과 설명을 저장합니다."
+    item-label="단지명"
+    :item-name="state.form.name || '선택 단지'"
+    action-label="수정"
+    action-text="단지 정보 변경"
+    :extra-value="state.form.code || '-'"
+    extra-label="단지 코드"
     confirm-text="수정"
     cancel-text="취소"
     confirm-type="primary"
@@ -381,8 +423,15 @@ onMounted(loadComplexDetail)
 
   <ConfirmModal
     :visible="state.showDeleteConfirm"
-    title="관리 단지를 삭제할까요?"
-    subtitle="삭제는 실제 제거가 아니라 status=03으로 변경하는 소프트 삭제입니다."
+    title="관리 단지를 삭제하시겠습니까?"
+    subtitle="삭제된 단지는 운영 목록에서 제외됩니다."
+    subtitle-color="#E53E3E"
+    item-label="단지명"
+    :item-name="state.form.name || '선택 단지'"
+    action-label="삭제"
+    action-text="상태를 삭제로 변경"
+    :extra-value="state.form.code || '-'"
+    extra-label="단지 코드"
     confirm-text="삭제"
     cancel-text="취소"
     confirm-type="danger"
@@ -397,6 +446,10 @@ onMounted(loadComplexDetail)
     :title="state.resultModal.title"
     :subtitle="state.resultModal.subtitle"
     :desc="state.resultModal.desc"
+    :item-name="state.resultModal.itemName"
+    :time="state.resultModal.time"
+    :action-label="state.resultModal.actionLabel"
+    :actor="state.resultModal.actor"
     @close="handleResultConfirm"
   />
 </template>
@@ -430,7 +483,7 @@ onMounted(loadComplexDetail)
 }
 
 .master-complex-form__field textarea {
-  min-height: 120px;
+  max-height: 80px;
   padding: 12px 14px;
   resize: vertical;
 }
@@ -469,7 +522,7 @@ onMounted(loadComplexDetail)
 .master-complex-form__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   width: 100%;
 }
@@ -477,7 +530,9 @@ onMounted(loadComplexDetail)
 .master-complex-form__footer-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
+  width: 100%;
 }
 
 .master-complex-form__ghost-button,
@@ -501,13 +556,13 @@ onMounted(loadComplexDetail)
 
 .master-complex-form__primary-button {
   border: none;
-  background: var(--color-primary);
+  background: #1E2A3E;
   color: var(--color-card-bg);
 }
 
 .master-complex-form__danger-button {
   border: none;
-  background: var(--color-danger);
+  background: #E53E3E;
   color: var(--color-card-bg);
 }
 
@@ -523,7 +578,6 @@ onMounted(loadComplexDetail)
   }
 
   .master-complex-form__footer {
-    flex-direction: column;
     align-items: stretch;
   }
 
