@@ -8,7 +8,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 onMounted(() => {
-  const { accessToken, refreshToken, userId, userUid, name, role, status, building, unit} = route.query
+  const { accessToken, refreshToken, userId, userUid, name, role, status, building, unit, complexId } = route.query
 
   // 토큰이 없으면 로그인 페이지로
   if (!accessToken) {
@@ -27,13 +27,14 @@ onMounted(() => {
     status,
     building,
     unit,
+    complexId,
   })
 
   // 역할별 페이지로 이동
   if (role === 'USER' && status === 'PENDING') {
-    router.replace('/resident/pending')
+    router.replace(`/resident/${complexId}/pending`)
   } else if (role === 'USER') {
-    router.replace('/resident/home')
+    router.replace(`/resident/${complexId}/home`)
   } else if (role === 'ADMIN') {
     router.replace('/admin/dashboard')
   } else if (role === 'MASTER') {
