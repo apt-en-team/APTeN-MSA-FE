@@ -1,6 +1,6 @@
 <script setup>
 // 일반 ADMIN과 MASTER 선택 단지 모드가 공통으로 사용하는 데스크톱 관리자 레이아웃이다.
-import { computed, provide, ref } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
@@ -54,20 +54,13 @@ const adminMenuDefinitions = [
   },
 ]
 
-// route path와 params.code를 기준으로 MASTER 선택 단지 관리자 모드를 판별한다.
+// MASTER가 공통 관리자 화면에서 선택 단지를 정한 상태인지 store 값으로 판단한다.
 const isMasterComplexMode = computed(() => {
-  return route.path.startsWith('/admin/master/complexes/') && !!route.params.code
+  return authStore.role === 'MASTER' && !!complexStore.selectedComplex?.complexId
 })
-
-// MASTER 모드에서는 현재 단지 code를 링크 생성 기준으로 사용한다.
-const currentComplexCode = computed(() => String(route.params.code || ''))
 
 // 같은 메뉴 구성을 현재 모드에 맞는 링크로 변환한다.
 function buildAdminPath(path) {
-  if (isMasterComplexMode.value && currentComplexCode.value) {
-    return `/admin/master/complexes/${currentComplexCode.value}/${path}`
-  }
-
   return `/admin/${path}`
 }
 
@@ -111,7 +104,8 @@ function isMenuActive(targetPath) {
 const currentComplexName = computed(() => {
   if (isMasterComplexMode.value && complexStore.selectedComplex?.name) return complexStore.selectedComplex.name
   if (isMasterComplexMode.value && complexStore.complexDetail?.name) return complexStore.complexDetail.name
-  if (isMasterComplexMode.value && currentComplexCode.value) return `선택 단지 ${currentComplexCode.value}`
+  if (isMasterComplexMode.value && complexStore.selectedComplex?.code) return `선택 단지 ${complexStore.selectedComplex.code}`
+  if (complexStore.myComplex?.name) return complexStore.myComplex.name
   return 'APT-EN 아파트'
 })
 
@@ -165,6 +159,30 @@ const headerActions = computed(() => {
 function getMenuIconPath(icon) {
   return icon || 'grid'
 }
+
+// 일반 관리자 모드에서는 내 단지 정보를 조회해 헤더 단지명을 보강한다.
+async function ensureMyComplex() {
+  if (isMasterComplexMode.value) return
+  if (authStore.role !== 'MANAGER' && authStore.role !== 'ADMIN') return
+  if (complexStore.myComplex?.name) return
+
+  try {
+    await complexStore.fetchMyComplex()
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+onMounted(() => {
+  ensureMyComplex()
+})
+
+watch(
+  () => [route.path, route.params.code, authStore.role, complexStore.selectedComplex?.complexId],
+  () => {
+    ensureMyComplex()
+  },
+)
 </script>
 
 <template>

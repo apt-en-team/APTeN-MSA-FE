@@ -115,14 +115,20 @@ function goResidentPreview() {
   router.push(`/admin/complexes/${selectedComplex.value.code}/resident-preview`)
 }
 
-// MASTER 전용 관리자 대시보드로 이동한다.
-function goAdminDashboard() {
+// 선택 단지 정보를 보강한 뒤 공통 관리자 대시보드로 이동한다.
+async function goAdminDashboard() {
   if (!selectedComplex.value) {
     openNeedSelectModal()
     return
   }
 
-  router.push(`/admin/master/complexes/${selectedComplex.value.code}/dashboard`)
+  try {
+    await complexStore.selectComplexForMaster(selectedComplex.value.code)
+    router.push('/admin/dashboard')
+  } catch (error) {
+    console.error(error)
+    state.errorMessage = '선택 단지 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+  }
 }
 
 // 로그아웃 후 마스터 로그인 화면으로 이동한다.

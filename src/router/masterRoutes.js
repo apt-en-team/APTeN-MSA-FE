@@ -1,19 +1,5 @@
-import AdminLayout from '@/layouts/AdminLayout.vue'
 import ResidentPreviewLayout from '@/layouts/ResidentPreviewLayout.vue'
-import AdminAccountManage from '@/views/admin/account/AdminAccountManage.vue'
-import AdminBillList from '@/views/admin/bill/AdminBillList.vue'
-import AdminBoardStatistics from '@/views/admin/community/AdminBoardStatistics.vue'
-import AdminNoticeList from '@/views/admin/community/AdminNoticeList.vue'
-import AdminVoteList from '@/views/admin/community/AdminVoteList.vue'
-import AdminDashboard from '@/views/admin/dashboard/AdminDashboard.vue'
-import AdminFacilityList from '@/views/admin/facility/AdminFacilityList.vue'
-import AdminGxProgramList from '@/views/admin/facility/AdminGxProgramList.vue'
-import AdminReservationList from '@/views/admin/facility/AdminReservationList.vue'
-import AdminHouseholdList from '@/views/admin/household/AdminHouseholdList.vue'
-import AdminParkingDashboard from '@/views/admin/parking/AdminParkingDashboard.vue'
-import AdminParkingLogList from '@/views/admin/parking/AdminParkingLogList.vue'
-import AdminVehicleList from '@/views/admin/vehicle/AdminVehicleList.vue'
-import AdminVisitorVehicleList from '@/views/admin/vehicle/AdminVisitorVehicleList.vue'
+import { useComplexStore } from '@/stores/useComplexStore'
 import AdminComplexCreate from '@/views/master/complex/AdminComplexCreate.vue'
 import AdminComplexDetail from '@/views/master/complex/AdminComplexDetail.vue'
 import AdminComplexEdit from '@/views/master/complex/AdminComplexEdit.vue'
@@ -22,6 +8,25 @@ import AdminComplexList from '@/views/master/complex/AdminComplexList.vue'
 const masterRouteMeta = {
   requiresAuth: true,
   roles: ['MASTER'],
+}
+
+// 기존 MASTER 전용 관리자 업무 URL로 들어오면 선택 단지를 저장한 뒤 공통 관리자 화면으로 넘긴다.
+async function redirectToSharedAdminPage(to, targetPath) {
+  const code = String(to.params.code || '')
+
+  if (!code) {
+    return '/admin/master'
+  }
+
+  const complexStore = useComplexStore()
+
+  try {
+    await complexStore.selectComplexForMaster(code)
+    return targetPath
+  } catch (error) {
+    console.error(error)
+    return '/admin/master'
+  }
 }
 
 const masterRoutes = [
@@ -55,82 +60,76 @@ const masterRoutes = [
     meta: masterRouteMeta,
   },
   {
-    // 선택 단지 관리 화면부터는 일반 ADMIN과 같은 대표 메뉴를 재사용한다.
-    path: '/admin/master/complexes/:code',
-    component: AdminLayout,
+    // 기존 MASTER 대시보드 URL은 선택 단지를 저장한 뒤 공통 관리자 대시보드로 이동한다.
+    path: '/admin/master/complexes/:code/dashboard',
     meta: masterRouteMeta,
-    children: [
-      {
-        path: 'dashboard',
-        component: AdminDashboard,
-        meta: { ...masterRouteMeta, title: '대시보드' },
-      },
-      {
-        path: 'admins',
-        component: AdminAccountManage,
-        meta: { ...masterRouteMeta, title: '관리자 관리' },
-      },
-      {
-        path: 'households',
-        component: AdminHouseholdList,
-        meta: { ...masterRouteMeta, title: '세대 관리' },
-      },
-      {
-        path: 'bills',
-        component: AdminBillList,
-        meta: { ...masterRouteMeta, title: '관리비 관리' },
-      },
-      {
-        path: 'vehicles',
-        component: AdminVehicleList,
-        meta: { ...masterRouteMeta, title: '입주민 차량 목록' },
-      },
-      {
-        path: 'visitor-vehicles',
-        component: AdminVisitorVehicleList,
-        meta: { ...masterRouteMeta, title: '방문차량 목록' },
-      },
-      {
-        path: 'parking-logs',
-        component: AdminParkingLogList,
-        meta: { ...masterRouteMeta, title: '입출차 기록' },
-      },
-      {
-        path: 'parking/dashboard',
-        component: AdminParkingDashboard,
-        meta: { ...masterRouteMeta, title: '주차 현황' },
-      },
-      {
-        path: 'notices',
-        component: AdminNoticeList,
-        meta: { ...masterRouteMeta, title: '공지사항 관리' },
-      },
-      {
-        path: 'votes',
-        component: AdminVoteList,
-        meta: { ...masterRouteMeta, title: '투표 관리' },
-      },
-      {
-        path: 'boards/statistics',
-        component: AdminBoardStatistics,
-        meta: { ...masterRouteMeta, title: '게시판 통계' },
-      },
-      {
-        path: 'facilities',
-        component: AdminFacilityList,
-        meta: { ...masterRouteMeta, title: '시설 관리' },
-      },
-      {
-        path: 'reservations',
-        component: AdminReservationList,
-        meta: { ...masterRouteMeta, title: '예약 현황' },
-      },
-      {
-        path: 'gx-programs',
-        component: AdminGxProgramList,
-        meta: { ...masterRouteMeta, title: 'GX 프로그램 관리' },
-      },
-    ],
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/dashboard'),
+  },
+  {
+    // 기존 MASTER 관리자 관리 URL은 선택 단지를 저장한 뒤 공통 관리자 관리 화면으로 이동한다.
+    path: '/admin/master/complexes/:code/admins',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/admins'),
+  },
+  {
+    path: '/admin/master/complexes/:code/households',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/households'),
+  },
+  {
+    path: '/admin/master/complexes/:code/bills',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/bills'),
+  },
+  {
+    path: '/admin/master/complexes/:code/vehicles',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/vehicles'),
+  },
+  {
+    path: '/admin/master/complexes/:code/visitor-vehicles',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/visitor-vehicles'),
+  },
+  {
+    path: '/admin/master/complexes/:code/parking-logs',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/parking-logs'),
+  },
+  {
+    path: '/admin/master/complexes/:code/parking/dashboard',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/parking/dashboard'),
+  },
+  {
+    path: '/admin/master/complexes/:code/notices',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/notices'),
+  },
+  {
+    path: '/admin/master/complexes/:code/votes',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/votes'),
+  },
+  {
+    path: '/admin/master/complexes/:code/boards/statistics',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/boards/statistics'),
+  },
+  {
+    path: '/admin/master/complexes/:code/facilities',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/facilities'),
+  },
+  {
+    path: '/admin/master/complexes/:code/reservations',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/reservations'),
+  },
+  {
+    path: '/admin/master/complexes/:code/gx-programs',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/gx-programs'),
   },
   {
     path: '/admin/complexes/:code/resident-preview',

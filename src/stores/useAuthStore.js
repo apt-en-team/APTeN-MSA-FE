@@ -31,9 +31,11 @@ export const useAuthStore = defineStore('auth', {
         const res = await authApi.login(body)
         this.setAuth(res)
 
-        // 일반 관리자 로그인 시 이전 MASTER 선택 단지 캐시를 사용하지 않도록 초기화한다.
+        // 로그인 전환 시 이전 단지 컨텍스트가 섞이지 않도록 초기화한다.
+        const complexStore = useComplexStore()
+        complexStore.clearMyComplex()
         if (this.role !== 'MASTER') {
-          useComplexStore().clearSelectedComplex()
+          complexStore.clearSelectedComplex()
         }
 
         if (this.role === 'MASTER') {
@@ -62,7 +64,9 @@ export const useAuthStore = defineStore('auth', {
       this.error = null
       try {
         await authApi.logout()
-        useComplexStore().clearSelectedComplex()
+        const complexStore = useComplexStore()
+        complexStore.clearSelectedComplex()
+        complexStore.clearMyComplex()
         this.clearAuth()
       } catch (e) {
         const serverMessage = e.response?.data?.resultMessage

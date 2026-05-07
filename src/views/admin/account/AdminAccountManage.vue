@@ -1,7 +1,7 @@
 <script setup>
 // 선택된 단지의 관리자와 스태프 계정을 관리하는 공통 관리자 화면
 import { computed, inject, onMounted, onUnmounted, reactive } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import BaseModal from '@/components/common/BaseModal.vue'
 import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
 import AdminTable from '@/components/admin/AdminTable.vue'
@@ -14,7 +14,6 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 
 const route = useRoute()
-const router = useRouter()
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
 const registerOpenModal = inject('registerOpenModal', null)
@@ -106,48 +105,45 @@ const adminColumns = computed(() => {
   ]
 })
 
-// MASTER 선택 단지 모드에서만 route params의 code를 현재 단지 식별값으로 사용한다.
-const complexCode = computed(() => {
-  if (!isMasterComplexMode.value) {
+// 로그인한 사용자가 MASTER인지 확인한다.
+const isMasterUser = computed(() => authStore.role === 'MASTER')
+
+// 기존 MASTER 전용 URL로 진입한 경우에만 route params의 code를 임시 bootstrap 값으로 사용한다.
+const legacyMasterRouteCode = computed(() => {
+  if (!isMasterUser.value) {
     return ''
   }
 
   return String(route.params.code || '')
 })
 
-// 현재 경로가 MASTER 선택 단지 관리자 모드인지 판별한다.
-const isMasterComplexMode = computed(() => {
-  return route.path.startsWith('/admin/master/complexes/') && !!route.params.code
+// 예전 MASTER 관리자 업무 URL로 직접 진입한 경우를 구분한다.
+const isLegacyMasterRoute = computed(() => {
+  return isMasterUser.value && route.path.startsWith('/admin/master/complexes/') && !!legacyMasterRouteCode.value
 })
 
-// MASTER 모드에서는 선택 단지와 상세 조회 결과를 합쳐 현재 단지 정보를 만든다.
+// MASTER와 일반 관리자 모드에 따라 현재 단지 정보를 다르게 계산한다.
 const currentComplex = computed(() => {
-  if (!isMasterComplexMode.value) {
+  if (!isMasterUser.value) {
     return {
-      complexId: null,
-      code: '-',
-      name: '내 단지 정보 연결 예정',
-      status: null,
-      address: '',
-      updatedAt: '',
+      complexId: complexStore.myComplex?.complexId ?? null,
+      code: complexStore.myComplex?.code || '-',
+      name: complexStore.myComplex?.name || '내 단지',
+      status: complexStore.myComplex?.status ?? null,
+      address: complexStore.myComplex?.address || '',
+      updatedAt: complexStore.myComplex?.updatedAt || '',
     }
   }
 
-  const base =
-    complexStore.selectedComplex?.code === complexCode.value
-      ? {
-          ...complexStore.complexDetail,
-          ...complexStore.selectedComplex,
-        }
-      : {
-          ...complexStore.complexDetail,
-          ...complexStore.selectedComplex,
-        }
+  const base = {
+    ...complexStore.complexDetail,
+    ...complexStore.selectedComplex,
+  }
 
   return {
     complexId: base?.complexId ?? null,
-    code: base?.code || complexCode.value || '-',
-    name: base?.name || complexCode.value || '선택 단지',
+    code: base?.code || legacyMasterRouteCode.value || '-',
+    name: base?.name || legacyMasterRouteCode.value || '선택 단지',
     status: base?.status ?? null,
     address: base?.address || '',
     updatedAt: base?.updatedAt || '',
@@ -336,32 +332,49 @@ function resetEditForm() {
   state.deleteSubmitting = false
 }
 
-// 선택 단지 정보가 없으면 localStorage 복구와 상세 조회를 순서대로 시도한다.
+// 현재 모드에 맞는 단지 컨텍스트를 복구한다.
 async function restoreComplexContext() {
   state.detailWarning = ''
 
-  // 일반 관리자 모드에서는 MASTER 선택 단지 캐시를 사용하지 않는다.
-  if (!isMasterComplexMode.value) {
-    state.detailWarning = '내 단지 기준 관리자 목록 API 연결이 필요합니다.'
-    return false
+  if (!isMasterUser.value) {
+    try {
+      await complexStore.fetchMyComplex()
+    } catch (error) {
+      console.error(error)
+      state.detailWarning = '내 단지 정보를 불러오지 못했습니다.'
+    }
+    return true
   }
 
-  complexStore.restoreSelectedComplex()
+  // 기존 MASTER 전용 URL로 들어오면 단지 선택 정보를 먼저 저장해 공통 관리자 흐름으로 맞춘다.
+  if (isLegacyMasterRoute.value) {
+    try {
+      await complexStore.selectComplexForMaster(legacyMasterRouteCode.value)
+    } catch (error) {
+      console.error(error)
+      state.detailWarning = '관리할 단지 정보를 불러오지 못했습니다. 단지 선택 화면에서 다시 시도해주세요.'
+      return false
+    }
+  } else {
+    // 공통 관리자 화면에서는 세션에 저장된 선택 단지 정보만 복구해 사용한다.
+    complexStore.restoreSelectedComplex()
+  }
 
-  if (!complexCode.value) {
-    state.detailWarning = '단지 코드를 확인할 수 없습니다. 단지 선택 화면에서 다시 진입해주세요.'
+  if (!complexStore.selectedComplex?.complexId) {
+    state.detailWarning = '관리할 단지를 먼저 선택해주세요.'
     return false
   }
 
   if (
-    complexStore.selectedComplex?.code === complexCode.value &&
-    complexStore.complexDetail?.code === complexCode.value
+    complexStore.selectedComplex?.code &&
+    complexStore.complexDetail?.code === complexStore.selectedComplex.code
   ) {
     return true
   }
 
   try {
-    const detail = await complexStore.fetchMasterComplexDetail(complexCode.value)
+    // MASTER 모드에서는 선택 단지 상세를 조회해 카드 표시 정보를 보강한다.
+    const detail = await complexStore.fetchMasterComplexDetail(complexStore.selectedComplex.code)
     complexStore.setSelectedComplex(detail)
     return true
   } catch (error) {
@@ -371,21 +384,20 @@ async function restoreComplexContext() {
   }
 }
 
-// route code 기준으로 관리자/스태프 목록을 조회한다.
+// 현재 모드에 맞는 관리자/스태프 목록을 조회한다.
 async function loadAdmins() {
-  if (!complexCode.value) {
-    state.errorMessage = isMasterComplexMode.value
-      ? '단지 코드를 확인할 수 없습니다.'
-      : '내 단지 기준 관리자 목록 API 연결이 필요합니다.'
-    complexStore.complexAdmins = []
-    return
-  }
-
   state.listLoading = true
   state.errorMessage = ''
 
   try {
-    await complexStore.fetchComplexAdmins(complexCode.value)
+    // MASTER는 선택 단지 header를 통해, 일반 관리자는 내 단지 기준으로 같은 공통 API를 사용한다.
+    if (isMasterUser.value && !complexStore.selectedComplex?.complexId) {
+      state.errorMessage = '관리할 단지를 먼저 선택해주세요.'
+        complexStore.complexAdmins = []
+      return
+    }
+
+    await complexStore.fetchMyComplexAdmins()
   } catch (error) {
     console.error(error)
     complexStore.complexAdmins = []
@@ -406,26 +418,6 @@ function resetFilters() {
 // 페이지 변경 처리
 function handlePageChange(page) {
   state.pagination.currentPage = page
-}
-
-// 일반 ADMIN 모드와 MASTER 모드에 맞춰 기준 화면으로 이동한다.
-function goBackBase() {
-  if (isMasterComplexMode.value && complexCode.value) {
-    router.push('/admin/master')
-    return
-  }
-
-  router.push('/admin/dashboard')
-}
-
-// MASTER 모드에서는 선택 단지 대시보드로 이동한다.
-function goToDashboard() {
-  if (isMasterComplexMode.value && complexCode.value) {
-    router.push(`/admin/master/complexes/${complexCode.value}/dashboard`)
-    return
-  }
-
-  router.push('/admin/dashboard')
 }
 
 // 신규 등록 모달을 열기 전에 폼 상태를 초기화한다.
@@ -499,9 +491,10 @@ function buildUpdatePayload() {
   }
 }
 
-// 등록 ConfirmModal 확인 후 관리자/스태프 등록 API를 호출한다.
+// 등록 ConfirmModal 확인 후 현재 모드에 맞는 관리자 생성 API를 호출한다.
 async function handleCreateAdmin() {
-  if (!complexCode.value || state.createSubmitting) return
+  if (state.createSubmitting) return
+  if (isMasterUser.value && !complexStore.selectedComplex?.complexId) return
 
   state.modals.createConfirm = false
   state.createSubmitting = true
@@ -509,7 +502,8 @@ async function handleCreateAdmin() {
   state.resultModal.visible = false
 
   try {
-    await complexStore.createAdminForComplex(complexCode.value, buildCreatePayload())
+    // MASTER와 일반 관리자 모드 모두 공통 관리자 등록 API를 사용한다.
+    await complexStore.createAdminForMyComplex(buildCreatePayload())
 
     const createdName = state.createForm.name || '관리자 계정'
     const createdRole = getComplexAdminRoleLabel(state.createForm.adminRole)
@@ -541,20 +535,18 @@ async function handleCreateAdmin() {
   }
 }
 
-// 수정 ConfirmModal 확인 후 관리자/스태프 수정 API를 호출한다.
+// 수정 ConfirmModal 확인 후 현재 모드에 맞는 관리자 수정 API를 호출한다.
 async function handleUpdateAdmin() {
-  if (!complexCode.value || !state.selectedAdmin?.userId || state.editSubmitting) return
+  if (!state.selectedAdmin?.userId || state.editSubmitting) return
+  if (isMasterUser.value && !complexStore.selectedComplex?.complexId) return
 
   state.modals.editConfirm = false
   state.editSubmitting = true
   state.editErrorMessage = ''
 
   try {
-    await complexStore.updateAdminForComplex(
-      complexCode.value,
-      state.selectedAdmin.userId,
-      buildUpdatePayload(),
-    )
+    // MASTER와 일반 관리자 모드 모두 공통 관리자 수정 API를 사용한다.
+    await complexStore.updateAdminForMyComplex(state.selectedAdmin.userId, buildUpdatePayload())
 
     const updatedName = state.editForm.name || '관리자 계정'
     const updatedRole = getComplexAdminRoleLabel(state.editForm.adminRole)
@@ -582,9 +574,10 @@ async function handleUpdateAdmin() {
   }
 }
 
-// 소속 해제 ConfirmModal 확인 후 관리자/스태프 삭제 API를 호출한다.
+// 삭제 ConfirmModal 확인 후 현재 모드에 맞는 관리자 삭제 API를 호출한다.
 async function handleDeleteAdmin() {
-  if (!complexCode.value || !state.selectedAdmin?.userId || state.deleteSubmitting) return
+  if (!state.selectedAdmin?.userId || state.deleteSubmitting) return
+  if (isMasterUser.value && !complexStore.selectedComplex?.complexId) return
 
   state.modals.deleteConfirm = false
   state.deleteSubmitting = true
@@ -595,7 +588,8 @@ async function handleDeleteAdmin() {
     const deletedRole =
       state.selectedAdmin?.adminRoleName || getComplexAdminRoleLabel(state.selectedAdmin?.adminRole)
 
-    await complexStore.deleteAdminFromComplex(complexCode.value, state.selectedAdmin.userId)
+    // MASTER와 일반 관리자 모드 모두 공통 관리자 삭제 API를 사용한다.
+    await complexStore.deleteAdminFromMyComplex(state.selectedAdmin.userId)
     resetEditForm()
 
     openResultModal({

@@ -49,22 +49,33 @@ export const createComplexAdmin = async (code, body) => {
   return unwrapApiData(res)
 }
 
-// MASTER 관리자 단지 소속 목록 조회
-export const getComplexAdmins = async (code) => {
-  const res = await apiClient.get(`/api/admin/master/apartment-complexes/${code}/admins`)
+// 일반 관리자 내 단지 정보 조회
+export const getMyApartmentComplex = async () => {
+  const res = await apiClient.get('/api/admin/apartment-complex/me')
   return unwrapApiData(res)
 }
 
-// MASTER 관리자 권한 수정
-export const updateComplexAdmin = async (code, userId, body) => {
-  const res = await apiClient.patch(`/api/admin/master/apartment-complexes/${code}/admins/${userId}`, body)
+// 일반 관리자 내 단지 관리자 목록 조회
+export const getMyComplexAdmins = async () => {
+  const res = await apiClient.get('/api/admin/apartment-complex/admins')
   return unwrapApiData(res)
 }
 
-// MASTER 관리자 삭제
-export const deleteComplexAdmin = async (code, userId) => {
-  // 관리자 삭제는 백엔드에서 소속 해제와 계정 소프트 삭제를 함께 처리합니다.
-  const res = await apiClient.delete(`/api/admin/master/apartment-complexes/${code}/admins/${userId}`)
+// 일반 관리자 내 단지 관리자 생성
+export const createAdminForMyComplex = async (body) => {
+  const res = await apiClient.post('/api/admin/apartment-complex/admins', body)
+  return unwrapApiData(res)
+}
+
+// 일반 관리자 내 단지 관리자 수정
+export const updateAdminForMyComplex = async (userId, body) => {
+  const res = await apiClient.patch(`/api/admin/apartment-complex/admins/${userId}`, body)
+  return unwrapApiData(res)
+}
+
+// 일반 관리자 내 단지 관리자 삭제
+export const deleteAdminFromMyComplex = async (userId) => {
+  const res = await apiClient.delete(`/api/admin/apartment-complex/admins/${userId}`)
   return unwrapApiData(res)
 }
 
@@ -83,9 +94,6 @@ export const selectMasterComplex = async (code) => {
 // 기존 함수명과의 호환을 유지합니다.
 export const assignComplexAdmin = createComplexAdmin
 
-// 기존 함수명과의 호환을 유지합니다.
-export const unassignComplexAdmin = deleteComplexAdmin
-
 export default {
   createComplex,
   getMasterComplexes,
@@ -94,11 +102,12 @@ export default {
   updateComplexStatus,
   searchAddress,
   createComplexAdmin,
-  updateComplexAdmin,
-  deleteComplexAdmin,
+  getMyApartmentComplex,
+  getMyComplexAdmins,
+  createAdminForMyComplex,
+  updateAdminForMyComplex,
+  deleteAdminFromMyComplex,
   assignComplexAdmin,
-  getComplexAdmins,
-  unassignComplexAdmin,
   getPublicComplexes,
   selectMasterComplex,
 }
