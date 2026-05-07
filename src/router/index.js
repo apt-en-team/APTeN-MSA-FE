@@ -47,7 +47,7 @@ router.beforeEach((to, from) => {
   if (authStore.isAuthenticated) {
     const guestOnlyPaths = ['/', '/login', '/admin/login']
     if (guestOnlyPaths.includes(to.path)) {
-      if (authStore.role === 'USER') return '/resident/home'
+      if (authStore.role === 'USER') return `/resident/${authStore.complexId}/home`
       if (authStore.role === 'ADMIN') return '/admin/dashboard'
       if (authStore.role === 'MASTER') return '/admin/master/complexes'
     }
@@ -60,15 +60,21 @@ router.beforeEach((to, from) => {
 
   // 권한이 없으면 역할별 기본 화면으로 이동한다.
   if (!canAccess(authStore.role, to.meta.roles)) {
-    if (authStore.role === 'USER') return '/resident/home'
+    if (authStore.role === 'USER') return `/resident/${authStore.complexId}/home`
     if (authStore.role === 'MASTER') return '/admin/master'
     if (authStore.role === 'MANAGER' || authStore.role === 'ADMIN') return '/admin/dashboard'
     return '/'
   }
+  // USER가 자기 단지가 아닌 다른 complexId로 접근 시 차단
+  if (authStore.role === 'USER' && to.params.complexId) {
+    if (String(to.params.complexId) !== String(authStore.complexId)) {
+      return `/resident/${authStore.complexId}/home`
+    }
+  }
 
   // 입주민 승인 대기 상태면 대기 페이지로 이동
-  if (authStore.role === 'USER' && authStore.status === 'PENDING' && to.path !== '/resident/pending') {
-    return '/resident/pending'
+  if (authStore.role === 'USER' && authStore.status === 'PENDING' && to.path !== `/resident/${authStore.complexId}/pending`) {
+    return `/resident/${authStore.complexId}/pending`
   }
 
   // 명시적으로 true 반환 — 통과

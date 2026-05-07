@@ -13,7 +13,8 @@ export const useAuthStore = defineStore('auth', {
     role: 'USER',
     status: null,
     building: null, // 입주민 동
-    unit: null,     // 입주민 호
+    unit: null, // 입주민 호
+    complexId: null,
   }),
 
   getters: {
@@ -35,9 +36,11 @@ export const useAuthStore = defineStore('auth', {
         } else if (this.role === 'ADMIN') {
           window.location.href = '/admin/dashboard'
         } else if (this.role === 'USER' && this.status === 'PENDING') {
-          window.location.href = '/resident/pending'
+          // PENDING이면 단지 ID 포함 경로로 이동
+          window.location.href = `/resident/${this.complexId}/pending`
         } else if (this.role === 'USER') {
-          window.location.href = '/resident/home'
+          // 정상 로그인이면 단지 ID 포함 경로로 이동
+          window.location.href = `/resident/${this.complexId}/home`
         }
       } catch (e) {
         // 서버 에러 응답에서 메시지 추출
@@ -80,6 +83,7 @@ export const useAuthStore = defineStore('auth', {
       this.status   = userInfo?.status   || data?.status   || null
       this.building = userInfo?.building || data?.building || null // 입주민 동
       this.unit     = userInfo?.unit     || data?.unit     || null // 입주민 호
+      this.complexId = userInfo?.complexId || data?.complexId || null
 
       if (this.accessToken) {
         localStorage.setItem('accessToken', this.accessToken)
@@ -89,13 +93,14 @@ export const useAuthStore = defineStore('auth', {
       }
 
       localStorage.setItem('userInfo', JSON.stringify({
-        userId:   this.userId,
-        userUid:  this.userUid,
-        name:     this.name,
-        role:     this.role,
-        status:   this.status,
+        userId: this.userId,
+        userUid: this.userUid,
+        name: this.name,
+        role: this.role,
+        status: this.status,
         building: this.building, // 입주민 동
-        unit:     this.unit,     // 입주민 호
+        unit: this.unit,  // 입주민 호
+        complexId: this.complexId,
       }))
     },
 
@@ -104,14 +109,15 @@ export const useAuthStore = defineStore('auth', {
     clearAuth() {
       this.accessToken  = null
       this.refreshToken = null
-      this.userId   = null
-      this.userUid  = null
-      this.name     = null
-      this.role     = 'USER'
-      this.status   = null
+      this.userId = null
+      this.userUid = null
+      this.name = null
+      this.role = 'USER'
+      this.status = null
       this.building = null // 입주민 동
-      this.unit     = null // 입주민 호
-      this.error    = null
+      this.unit = null // 입주민 호
+      this.complexId = null
+      this.error = null
 
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
@@ -130,15 +136,16 @@ export const useAuthStore = defineStore('auth', {
         const refreshToken = localStorage.getItem('refreshToken')
         const userInfo     = JSON.parse(localStorage.getItem('userInfo') || '{}')
 
-        this.accessToken  = accessToken  || null
+        this.accessToken  = accessToken || null
         this.refreshToken = refreshToken || null
-        this.userId   = userInfo?.userId   || null
+        this.userId = userInfo?.userId || null
         this.userUid  = userInfo?.userUid  || null
-        this.name     = userInfo?.name     || null
-        this.role     = userInfo?.role     || null
-        this.status   = userInfo?.status   || null
+        this.name = userInfo?.name || null
+        this.role = userInfo?.role || null
+        this.status = userInfo?.status || null
         this.building = userInfo?.building || null // 입주민 동
-        this.unit     = userInfo?.unit     || null // 입주민 호
+        this.unit = userInfo?.unit || null // 입주민 호
+        this.complexId = userInfo?.complexId || null
       } catch (e) {
         // localStorage 파싱 실패 시 초기화
         this.clearAuth()
