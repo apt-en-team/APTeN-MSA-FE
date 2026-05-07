@@ -1,12 +1,12 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 defineProps({
   title: {
     type: String,
-    default: '아파트엔',
+    default: 'APTeN',
   },
 })
 
@@ -23,78 +23,81 @@ function handleDrawerScroll(e) {
   hideQuickMenu.value = e.target.scrollTop > 10
 }
 
+// complexId 기반 경로 생성
+const residentPath = (path) => `/resident/${authStore.complexId}/${path}`
+
 function navigate(path) {
   drawerOpen.value = false
   hideQuickMenu.value = false
   router.push(path)
 }
 
-// 자주 쓰는 메뉴
-const quickMenus = [
+// 자주 쓰는 메뉴 — complexId 포함 경로
+const quickMenus = computed(() => [
   {
     label: '마이페이지',
-    path: '/resident/mypage',
+    path: residentPath('mypage'),
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`,
   },
   {
     label: '관리비 조회',
-    path: '/resident/bill',
+    path: residentPath('bill'),
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
   },
   {
     label: '내 차량',
-    path: '/resident/vehicles',
+    path: residentPath('vehicles'),
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/></svg>`,
   },
   {
     label: '투표하기',
-    path: '/resident/vote',
+    path: residentPath('vote'),
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>`,
   },
-]
+])
 
-// 전체 메뉴
-const menuGroups = [
+// 전체 메뉴 — complexId 포함 경로
+const menuGroups = computed(() => [
   {
     label: '메인',
     items: [
-      { label: '마이페이지', path: '/resident/mypage', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>` },
-      { label: '관리비 조회', path: '/resident/bill', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>` },
+      { label: '마이페이지', path: residentPath('mypage'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>` },
+      { label: '관리비 조회', path: residentPath('bill'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>` },
     ],
   },
   {
     label: '차량',
     items: [
-      { label: '내 차량', path: '/resident/vehicles', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/></svg>` },
-      { label: '방문차량 등록', path: '/resident/visitor-vehicle/register', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>` },
-      { label: '방문차량 목록', path: '/resident/visitor-vehicle', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M5 12h14"/></svg>` },
-      { label: '고정 방문차량 목록', path: '/resident/visitor-vehicle/fixed', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>` },
-      { label: '주차 현황', path: '/resident/parking', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>` },
+      { label: '내 차량', path: residentPath('vehicles'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/></svg>` },
+      { label: '방문차량 등록', path: residentPath('visitor-vehicle/register'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>` },
+      { label: '방문차량 목록', path: residentPath('visitor-vehicle'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M5 12h14"/></svg>` },
+      { label: '고정 방문차량 목록', path: residentPath('visitor-vehicle/fixed'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>` },
+      { label: '주차 현황', path: residentPath('parking'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>` },
     ],
   },
   {
     label: '시설',
     items: [
-      { label: '시설 목록', path: '/resident/facility', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>` },
-      { label: '내 예약', path: '/resident/reservations', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>` },
+      { label: '시설 목록', path: residentPath('facility'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>` },
+      { label: '내 예약', path: residentPath('reservations'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>` },
     ],
   },
   {
     label: '커뮤니티',
     items: [
-      { label: '공지사항', path: '/resident/notice', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
-      { label: '자유게시판', path: '/resident/board', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>` },
-      { label: '내가 쓴 글', path: '/resident/my-posts', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>` },
-      { label: '모바일 투표', path: '/resident/vote', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>` },
+      { label: '공지사항', path: residentPath('notice'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
+      { label: '자유게시판', path: residentPath('board'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>` },
+      { label: '내가 쓴 글', path: residentPath('my-posts'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>` },
+      { label: '모바일 투표', path: residentPath('vote'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>` },
     ],
   },
-]
+])
 </script>
 
 <template>
   <header class="app-header">
-    <!-- 로고 -->
-    <div class="app-header__logo">
+    <!-- 로고 클릭 시 홈으로 이동 -->
+    <div class="app-header__logo" style="cursor: pointer;" @click="navigate(residentPath('home'))">
       <div class="app-header__logo-icon">
         <span class="app-header__logo-letter">A</span>
       </div>
@@ -103,7 +106,7 @@ const menuGroups = [
 
     <!-- 우측 액션 버튼 -->
     <div class="app-header__actions">
-      <button class="app-header__btn" @click="navigate('/resident/notifications')">
+      <button class="app-header__btn" @click="navigate(residentPath('notifications'))">
         <svg viewBox="0 0 24 24" fill="none">
           <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>

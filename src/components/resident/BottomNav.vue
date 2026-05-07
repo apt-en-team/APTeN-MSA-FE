@@ -1,11 +1,16 @@
 <script setup>
-import { useRoute, useRouter } from 'vue-router'
+import {useRoute, useRouter} from 'vue-router'
+import {useAuthStore} from '@/stores/useAuthStore'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
+
+// complexId 기반 경로 생성
+const residentPath = (path) => `/resident/${authStore.complexId}/${path}`
 
 // 현재 경로 기준으로 활성 탭 판단
-const isActive = (path) => route.path.startsWith(path)
+const isActive = (path) => route.path.includes(path)
 </script>
 
 <template>
@@ -14,8 +19,8 @@ const isActive = (path) => route.path.startsWith(path)
     <!-- 주차 탭 -->
     <button
       class="bottom-nav__item"
-      :class="{ 'bottom-nav__item--active': isActive('/resident/parking') }"
-      @click="router.push('/resident/parking')"
+      :class="{ 'bottom-nav__item--active': isActive('parking') }"
+      @click="router.push(residentPath('parking'))"
     >
       <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none">
         <rect x="3" y="6" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/>
@@ -28,11 +33,12 @@ const isActive = (path) => route.path.startsWith(path)
     <!-- 차량 탭 -->
     <button
       class="bottom-nav__item"
-      :class="{ 'bottom-nav__item--active': isActive('/resident/vehicles') }"
-      @click="router.push('/resident/vehicles')"
+      :class="{ 'bottom-nav__item--active': isActive('vehicles') }"
+      @click="router.push(residentPath('vehicles'))"
     >
       <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none">
-        <path d="M5 17H3v-5l2-5h14l2 5v5h-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M5 17H3v-5l2-5h14l2 5v5h-2" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round"/>
         <circle cx="7" cy="17" r="2" stroke="currentColor" stroke-width="1.8"/>
         <circle cx="17" cy="17" r="2" stroke="currentColor" stroke-width="1.8"/>
         <path d="M9 17h6" stroke="currentColor" stroke-width="1.8"/>
@@ -43,12 +49,13 @@ const isActive = (path) => route.path.startsWith(path)
     <!-- 홈 탭 -->
     <button
       class="bottom-nav__item"
-      :class="{ 'bottom-nav__item--active': isActive('/resident/home') }"
-      @click="router.push('/resident/home')"
+      :class="{ 'bottom-nav__item--active': isActive('home') }"
+      @click="router.push(residentPath('home'))"
     >
       <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none">
         <path d="M3 12L12 3l9 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        <path d="M5 10v9a1 1 0 001 1h4v-4h4v4h4a1 1 0 001-1v-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M5 10v9a1 1 0 001 1h4v-4h4v4h4a1 1 0 001-1v-9" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span class="bottom-nav__label">홈</span>
     </button>
@@ -56,12 +63,14 @@ const isActive = (path) => route.path.startsWith(path)
     <!-- 관리비 탭 -->
     <button
       class="bottom-nav__item"
-      :class="{ 'bottom-nav__item--active': isActive('/resident/management-fee') }"
-      @click="router.push('/resident/management-fee')"
+      :class="{ 'bottom-nav__item--active': isActive('management-fee') }"
+      @click="router.push(residentPath('management-fee'))"
     >
       <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span class="bottom-nav__label">관리비</span>
     </button>
@@ -69,12 +78,13 @@ const isActive = (path) => route.path.startsWith(path)
     <!-- MY 탭 -->
     <button
       class="bottom-nav__item"
-      :class="{ 'bottom-nav__item--active': isActive('/resident/mypage') }"
-      @click="router.push('/resident/mypage')"
+      :class="{ 'bottom-nav__item--active': isActive('mypage') }"
+      @click="router.push(residentPath('mypage'))"
     >
       <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none">
         <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/>
-        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round"/>
       </svg>
       <span class="bottom-nav__label">MY</span>
     </button>
