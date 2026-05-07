@@ -103,10 +103,6 @@ onMounted(loadComplexDetail)
         <strong>{{ complexDetail.address || '-' }}</strong>
       </div>
       <div class="master-complex-detail__item">
-        <span class="master-complex-detail__label">상세주소</span>
-        <strong>{{ complexDetail.addressDetail || '-' }}</strong>
-      </div>
-      <div class="master-complex-detail__item">
         <span class="master-complex-detail__label">우편번호</span>
         <strong>{{ complexDetail.zipCode || '-' }}</strong>
       </div>

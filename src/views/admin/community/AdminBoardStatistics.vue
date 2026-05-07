@@ -1,19 +1,19 @@
 <script setup>
-// 방문차량 목록 대표 페이지입니다.
+// 게시판 통계 대표 페이지입니다.
 </script>
 
 <template>
   <section class="admin-page">
     <header class="admin-page__header">
       <div>
-        <h1 class="admin-page__title">방문차량 목록</h1>
-        <p class="admin-page__description">방문 예약 차량과 출입 관리 현황을 보여줄 대표 페이지를 준비하고 있습니다.</p>
+        <h1 class="admin-page__title">게시판 통계</h1>
+        <p class="admin-page__description">공지, 투표, 게시판 이용 지표를 보여줄 통계 대시보드를 이 페이지에서 준비하고 있습니다.</p>
       </div>
     </header>
 
     <section class="admin-page__card">
       <strong class="admin-page__card-title">준비 중</strong>
-      <p class="admin-page__card-text">방문차량 목록과 운영 기능은 이후 실제 API 흐름에 맞춰 다시 연결할 예정입니다.</p>
+      <p class="admin-page__card-text">게시글 수, 참여율, 공지 노출 현황 같은 핵심 지표를 여기에 연결할 예정입니다.</p>
     </section>
   </section>
 </template>

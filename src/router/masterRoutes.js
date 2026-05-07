@@ -1,7 +1,20 @@
+import AdminLayout from '@/layouts/AdminLayout.vue'
 import ResidentPreviewLayout from '@/layouts/ResidentPreviewLayout.vue'
+import AdminAccountManage from '@/views/admin/account/AdminAccountManage.vue'
+import AdminBillList from '@/views/admin/bill/AdminBillList.vue'
+import AdminBoardStatistics from '@/views/admin/community/AdminBoardStatistics.vue'
+import AdminNoticeList from '@/views/admin/community/AdminNoticeList.vue'
+import AdminVoteList from '@/views/admin/community/AdminVoteList.vue'
+import AdminDashboard from '@/views/admin/dashboard/AdminDashboard.vue'
+import AdminFacilityList from '@/views/admin/facility/AdminFacilityList.vue'
+import AdminGxProgramList from '@/views/admin/facility/AdminGxProgramList.vue'
+import AdminReservationList from '@/views/admin/facility/AdminReservationList.vue'
+import AdminHouseholdList from '@/views/admin/household/AdminHouseholdList.vue'
+import AdminParkingDashboard from '@/views/admin/parking/AdminParkingDashboard.vue'
+import AdminParkingLogList from '@/views/admin/parking/AdminParkingLogList.vue'
+import AdminVehicleList from '@/views/admin/vehicle/AdminVehicleList.vue'
+import AdminVisitorVehicleList from '@/views/admin/vehicle/AdminVisitorVehicleList.vue'
 import AdminComplexCreate from '@/views/master/complex/AdminComplexCreate.vue'
-import AdminComplexDashboard from '@/views/master/complex/AdminComplexDashboard.vue'
-import ComplexAdminManage from '@/views/master/complex/ComplexAdminManage.vue'
 import AdminComplexDetail from '@/views/master/complex/AdminComplexDetail.vue'
 import AdminComplexEdit from '@/views/master/complex/AdminComplexEdit.vue'
 import AdminComplexList from '@/views/master/complex/AdminComplexList.vue'
@@ -42,16 +55,82 @@ const masterRoutes = [
     meta: masterRouteMeta,
   },
   {
-    // MASTER 전용 관리자형 화면은 각 페이지가 legacy AdminLayout을 직접 사용한다.
-    path: '/admin/master/complexes/:code/dashboard',
-    component: AdminComplexDashboard,
+    // 선택 단지 관리 화면부터는 일반 ADMIN과 같은 대표 메뉴를 재사용한다.
+    path: '/admin/master/complexes/:code',
+    component: AdminLayout,
     meta: masterRouteMeta,
-  },
-  {
-    // 선택 단지의 관리자 관리 화면은 별도 페이지 컴포넌트로 분리한다.
-    path: '/admin/master/complexes/:code/admins',
-    component: ComplexAdminManage,
-    meta: masterRouteMeta,
+    children: [
+      {
+        path: 'dashboard',
+        component: AdminDashboard,
+        meta: { ...masterRouteMeta, title: '대시보드' },
+      },
+      {
+        path: 'admins',
+        component: AdminAccountManage,
+        meta: { ...masterRouteMeta, title: '관리자 관리' },
+      },
+      {
+        path: 'households',
+        component: AdminHouseholdList,
+        meta: { ...masterRouteMeta, title: '세대 관리' },
+      },
+      {
+        path: 'bills',
+        component: AdminBillList,
+        meta: { ...masterRouteMeta, title: '관리비 관리' },
+      },
+      {
+        path: 'vehicles',
+        component: AdminVehicleList,
+        meta: { ...masterRouteMeta, title: '입주민 차량 목록' },
+      },
+      {
+        path: 'visitor-vehicles',
+        component: AdminVisitorVehicleList,
+        meta: { ...masterRouteMeta, title: '방문차량 목록' },
+      },
+      {
+        path: 'parking-logs',
+        component: AdminParkingLogList,
+        meta: { ...masterRouteMeta, title: '입출차 기록' },
+      },
+      {
+        path: 'parking/dashboard',
+        component: AdminParkingDashboard,
+        meta: { ...masterRouteMeta, title: '주차 현황' },
+      },
+      {
+        path: 'notices',
+        component: AdminNoticeList,
+        meta: { ...masterRouteMeta, title: '공지사항 관리' },
+      },
+      {
+        path: 'votes',
+        component: AdminVoteList,
+        meta: { ...masterRouteMeta, title: '투표 관리' },
+      },
+      {
+        path: 'boards/statistics',
+        component: AdminBoardStatistics,
+        meta: { ...masterRouteMeta, title: '게시판 통계' },
+      },
+      {
+        path: 'facilities',
+        component: AdminFacilityList,
+        meta: { ...masterRouteMeta, title: '시설 관리' },
+      },
+      {
+        path: 'reservations',
+        component: AdminReservationList,
+        meta: { ...masterRouteMeta, title: '예약 현황' },
+      },
+      {
+        path: 'gx-programs',
+        component: AdminGxProgramList,
+        meta: { ...masterRouteMeta, title: 'GX 프로그램 관리' },
+      },
+    ],
   },
   {
     path: '/admin/complexes/:code/resident-preview',

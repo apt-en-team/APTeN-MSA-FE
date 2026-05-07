@@ -42,11 +42,6 @@ router.beforeEach((to, from) => {
 
   // 나머지 기존 코드...
 
-  // 개발 중 화면 확인용 임시 처리 — 로그인 구현 후 제거
-  if (import.meta.env.DEV && to.path.startsWith('/admin/master') && !authStore.isAuthenticated) {
-    authStore.setDevMasterAuth()
-  }
-
   // 이미 로그인 상태에서 랜딩/로그인 페이지 접근 시 역할별 대시보드로 이동
   // 입주민이 PWA 아이콘 눌렀을 때 로그인 화면 대신 바로 대시보드로 가게 함
   if (authStore.isAuthenticated) {
@@ -63,12 +58,12 @@ router.beforeEach((to, from) => {
     return '/login'
   }
 
-  // forbidden 페이지는 canAccess 체크 제외 — 무한 루프 방지
-  if (to.path === '/forbidden') return true
-
-  // 역할 권한 없으면 forbidden 페이지로 이동
+  // 권한이 없으면 역할별 기본 화면으로 이동한다.
   if (!canAccess(authStore.role, to.meta.roles)) {
-    return '/forbidden'
+    if (authStore.role === 'USER') return '/resident/home'
+    if (authStore.role === 'MASTER') return '/admin/master'
+    if (authStore.role === 'MANAGER' || authStore.role === 'ADMIN') return '/admin/dashboard'
+    return '/'
   }
 
   // 입주민 승인 대기 상태면 대기 페이지로 이동

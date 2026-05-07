@@ -99,22 +99,6 @@ export const useAuthStore = defineStore('auth', {
       }))
     },
 
-    // 개발 중 화면 확인용 임시 MASTER 인증 정보 설정
-    // 로그인 구현 완료 후 제거 예정
-    setDevMasterAuth() {
-      this.setAuth({
-        accessToken:  'dev-master-access-token',
-        refreshToken: 'dev-master-refresh-token',
-        userInfo: {
-          userId:  1,
-          userUid: 'dev-master',
-          name:    '마스터 관리자',
-          role:    'MASTER',
-          status:  'ACTIVE',
-        },
-      })
-    },
-
     // 인증 정보 초기화
     // 로그아웃 또는 토큰 만료 시 호출
     clearAuth() {

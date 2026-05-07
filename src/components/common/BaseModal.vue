@@ -90,7 +90,7 @@ const handleOverlayClick = () => {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-12);
-  padding: var(--space-20) var(--space-20) 0;
+  padding: var(--space-16) var(--space-20) ;
 }
 
 .base-modal__header-copy {
@@ -100,7 +100,7 @@ const handleOverlayClick = () => {
 }
 
 .base-modal__title {
-  font-size: var(--font-size-modal-title);
+  font-size: 24px;
   color: var(--color-text-primary);
 }
 
@@ -116,7 +116,7 @@ const handleOverlayClick = () => {
 
 .base-modal__body {
   padding-inline: var(--space-20);
-  padding-top: 0;
+  padding-top: 10px;
   font-size: var(--font-size-detail);
   color: var(--color-text-secondary);
 }

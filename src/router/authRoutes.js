@@ -1,5 +1,4 @@
 import AuthLayout from '@/layouts/AuthLayout.vue'
-import Forbidden from '@/views/common/Forbidden.vue'
 import LandingPage from '@/views/common/LandingPage.vue'
 import ResidentLogin from '@/views/auth/login/ResidentLogin.vue'
 import AdminLogin from '@/views/auth/login/AdminLogin.vue'
@@ -8,6 +7,7 @@ import SocialSignup from '@/views/auth/signup/SocialSignup.vue'
 import ForgotPassword from '@/views/auth/password/ForgotPassword.vue'
 import ResetPassword from '@/views/auth/password/ResetPassword.vue'
 import SocialCallback from '@/views/auth/login/SocialCallback.vue'
+import MasterLogin from '@/views/auth/login/MasterLogin.vue'
 
 const authRoutes = [
   // 랜딩 페이지
@@ -41,6 +41,13 @@ const authRoutes = [
         meta: { requiresAuth: false, roles: ['GUEST', 'ADMIN', 'MASTER'] },
       },
     ],
+  },
+
+  // 마스터 로그인
+  {
+    path: '/master/login',
+    component: MasterLogin,
+    meta: { requiresAuth: false, roles: ['GUEST', 'MASTER'] },
   },
 
   // 회원가입
@@ -95,18 +102,6 @@ const authRoutes = [
     ],
   },
 
-  // 접근 금지
-  {
-    path: '/forbidden',
-    component: AuthLayout,
-    children: [
-      {
-        path: '',
-        component: Forbidden,
-        meta: { requiresAuth: false, roles: ['GUEST', 'USER', 'ADMIN', 'MASTER'] },
-      },
-    ],
-  },
   {
     path: '/social/callback',
     component: SocialCallback,

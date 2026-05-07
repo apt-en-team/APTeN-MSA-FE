@@ -1,19 +1,19 @@
 <script setup>
-// 방문차량 목록 대표 페이지입니다.
+// 입출차 기록 대표 페이지입니다.
 </script>
 
 <template>
   <section class="admin-page">
     <header class="admin-page__header">
       <div>
-        <h1 class="admin-page__title">방문차량 목록</h1>
-        <p class="admin-page__description">방문 예약 차량과 출입 관리 현황을 보여줄 대표 페이지를 준비하고 있습니다.</p>
+        <h1 class="admin-page__title">입출차 기록</h1>
+        <p class="admin-page__description">차량 입출차 로그와 운영 기록을 확인하는 기본 페이지를 준비하고 있습니다.</p>
       </div>
     </header>
 
     <section class="admin-page__card">
       <strong class="admin-page__card-title">준비 중</strong>
-      <p class="admin-page__card-text">방문차량 목록과 운영 기능은 이후 실제 API 흐름에 맞춰 다시 연결할 예정입니다.</p>
+      <p class="admin-page__card-text">대표 입출차 기록 페이지를 기준으로 목록, 검색, 상태 확인 기능을 연결할 예정입니다.</p>
     </section>
   </section>
 </template>
