@@ -122,12 +122,11 @@ const topbarSub = computed(() => {
 
 // 기존 store 액션을 사용해 로그아웃 버튼을 연결한다.
 const handleLogout = async () => {
+  const roleBeforeLogout = authStore.role
+
   await authStore.logout()
-  if (userRole.value === 'MASTER') {
-    router.push('/admin/master/login')
-  } else {
-    router.push('/admin/login')
-  }
+
+  router.push(roleBeforeLogout === 'MASTER' ? '/master/login' : '/admin/login')
 }
 
 // 자식 페이지가 상단 액션 버튼에 연결할 모달 열기 함수를 등록한다.

@@ -31,8 +31,8 @@ export const useAuthStore = defineStore('auth', {
         this.setAuth(res)
 
         if (this.role === 'MASTER') {
-          window.location.href = '/admin/master/complexes'
-        } else if (this.role === 'ADMIN') {
+          window.location.href = '/admin/master'
+        } else if (this.role === 'MANAGER' || this.role === 'ADMIN') {
           window.location.href = '/admin/dashboard'
         } else if (this.role === 'USER' && this.status === 'PENDING') {
           window.location.href = '/resident/pending'
