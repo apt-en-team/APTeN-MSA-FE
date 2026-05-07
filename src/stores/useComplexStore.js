@@ -1,6 +1,7 @@
 // 단지 상태를 관리하는 store입니다.
 import { defineStore } from 'pinia'
 import apartmentComplexApi from '@/api/apartmentComplexApi'
+import { normalizeFeatures } from '@/utils/featureGate'
 
 const SELECTED_COMPLEX_STORAGE_KEY = 'apt_selected_complex'
 const LEGACY_SELECTED_COMPLEX_STORAGE_KEY = 'selectedComplex'
@@ -48,7 +49,9 @@ const normalizeSelectedComplex = (complex) => ({
   code: complex?.code ?? null,
   name: complex?.name ?? complex?.complexName ?? null,
   status: complex?.status ?? null,
+  statusName: complex?.statusName ?? null,
   address: complex?.address ?? null,
+  features: normalizeFeatures(complex?.features),
 })
 
 export const useComplexStore = defineStore('complex', {
@@ -57,6 +60,7 @@ export const useComplexStore = defineStore('complex', {
     loading: false,
     error: null,
     complexList: createEmptyMasterComplexPage(),
+    myComplex: null,
     complexDetail: null,
     complexAdmins: [],
     selectedComplex: null,
@@ -76,6 +80,10 @@ export const useComplexStore = defineStore('complex', {
         const res = await apartmentComplexApi.getMasterComplexes(params)
         // 단지 목록을 페이지 객체 형태로 정리해 화면과 페이지네이션에서 공통 사용합니다.
         const normalizedPage = normalizeMasterComplexPage(res, params?.size ?? 10)
+        normalizedPage.content = normalizedPage.content.map((complex) => ({
+          ...complex,
+          features: normalizeFeatures(complex?.features),
+        }))
 
         this.masterComplexPage = normalizedPage
         // 기존 화면 호환을 위해 기존 상태 이름도 함께 유지합니다.
@@ -96,8 +104,31 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.getMasterComplexDetail(code)
-        this.complexDetail = res
-        return res
+        this.complexDetail = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        return this.complexDetail
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 일반 관리자 내 단지 정보 조회
+    async fetchMyComplex() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await apartmentComplexApi.getMyApartmentComplex()
+        this.myComplex = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        return this.myComplex
       } catch (e) {
         console.error(e)
         this.error = e
@@ -114,8 +145,11 @@ export const useComplexStore = defineStore('complex', {
       try {
         // 단지 등록 시 최초 관리자 정보도 함께 전달합니다.
         const res = await apartmentComplexApi.createComplex(payload)
-        this.complexDetail = res
-        return res
+        this.complexDetail = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        return this.complexDetail
       } catch (e) {
         console.error(e)
         this.error = e
@@ -131,8 +165,11 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.updateComplex(code, payload)
-        this.complexDetail = res
-        return res
+        this.complexDetail = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        return this.complexDetail
       } catch (e) {
         console.error(e)
         this.error = e
@@ -148,8 +185,11 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.updateComplexStatus(code, { status })
-        this.complexDetail = res
-        return res
+        this.complexDetail = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        return this.complexDetail
       } catch (e) {
         console.error(e)
         this.error = e
@@ -189,12 +229,12 @@ export const useComplexStore = defineStore('complex', {
       }
     },
 
-    // MASTER 단지 관리자 목록 조회
-    async fetchComplexAdmins(code) {
+    // 일반 관리자 내 단지 관리자 목록 조회
+    async fetchMyComplexAdmins() {
       this.loading = true
       this.error = null
       try {
-        const res = await apartmentComplexApi.getComplexAdmins(code)
+        const res = await apartmentComplexApi.getMyComplexAdmins()
         this.complexAdmins = Array.isArray(res) ? res : []
         return this.complexAdmins
       } catch (e) {
@@ -213,7 +253,6 @@ export const useComplexStore = defineStore('complex', {
       try {
         // 관리자 생성은 백엔드에서 Auth 내부 호출 처리 후 단지 소속을 등록합니다.
         const res = await apartmentComplexApi.createComplexAdmin(code, payload)
-        await this.fetchComplexAdmins(code)
         return res
       } catch (e) {
         console.error(e)
@@ -224,13 +263,13 @@ export const useComplexStore = defineStore('complex', {
       }
     },
 
-    // MASTER 단지 관리자 수정
-    async updateAdminForComplex(code, userId, payload) {
+    // 일반 관리자 내 단지 관리자 생성
+    async createAdminForMyComplex(payload) {
       this.loading = true
       this.error = null
       try {
-        const res = await apartmentComplexApi.updateComplexAdmin(code, userId, payload)
-        await this.fetchComplexAdmins(code)
+        const res = await apartmentComplexApi.createAdminForMyComplex(payload)
+        await this.fetchMyComplexAdmins()
         return res
       } catch (e) {
         console.error(e)
@@ -241,14 +280,30 @@ export const useComplexStore = defineStore('complex', {
       }
     },
 
-    // MASTER 단지 관리자 삭제
-    async deleteAdminFromComplex(code, userId) {
+    // 일반 관리자 내 단지 관리자 수정
+    async updateAdminForMyComplex(userId, payload) {
       this.loading = true
       this.error = null
       try {
-        // 관리자 삭제는 백엔드에서 소속 해제와 계정 소프트 삭제를 함께 처리합니다.
-        const res = await apartmentComplexApi.deleteComplexAdmin(code, userId)
-        await this.fetchComplexAdmins(code)
+        const res = await apartmentComplexApi.updateAdminForMyComplex(userId, payload)
+        await this.fetchMyComplexAdmins()
+        return res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 일반 관리자 내 단지 관리자 삭제
+    async deleteAdminFromMyComplex(userId) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await apartmentComplexApi.deleteAdminFromMyComplex(userId)
+        await this.fetchMyComplexAdmins()
         return res
       } catch (e) {
         console.error(e)
@@ -265,7 +320,12 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.getPublicComplexes(params)
-        this.publicComplexList = Array.isArray(res) ? res : []
+        this.publicComplexList = Array.isArray(res)
+          ? res.map((complex) => ({
+              ...complex,
+              features: normalizeFeatures(complex?.features),
+            }))
+          : []
         // 기존 화면 호환을 위해 alias 상태도 함께 유지합니다.
         this.publicComplexes = this.publicComplexList
         return this.publicComplexList
@@ -301,9 +361,9 @@ export const useComplexStore = defineStore('complex', {
       const selected = normalizeSelectedComplex(complex)
 
       this.selectedComplex = selected
-      localStorage.setItem(SELECTED_COMPLEX_STORAGE_KEY, JSON.stringify(selected))
-      // 기존 레이아웃과의 호환을 위해 기존 키도 함께 유지합니다.
-      localStorage.setItem(LEGACY_SELECTED_COMPLEX_STORAGE_KEY, JSON.stringify(selected))
+      sessionStorage.setItem(SELECTED_COMPLEX_STORAGE_KEY, JSON.stringify(selected))
+      // 기존 캐시 호환을 위해 legacy 키도 세션에 함께 유지합니다.
+      sessionStorage.setItem(LEGACY_SELECTED_COMPLEX_STORAGE_KEY, JSON.stringify(selected))
       return selected
     },
 
@@ -311,6 +371,8 @@ export const useComplexStore = defineStore('complex', {
     restoreSelectedComplex() {
       // 선택 단지 복구는 신규 키를 우선하고, 기존 키도 fallback으로 허용합니다.
       const saved =
+        sessionStorage.getItem(SELECTED_COMPLEX_STORAGE_KEY) ||
+        sessionStorage.getItem(LEGACY_SELECTED_COMPLEX_STORAGE_KEY) ||
         localStorage.getItem(SELECTED_COMPLEX_STORAGE_KEY) ||
         localStorage.getItem(LEGACY_SELECTED_COMPLEX_STORAGE_KEY)
 
@@ -323,6 +385,8 @@ export const useComplexStore = defineStore('complex', {
         return this.selectedComplex
       } catch (e) {
         console.error(e)
+        sessionStorage.removeItem(SELECTED_COMPLEX_STORAGE_KEY)
+        sessionStorage.removeItem(LEGACY_SELECTED_COMPLEX_STORAGE_KEY)
         localStorage.removeItem(SELECTED_COMPLEX_STORAGE_KEY)
         localStorage.removeItem(LEGACY_SELECTED_COMPLEX_STORAGE_KEY)
         this.selectedComplex = null
@@ -334,8 +398,16 @@ export const useComplexStore = defineStore('complex', {
     clearSelectedComplex() {
       // 로그아웃 또는 단지 전환 시 선택 상태를 초기화합니다.
       this.selectedComplex = null
+      sessionStorage.removeItem(SELECTED_COMPLEX_STORAGE_KEY)
+      sessionStorage.removeItem(LEGACY_SELECTED_COMPLEX_STORAGE_KEY)
       localStorage.removeItem(SELECTED_COMPLEX_STORAGE_KEY)
       localStorage.removeItem(LEGACY_SELECTED_COMPLEX_STORAGE_KEY)
+    },
+
+    // 일반 관리자 내 단지 정보를 초기화한다.
+    clearMyComplex() {
+      this.myComplex = null
+      this.complexAdmins = []
     },
 
     // 기존 createComplex 함수명과 호환을 유지합니다.
@@ -356,11 +428,6 @@ export const useComplexStore = defineStore('complex', {
     // 기존 assignComplexAdmin 함수명과 호환을 유지합니다.
     assignComplexAdmin(code, payload) {
       return this.createAdminForComplex(code, payload)
-    },
-
-    // 기존 unassignComplexAdmin 함수명과 호환을 유지합니다.
-    unassignComplexAdmin(code, userId) {
-      return this.deleteAdminFromComplex(code, userId)
     },
   },
 })

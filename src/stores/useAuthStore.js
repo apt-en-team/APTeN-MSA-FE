@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import authApi from '@/api/authApi'
+import { useComplexStore } from '@/stores/useComplexStore'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -31,9 +32,16 @@ export const useAuthStore = defineStore('auth', {
         const res = await authApi.login(body)
         this.setAuth(res)
 
+        // 로그인 전환 시 이전 단지 컨텍스트가 섞이지 않도록 초기화한다.
+        const complexStore = useComplexStore()
+        complexStore.clearMyComplex()
+        if (this.role !== 'MASTER') {
+          complexStore.clearSelectedComplex()
+        }
+
         if (this.role === 'MASTER') {
-          window.location.href = '/admin/master/complexes'
-        } else if (this.role === 'ADMIN') {
+          window.location.href = '/admin/master'
+        } else if (this.role === 'MANAGER' || this.role === 'ADMIN') {
           window.location.href = '/admin/dashboard'
         } else if (this.role === 'USER' && this.status === 'PENDING') {
           // PENDING이면 단지 ID 포함 경로로 이동
@@ -59,6 +67,9 @@ export const useAuthStore = defineStore('auth', {
       this.error = null
       try {
         await authApi.logout()
+        const complexStore = useComplexStore()
+        complexStore.clearSelectedComplex()
+        complexStore.clearMyComplex()
         this.clearAuth()
       } catch (e) {
         const serverMessage = e.response?.data?.resultMessage

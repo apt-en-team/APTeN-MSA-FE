@@ -2,6 +2,9 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useComplexStore } from '@/stores/useComplexStore'
+import { FEATURE_CODES } from '@/constants/complexFeatures'
+import { isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
 
 defineProps({
   title: {
@@ -12,6 +15,14 @@ defineProps({
 
 const router = useRouter()
 const authStore = useAuthStore()
+const complexStore = useComplexStore()
+
+// TODO: 입주민용 단지 정보 API에 features가 연결되면 resident 메뉴도 features 기준으로 제어한다.
+const residentFeatures = computed(() => {
+  return normalizeFeatures(
+    complexStore.myComplex?.features || complexStore.complexDetail?.features || authStore.complexFeatures,
+  )
+})
 
 // 드로어 열림 상태
 const drawerOpen = ref(false)
@@ -25,6 +36,10 @@ function handleDrawerScroll(e) {
 
 // complexId 기반 경로 생성
 const residentPath = (path) => `/resident/${authStore.complexId}/${path}`
+
+function canUseResidentFeature(featureCode) {
+  return isFeatureEnabled(residentFeatures.value, featureCode)
+}
 
 function navigate(path) {
   drawerOpen.value = false
@@ -49,12 +64,12 @@ const quickMenus = computed(() => [
     path: residentPath('vehicles'),
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/></svg>`,
   },
-  {
+  canUseResidentFeature(FEATURE_CODES.VOTE) ? {
     label: '투표하기',
     path: residentPath('vote'),
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>`,
-  },
-])
+  } : null,
+].filter(Boolean))
 
 // 전체 메뉴 — complexId 포함 경로
 const menuGroups = computed(() => [
@@ -72,15 +87,21 @@ const menuGroups = computed(() => [
       { label: '방문차량 등록', path: residentPath('visitor-vehicle/register'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>` },
       { label: '방문차량 목록', path: residentPath('visitor-vehicle'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M5 12h14"/></svg>` },
       { label: '고정 방문차량 목록', path: residentPath('visitor-vehicle/fixed'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>` },
-      { label: '주차 현황', path: residentPath('parking'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>` },
-    ],
+      canUseResidentFeature(FEATURE_CODES.PARKING_STATUS)
+        ? { label: '주차 현황', path: residentPath('parking'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9 17V7h4a3 3 0 010 6H9"/></svg>` }
+        : null,
+    ].filter(Boolean),
   },
   {
     label: '시설',
     items: [
-      { label: '시설 목록', path: residentPath('facility'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>` },
-      { label: '내 예약', path: residentPath('reservations'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>` },
-    ],
+      canUseResidentFeature(FEATURE_CODES.FACILITY)
+        ? { label: '시설 목록', path: residentPath('facility'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>` }
+        : null,
+      canUseResidentFeature(FEATURE_CODES.FACILITY)
+        ? { label: '내 예약', path: residentPath('reservations'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>` }
+        : null,
+    ].filter(Boolean),
   },
   {
     label: '커뮤니티',
@@ -88,10 +109,12 @@ const menuGroups = computed(() => [
       { label: '공지사항', path: residentPath('notice'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
       { label: '자유게시판', path: residentPath('board'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>` },
       { label: '내가 쓴 글', path: residentPath('my-posts'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>` },
-      { label: '모바일 투표', path: residentPath('vote'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>` },
-    ],
+      canUseResidentFeature(FEATURE_CODES.VOTE)
+        ? { label: '모바일 투표', path: residentPath('vote'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>` }
+        : null,
+    ].filter(Boolean),
   },
-])
+].filter((group) => group.items.length > 0))
 </script>
 
 <template>

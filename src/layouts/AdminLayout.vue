@@ -1,9 +1,11 @@
 <script setup>
 // 일반 ADMIN과 MASTER 선택 단지 모드가 공통으로 사용하는 데스크톱 관리자 레이아웃이다.
-import { computed, provide, ref } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { FEATURE_CODES } from '@/constants/complexFeatures'
 import { useComplexStore } from '@/stores/useComplexStore'
+import { normalizeFeatures, isFeatureEnabled } from '@/utils/featureGate'
 
 const route = useRoute()
 const router = useRouter()
@@ -54,32 +56,57 @@ const adminMenuDefinitions = [
   },
 ]
 
-// route path와 params.code를 기준으로 MASTER 선택 단지 관리자 모드를 판별한다.
+// MASTER가 공통 관리자 화면에서 선택 단지를 정한 상태인지 store 값으로 판단한다.
 const isMasterComplexMode = computed(() => {
-  return route.path.startsWith('/admin/master/complexes/') && !!route.params.code
+  return authStore.role === 'MASTER' && !!complexStore.selectedComplex?.complexId
 })
-
-// MASTER 모드에서는 현재 단지 code를 링크 생성 기준으로 사용한다.
-const currentComplexCode = computed(() => String(route.params.code || ''))
 
 // 같은 메뉴 구성을 현재 모드에 맞는 링크로 변환한다.
 function buildAdminPath(path) {
-  if (isMasterComplexMode.value && currentComplexCode.value) {
-    return `/admin/master/complexes/${currentComplexCode.value}/${path}`
+  return `/admin/${path}`
+}
+
+// 현재 관리자 컨텍스트에서 사용할 기능 사용 여부를 계산한다.
+const currentAdminFeatures = computed(() => {
+  if (isMasterComplexMode.value) {
+    return normalizeFeatures(
+      complexStore.selectedComplex?.features || complexStore.complexDetail?.features,
+    )
   }
 
-  return `/admin/${path}`
+  return normalizeFeatures(complexStore.myComplex?.features || complexStore.complexDetail?.features)
+})
+
+// 메뉴 경로별로 단지 기능 사용 여부를 판별한다.
+function isAdminMenuVisible(path) {
+  if (['facilities', 'reservations', 'gx-programs'].includes(path)) {
+    return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.FACILITY)
+  }
+
+  if (['parking-logs', 'parking/dashboard'].includes(path)) {
+    return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.PARKING_STATUS)
+  }
+
+  if (path === 'votes') {
+    return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.VOTE)
+  }
+
+  return true
 }
 
 // 사이드바 메뉴는 동일하게 유지하고 링크만 MASTER/ADMIN 모드에 맞게 분기한다.
 const adminMenuGroups = computed(() => {
-  return adminMenuDefinitions.map((group) => ({
-    ...group,
-    items: (group.items || []).map((item) => ({
-      ...item,
-      to: buildAdminPath(item.path),
-    })),
-  }))
+  return adminMenuDefinitions
+    .map((group) => ({
+      ...group,
+      items: (group.items || [])
+        .filter((item) => isAdminMenuVisible(item.path))
+        .map((item) => ({
+          ...item,
+          to: buildAdminPath(item.path),
+        })),
+    }))
+    .filter((group) => group.items.length > 0)
 })
 
 // 사용자 권한과 표시용 이름을 계산한다.
@@ -109,9 +136,10 @@ function isMenuActive(targetPath) {
 
 // 현재 화면에서 표시할 단지명을 store 값 기준으로 계산한다.
 const currentComplexName = computed(() => {
-  if (complexStore.selectedComplex?.name) return complexStore.selectedComplex.name
-  if (complexStore.complexDetail?.name) return complexStore.complexDetail.name
-  if (isMasterComplexMode.value && currentComplexCode.value) return `선택 단지 ${currentComplexCode.value}`
+  if (isMasterComplexMode.value && complexStore.selectedComplex?.name) return complexStore.selectedComplex.name
+  if (isMasterComplexMode.value && complexStore.complexDetail?.name) return complexStore.complexDetail.name
+  if (isMasterComplexMode.value && complexStore.selectedComplex?.code) return `선택 단지 ${complexStore.selectedComplex.code}`
+  if (complexStore.myComplex?.name) return complexStore.myComplex.name
   return 'APT-EN 아파트'
 })
 
@@ -122,12 +150,11 @@ const topbarSub = computed(() => {
 
 // 기존 store 액션을 사용해 로그아웃 버튼을 연결한다.
 const handleLogout = async () => {
+  const roleBeforeLogout = authStore.role
+
   await authStore.logout()
-  if (userRole.value === 'MASTER') {
-    router.push('/admin/master/login')
-  } else {
-    router.push('/admin/login')
-  }
+
+  router.push(roleBeforeLogout === 'MASTER' ? '/master/login' : '/admin/login')
 }
 
 // 자식 페이지가 상단 액션 버튼에 연결할 모달 열기 함수를 등록한다.
@@ -166,6 +193,30 @@ const headerActions = computed(() => {
 function getMenuIconPath(icon) {
   return icon || 'grid'
 }
+
+// 일반 관리자 모드에서는 내 단지 정보를 조회해 헤더 단지명을 보강한다.
+async function ensureMyComplex() {
+  if (isMasterComplexMode.value) return
+  if (authStore.role !== 'MANAGER' && authStore.role !== 'ADMIN') return
+  if (complexStore.myComplex?.name) return
+
+  try {
+    await complexStore.fetchMyComplex()
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+onMounted(() => {
+  ensureMyComplex()
+})
+
+watch(
+  () => [route.path, route.params.code, authStore.role, complexStore.selectedComplex?.complexId],
+  () => {
+    ensureMyComplex()
+  },
+)
 </script>
 
 <template>

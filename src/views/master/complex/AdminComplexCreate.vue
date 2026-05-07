@@ -3,6 +3,8 @@ import { reactive, watch } from 'vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
+import { DEFAULT_COMPLEX_FEATURES, FEATURE_CODES } from '@/constants/complexFeatures'
+import { normalizeFeatures } from '@/utils/featureGate'
 import { useComplexStore } from '@/stores/useComplexStore'
 
 const complexStore = useComplexStore()
@@ -28,6 +30,7 @@ const state = reactive({
     managerPassword: '',
     managerName: '',
     managerPhone: '',
+    features: normalizeFeatures(DEFAULT_COMPLEX_FEATURES),
   },
   addressKeyword: '',
   addressResults: [],
@@ -65,6 +68,7 @@ function resetState() {
   state.form.managerPassword = ''
   state.form.managerName = ''
   state.form.managerPhone = ''
+  state.form.features = normalizeFeatures(DEFAULT_COMPLEX_FEATURES)
   state.addressKeyword = ''
   state.addressResults = []
   state.addressPage = 0
@@ -242,6 +246,8 @@ async function handleCreateConfirm() {
       managerPassword: state.form.managerPassword,
       managerName: state.form.managerName,
       managerPhone: state.form.managerPhone,
+      // 단지 등록 요청에 사용 기능 설정을 함께 전달한다.
+      features: normalizeFeatures(state.form.features),
     })
 
     const createdAt = new Date().toLocaleString('ko-KR', {
@@ -296,10 +302,9 @@ watch(
     subtitle="새 아파트 단지 등록"
     @close="handleClose"
   >
-  <div class="master-complex-form__section-divider"></div>
-    <div class="master-complex-form">
+    <div class="master-complex-form__section-divider"></div>
+    <div class="master-complex-form master-complex-form--scrollable">
       <div class="master-complex-form__section">
-        
         <h2 class="master-complex-form__section-title">단지 정보</h2>
 
         <div class="master-complex-form__field">
@@ -345,6 +350,37 @@ watch(
             placeholder="단지 설명을 입력해주세요."
           />
         </label>
+      </div>
+
+      <div class="master-complex-form__section">
+        <h2 class="master-complex-form__section-title">사용 기능 설정</h2>
+
+        <div class="master-complex-form__feature-box">
+          <div class="master-complex-form__feature-options">
+            <!-- 단지별 기능 사용 여부를 compact 체크박스로 설정한다. -->
+            <label class="master-complex-form__feature-toggle">
+              <input v-model="state.form.features[FEATURE_CODES.FACILITY]" type="checkbox" />
+              <span>시설/예약</span>
+            </label>
+
+            <label class="master-complex-form__feature-toggle">
+              <input
+                v-model="state.form.features[FEATURE_CODES.PARKING_STATUS]"
+                type="checkbox"
+              />
+              <span>주차 현황</span>
+            </label>
+
+            <label class="master-complex-form__feature-toggle">
+              <input v-model="state.form.features[FEATURE_CODES.VOTE]" type="checkbox" />
+              <span>전자투표</span>
+            </label>
+          </div>
+          <p class="master-complex-form__feature-help">
+            단지에서 사용할 기능만 선택해주세요. 선택하지 않은 기능은 입주민/관리자
+            메뉴에서 숨겨집니다.
+          </p>
+        </div>
       </div>
 
       <div class="master-complex-form__section">
@@ -474,6 +510,13 @@ watch(
 <style scoped>
 .master-complex-form {
   display: grid;
+  gap: 20px;
+}
+
+.master-complex-form--scrollable {
+  max-height: min(62vh, 620px);
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .master-complex-form__section {
@@ -497,6 +540,44 @@ watch(
 .master-complex-form__field span {
   color: var(--color-text-secondary);
   font-size: var(--font-size-label);
+}
+
+.master-complex-form__feature-box {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-card-bg);
+}
+
+.master-complex-form__feature-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.master-complex-form__feature-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.master-complex-form__feature-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.master-complex-form__feature-help {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .master-complex-form__field input,
