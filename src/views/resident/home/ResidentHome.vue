@@ -1,7 +1,10 @@
 <script setup>
-import {ref, onMounted, computed} from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import {useRouter} from 'vue-router'
 import {useAuthStore} from '@/stores/useAuthStore'
+import { useComplexStore } from '@/stores/useComplexStore'
+import { FEATURE_CODES, DEFAULT_COMPLEX_FEATURES } from '@/constants/complexFeatures'
+import { isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
 import {getMyVehicles} from '@/api/vehicleApi'
 import {getMyReservations} from '@/api/reservationApi'
 import {getNotices} from '@/api/noticeApi'
@@ -10,6 +13,7 @@ import {getPublicComplexes} from '@/api/apartmentComplexApi'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const complexStore = useComplexStore()
 
 // 로그인한 사용자 이름 (useAuthStore에서 조회)
 const userName = computed(() => authStore.name || '입주민')
@@ -38,6 +42,25 @@ const myReservations = ref([])
 
 // 로딩 상태
 const loading = ref(true)
+
+// 입주민 기능 설정 source가 아직 명확하지 않으면 기본 true로 동작시킨다.
+// TODO: 입주민용 단지 정보 API에 features가 연결되면 resident 홈 카드도 실제 단지 features 기준으로 제어한다.
+const residentFeatures = computed(() => {
+  return normalizeFeatures(
+    complexStore.myComplex?.features ||
+    complexStore.complexDetail?.features ||
+    authStore.complexFeatures ||
+    DEFAULT_COMPLEX_FEATURES,
+  )
+})
+
+const showFacilitySection = computed(() => {
+  return isFeatureEnabled(residentFeatures.value, FEATURE_CODES.FACILITY)
+})
+
+const showParkingSection = computed(() => {
+  return isFeatureEnabled(residentFeatures.value, FEATURE_CODES.PARKING_STATUS)
+})
 
 // 날짜 포맷 (26.02.15 형식)
 function formatDate(dateStr) {
@@ -130,10 +153,20 @@ onMounted(() => {
       </div>
 
       <!-- 예약 현황 -->
-      <div class="stat-card" @click="router.push('/resident/my-reservation')">
+      <div
+        class="stat-card"
+        :class="{ 'stat-card--disabled': !showFacilitySection }"
+        @click="showFacilitySection ? router.push('/resident/my-reservation') : null"
+      >
         <p class="stat-card__label">예약 현황</p>
-        <p class="stat-card__value">{{ reservationCount }}<span class="stat-card__unit">건</span></p>
-        <p class="stat-card__desc">이번 주 예약</p>
+        <template v-if="showFacilitySection">
+          <p class="stat-card__value">{{ reservationCount }}<span class="stat-card__unit">건</span></p>
+          <p class="stat-card__desc">이번 주 예약</p>
+        </template>
+        <template v-else>
+          <p class="stat-card__value">-</p>
+          <p class="stat-card__desc stat-card__desc--disabled">기능이 비활성화되었습니다.</p>
+        </template>
       </div>
 
       <!-- 방문차량 -->
@@ -145,16 +178,22 @@ onMounted(() => {
       </div>
 
       <!-- 주차 현황 -->
-      <div class="stat-card">
+      <div class="stat-card" :class="{ 'stat-card--disabled': !showParkingSection }">
         <p class="stat-card__label">주차 현황</p>
-        <p class="stat-card__value">{{ parkingUsageRate }}<span class="stat-card__unit">%</span></p>
-        <!-- 주차 사용률 프로그레스 바 -->
-        <div class="stat-card__progress">
-          <div
-            class="stat-card__progress-bar"
-            :style="{ width: parkingUsageRate + '%' }"
-          ></div>
-        </div>
+        <template v-if="showParkingSection">
+          <p class="stat-card__value">{{ parkingUsageRate }}<span class="stat-card__unit">%</span></p>
+          <!-- 주차 사용률 프로그레스 바 -->
+          <div class="stat-card__progress">
+            <div
+              class="stat-card__progress-bar"
+              :style="{ width: parkingUsageRate + '%' }"
+            ></div>
+          </div>
+        </template>
+        <template v-else>
+          <p class="stat-card__value">-</p>
+          <p class="stat-card__desc stat-card__desc--disabled">기능이 비활성화되었습니다.</p>
+        </template>
       </div>
 
     </section>
@@ -191,18 +230,27 @@ onMounted(() => {
     <section class="home__section">
       <div class="home__section-header">
         <h2 class="home__section-title">내 예약 현황</h2>
-        <button class="home__section-more" @click="router.push('/resident/my-reservation')">
+        <button
+          v-if="showFacilitySection"
+          class="home__section-more"
+          @click="router.push('/resident/my-reservation')"
+        >
           더보기 →
         </button>
       </div>
 
+      <div v-if="!showFacilitySection" class="home__disabled-card">
+        <p class="home__empty">기능이 비활성화되었습니다.</p>
+        <p class="home__disabled-desc">이 단지에서는 시설/예약 기능을 사용하지 않습니다.</p>
+      </div>
+
       <!-- 예약 없을 때 -->
-      <p v-if="!loading && myReservations.length === 0" class="home__empty">
+      <p v-else-if="!loading && myReservations.length === 0" class="home__empty">
         예약 내역이 없습니다.
       </p>
 
       <!-- 예약 목록 -->
-      <ul class="reservation-list">
+      <ul v-else class="reservation-list">
         <li
           v-for="item in myReservations"
           :key="item.reservationUid"
@@ -275,8 +323,16 @@ onMounted(() => {
   transition: transform 0.15s;
 }
 
+.stat-card--disabled {
+  cursor: default;
+}
+
 .stat-card:active {
   transform: scale(0.97);
+}
+
+.stat-card--disabled:active {
+  transform: none;
 }
 
 .stat-card__label {
@@ -308,6 +364,10 @@ onMounted(() => {
 .stat-card__desc--warn {
   color: var(--color-warning);
   font-weight: 600;
+}
+
+.stat-card__desc--disabled {
+  color: var(--color-text-secondary);
 }
 
 /* 주차 현황 프로그레스 바 */
@@ -361,6 +421,20 @@ onMounted(() => {
   text-align: center;
   padding: var(--space-16);
   margin: 0;
+}
+
+.home__disabled-card {
+  background: var(--resident-bg-2);
+  border-radius: var(--radius-12);
+  padding: var(--space-16);
+  box-shadow: var(--shadow-small);
+}
+
+.home__disabled-desc {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  text-align: center;
 }
 
 /* 공지사항 리스트 */

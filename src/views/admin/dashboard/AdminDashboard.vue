@@ -162,15 +162,30 @@ const dashboardStats = computed(() => {
           </div>
         </article>
 
-        <article v-if="showFacilitySection" class="panel">
+        <article class="panel" :class="{ 'panel-disabled': !showFacilitySection }">
           <div class="panel-header">
             <h2 class="panel-title">오늘 시설 예약 현황</h2>
-            <router-link :to="adminPath('/reservations')" class="panel-more">
+            <router-link
+              v-if="showFacilitySection"
+              :to="adminPath('/reservations')"
+              class="panel-more"
+            >
               전체보기 →
             </router-link>
           </div>
 
-          <div v-if="dashboardState.facilities.length > 0" class="facility-list">
+          <div v-if="!showFacilitySection" class="empty-state disabled-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <span class="empty-text">기능이 비활성화되었습니다.</span>
+            <p class="disabled-desc">이 단지에서는 시설/예약 기능을 사용하지 않습니다.</p>
+          </div>
+
+          <div v-else-if="dashboardState.facilities.length > 0" class="facility-list">
             <!-- API 연결 후 시설 예약 현황을 표시합니다. -->
           </div>
 
@@ -187,15 +202,30 @@ const dashboardStats = computed(() => {
       </section>
 
       <section class="bottom-grid">
-        <article v-if="showParkingSection" class="panel">
+        <article class="panel" :class="{ 'panel-disabled': !showParkingSection }">
           <div class="panel-header">
             <h2 class="panel-title">최근 입출차 기록</h2>
-            <router-link :to="adminPath('/parking-logs')" class="panel-more">
+            <router-link
+              v-if="showParkingSection"
+              :to="adminPath('/parking-logs')"
+              class="panel-more"
+            >
               전체보기 →
             </router-link>
           </div>
 
-          <template v-if="dashboardState.records.length > 0">
+          <div v-if="!showParkingSection" class="empty-state disabled-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+              <rect x="9" y="3" width="6" height="4" rx="1" />
+              <line x1="9" y1="12" x2="15" y2="12" />
+              <line x1="9" y1="16" x2="13" y2="16" />
+            </svg>
+            <span class="empty-text">기능이 비활성화되었습니다.</span>
+            <p class="disabled-desc">이 단지에서는 주차 현황 기능을 사용하지 않습니다.</p>
+          </div>
+
+          <template v-else-if="dashboardState.records.length > 0">
             <table class="entry-table">
               <thead>
                 <tr>
@@ -330,6 +360,10 @@ const dashboardStats = computed(() => {
   background: #FFFFFF;
 }
 
+.panel-disabled {
+  background: #FFFFFF;
+}
+
 .panel-header {
   display: flex;
   align-items: center;
@@ -366,6 +400,10 @@ const dashboardStats = computed(() => {
   padding: 36px 0;
 }
 
+.disabled-state {
+  gap: 8px;
+}
+
 .empty-state svg {
   width: 36px;
   height: 36px;
@@ -376,6 +414,14 @@ const dashboardStats = computed(() => {
   color: #B0B8C9;
   font-size: 13px;
   font-weight: 500;
+}
+
+.disabled-desc {
+  margin: 0;
+  color: #8A94A6;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .visitor-list,
