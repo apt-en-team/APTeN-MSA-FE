@@ -25,7 +25,8 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     // 로그인
     // 성공 시 역할에 따라 페이지 이동
-    async login(body) {
+    // skipRedirect가 true이면 리다이렉트를 건너뛴다 — 마스터 로그인 페이지에서 역할 검증 후 직접 이동할 때 사용
+    async login(body, { skipRedirect = false } = {}) {
       this.loading = true
       this.error = null
       try {
@@ -38,6 +39,8 @@ export const useAuthStore = defineStore('auth', {
         if (this.role !== 'MASTER') {
           complexStore.clearSelectedComplex()
         }
+
+        if (skipRedirect) return // 호출 측에서 직접 리다이렉트 처리
 
         if (this.role === 'MASTER') {
           window.location.href = '/admin/master'
@@ -53,7 +56,7 @@ export const useAuthStore = defineStore('auth', {
       } catch (e) {
         // 서버 에러 응답에서 메시지 추출
         // 백엔드 ErrorCode 기반 메시지 우선 사용
-        const serverMessage = e.response?.data?.resultMessage
+        const serverMessage = e.response?.data?.message
         this.error = serverMessage || '로그인 중 오류가 발생했습니다.'
       } finally {
         this.loading = false
@@ -72,8 +75,8 @@ export const useAuthStore = defineStore('auth', {
         complexStore.clearMyComplex()
         this.clearAuth()
       } catch (e) {
-        const serverMessage = e.response?.data?.resultMessage
-        this.error = serverMessage || '로그아웃 중 오류가 발생했습니다.'
+        const serverMessage = e.response?.data?.message
+        this.error = serverMessage || '로그인 중 오류가 발생했습니다.'
       } finally {
         this.loading = false
       }
