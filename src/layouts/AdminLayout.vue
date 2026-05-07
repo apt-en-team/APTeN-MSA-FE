@@ -3,7 +3,9 @@
 import { computed, onMounted, provide, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { FEATURE_CODES } from '@/constants/complexFeatures'
 import { useComplexStore } from '@/stores/useComplexStore'
+import { normalizeFeatures, isFeatureEnabled } from '@/utils/featureGate'
 
 const route = useRoute()
 const router = useRouter()
@@ -64,15 +66,47 @@ function buildAdminPath(path) {
   return `/admin/${path}`
 }
 
+// 현재 관리자 컨텍스트에서 사용할 기능 사용 여부를 계산한다.
+const currentAdminFeatures = computed(() => {
+  if (isMasterComplexMode.value) {
+    return normalizeFeatures(
+      complexStore.selectedComplex?.features || complexStore.complexDetail?.features,
+    )
+  }
+
+  return normalizeFeatures(complexStore.myComplex?.features || complexStore.complexDetail?.features)
+})
+
+// 메뉴 경로별로 단지 기능 사용 여부를 판별한다.
+function isAdminMenuVisible(path) {
+  if (['facilities', 'reservations', 'gx-programs'].includes(path)) {
+    return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.FACILITY)
+  }
+
+  if (['parking-logs', 'parking/dashboard'].includes(path)) {
+    return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.PARKING_STATUS)
+  }
+
+  if (path === 'votes') {
+    return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.VOTE)
+  }
+
+  return true
+}
+
 // 사이드바 메뉴는 동일하게 유지하고 링크만 MASTER/ADMIN 모드에 맞게 분기한다.
 const adminMenuGroups = computed(() => {
-  return adminMenuDefinitions.map((group) => ({
-    ...group,
-    items: (group.items || []).map((item) => ({
-      ...item,
-      to: buildAdminPath(item.path),
-    })),
-  }))
+  return adminMenuDefinitions
+    .map((group) => ({
+      ...group,
+      items: (group.items || [])
+        .filter((item) => isAdminMenuVisible(item.path))
+        .map((item) => ({
+          ...item,
+          to: buildAdminPath(item.path),
+        })),
+    }))
+    .filter((group) => group.items.length > 0)
 })
 
 // 사용자 권한과 표시용 이름을 계산한다.

@@ -1,13 +1,28 @@
 <script setup>
+import { computed } from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {useAuthStore} from '@/stores/useAuthStore'
+import { useComplexStore } from '@/stores/useComplexStore'
+import { FEATURE_CODES } from '@/constants/complexFeatures'
+import { isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const complexStore = useComplexStore()
+
+// TODO: 입주민용 단지 정보 API에 features가 연결되면 resident 하단 탭도 features 기준으로 제어한다.
+const residentFeatures = computed(() => {
+  return normalizeFeatures(
+    complexStore.myComplex?.features || complexStore.complexDetail?.features || authStore.complexFeatures,
+  )
+})
 
 // complexId 기반 경로 생성
 const residentPath = (path) => `/resident/${authStore.complexId}/${path}`
+const showParkingTab = computed(() => {
+  return isFeatureEnabled(residentFeatures.value, FEATURE_CODES.PARKING_STATUS)
+})
 
 // 현재 경로 기준으로 활성 탭 판단
 const isActive = (path) => route.path.includes(path)
@@ -18,6 +33,7 @@ const isActive = (path) => route.path.includes(path)
 
     <!-- 주차 탭 -->
     <button
+      v-if="showParkingTab"
       class="bottom-nav__item"
       :class="{ 'bottom-nav__item--active': isActive('parking') }"
       @click="router.push(residentPath('parking'))"

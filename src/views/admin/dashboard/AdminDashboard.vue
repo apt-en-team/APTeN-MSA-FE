@@ -3,8 +3,14 @@
 import { computed, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import StatsCards from '@/components/admin/StatsCards.vue'
+import { FEATURE_CODES } from '@/constants/complexFeatures'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { useComplexStore } from '@/stores/useComplexStore'
+import { isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
 
 const route = useRoute()
+const authStore = useAuthStore()
+const complexStore = useComplexStore()
 
 // MASTER 선택 단지 모드 여부를 현재 경로로 판단한다.
 const isMasterMode = computed(() => {
@@ -19,12 +25,29 @@ const selectedComplexCode = computed(() => {
 
 // MASTER/ADMIN 모드에 맞는 관리자 대표 페이지 경로를 만든다.
 function adminPath(path) {
-  if (isMasterMode.value && selectedComplexCode.value) {
-    return `/admin/master/complexes/${selectedComplexCode.value}${path}`
-  }
-
   return `/admin${path}`
 }
+
+// 현재 관리자 컨텍스트의 기능 사용 여부를 대시보드 카드 노출 기준으로 사용한다.
+const dashboardFeatures = computed(() => {
+  if (authStore.role === 'MASTER') {
+    return normalizeFeatures(complexStore.selectedComplex?.features || complexStore.complexDetail?.features)
+  }
+
+  return normalizeFeatures(complexStore.myComplex?.features || complexStore.complexDetail?.features)
+})
+
+const showFacilitySection = computed(() => {
+  return isFeatureEnabled(dashboardFeatures.value, FEATURE_CODES.FACILITY)
+})
+
+const showParkingSection = computed(() => {
+  return isFeatureEnabled(dashboardFeatures.value, FEATURE_CODES.PARKING_STATUS)
+})
+
+const showVoteSection = computed(() => {
+  return isFeatureEnabled(dashboardFeatures.value, FEATURE_CODES.VOTE)
+})
 
 // 실제 API 연결 전까지 비어 있는 상태로 유지한다.
 const dashboardState = reactive({
@@ -41,38 +64,40 @@ const dashboardState = reactive({
 })
 
 // StatsCards에 넘길 상단 요약 카드 데이터이다.
-const dashboardStats = computed(() => [
-  {
-    label: '승인 대기',
-    value: dashboardState.summary.pendingApproval ?? '-',
-    unit: '',
-    desc: '연결된 데이터가 없습니다.',
-    descClass: 'highlight-orange',
-    iconClass: 'icon-orange',
-  },
-  {
-    label: '주차 현황',
-    value: dashboardState.summary.parkingRate ?? '-',
-    unit: '',
-    desc: '주차 대시보드 API 연결 예정입니다.',
-    iconClass: 'icon-blue',
-  },
-  {
-    label: '오늘 예약',
-    value: dashboardState.summary.todayReservation ?? '-',
-    unit: '',
-    desc: '예약 현황 API 연결 예정입니다.',
-    descClass: 'highlight-green',
-    iconClass: 'icon-green',
-  },
-  {
-    label: '전체 세대',
-    value: dashboardState.summary.totalHousehold ?? '-',
-    unit: '',
-    desc: '세대 통계 API 연결 예정입니다.',
-    iconClass: 'icon-gray',
-  },
-])
+const dashboardStats = computed(() => {
+  return [
+    {
+      label: '승인 대기',
+      value: dashboardState.summary.pendingApproval ?? '-',
+      unit: '',
+      desc: '연결된 데이터가 없습니다.',
+      descClass: 'highlight-orange',
+      iconClass: 'icon-orange',
+    },
+    {
+      label: '주차 현황',
+      value: dashboardState.summary.parkingRate ?? '-',
+      unit: '',
+      desc: showParkingSection.value ? '주차 대시보드 API 연결 예정입니다.' : '기능이 비활성화되었습니다.',
+      iconClass: 'icon-blue',
+    },
+    {
+      label: '오늘 예약',
+      value: dashboardState.summary.todayReservation ?? '-',
+      unit: '',
+      desc: showFacilitySection.value ? '예약 현황 API 연결 예정입니다.' : '기능이 비활성화되었습니다.',
+      descClass: 'highlight-green',
+      iconClass: 'icon-green',
+    },
+    {
+      label: '전체 세대',
+      value: dashboardState.summary.totalHousehold ?? '-',
+      unit: '',
+      desc: '세대 통계 API 연결 예정입니다.',
+      iconClass: 'icon-gray',
+    },
+  ]
+})
 </script>
 
 <template>
@@ -137,7 +162,7 @@ const dashboardStats = computed(() => [
           </div>
         </article>
 
-        <article class="panel">
+        <article v-if="showFacilitySection" class="panel">
           <div class="panel-header">
             <h2 class="panel-title">오늘 시설 예약 현황</h2>
             <router-link :to="adminPath('/reservations')" class="panel-more">
@@ -162,7 +187,7 @@ const dashboardStats = computed(() => [
       </section>
 
       <section class="bottom-grid">
-        <article class="panel">
+        <article v-if="showParkingSection" class="panel">
           <div class="panel-header">
             <h2 class="panel-title">최근 입출차 기록</h2>
             <router-link :to="adminPath('/parking-logs')" class="panel-more">

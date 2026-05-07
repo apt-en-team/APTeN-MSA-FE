@@ -1,6 +1,7 @@
 import {createRouter, createWebHistory} from 'vue-router'
 import {useAuthStore} from '@/stores/useAuthStore'
 import {useComplexStore} from '@/stores/useComplexStore'
+import { getAdminFeatureByPath, getResidentFeatureByPath, isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
 import adminRoutes from './adminRoutes'
 import authRoutes from './authRoutes'
 import masterRoutes from './masterRoutes'
@@ -72,6 +73,35 @@ router.beforeEach((to, from) => {
 
     if (isSharedAdminRoute && !complexStore.selectedComplex?.complexId) {
       return '/admin/master'
+    }
+  }
+
+  // 관리자 공통 화면에서는 단지 기능이 false로 내려온 경로만 대시보드로 차단한다.
+  if (to.path.startsWith('/admin/')) {
+    const featureCode = getAdminFeatureByPath(to.path)
+
+    if (featureCode) {
+      const adminFeatures = authStore.role === 'MASTER'
+        ? normalizeFeatures(complexStore.selectedComplex?.features || complexStore.complexDetail?.features)
+        : normalizeFeatures(complexStore.myComplex?.features || complexStore.complexDetail?.features)
+
+      if (!isFeatureEnabled(adminFeatures, featureCode)) {
+        return '/admin/dashboard'
+      }
+    }
+  }
+
+  // TODO: 입주민용 단지 정보 API에 features가 연결되면 resident 메뉴와 가드도 features 기준으로 제어한다.
+  if (to.path.startsWith('/resident/')) {
+    const featureCode = getResidentFeatureByPath(to.path)
+
+    if (featureCode) {
+      const residentFeatures =
+        complexStore.myComplex?.features || complexStore.complexDetail?.features || authStore.complexFeatures
+
+      if (residentFeatures && !isFeatureEnabled(residentFeatures, featureCode)) {
+        return `/resident/${authStore.complexId}/home`
+      }
     }
   }
 

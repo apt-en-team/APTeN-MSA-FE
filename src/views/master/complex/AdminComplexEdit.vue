@@ -4,7 +4,8 @@ import { useRoute } from 'vue-router'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
-import { getComplexStatusLabel } from '@/constants/complexCodes'
+import { DEFAULT_COMPLEX_FEATURES, FEATURE_CODES } from '@/constants/complexFeatures'
+import { normalizeFeatures } from '@/utils/featureGate'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 
@@ -46,6 +47,7 @@ const state = reactive({
     code: '',
     createdAt: '',
     updatedAt: '',
+    features: normalizeFeatures(DEFAULT_COMPLEX_FEATURES),
   },
   loading: false,
   errorMessage: '',
@@ -81,6 +83,7 @@ function resetState() {
   state.form.code = ''
   state.form.createdAt = ''
   state.form.updatedAt = ''
+  state.form.features = normalizeFeatures(DEFAULT_COMPLEX_FEATURES)
   state.loading = false
   state.errorMessage = ''
   state.showUpdateConfirm = false
@@ -150,11 +153,6 @@ function handleClose() {
   emit('close')
 }
 
-// 단지 상태 라벨을 화면에 표시하기 쉬운 문자열로 변환한다.
-function formatStatus(status) {
-  return getComplexStatusLabel(status)
-}
-
 // 처리 시각을 결과 모달에 표시할 문자열로 만든다.
 function getCurrentTimeText() {
   return new Date().toLocaleString('ko-KR', {
@@ -176,6 +174,8 @@ function syncForm(detail) {
   state.form.code = detail?.code || ''
   state.form.createdAt = detail?.createdAt || ''
   state.form.updatedAt = detail?.updatedAt || ''
+  // 상세 응답의 기능 설정을 수정 폼 초기값으로 반영한다.
+  state.form.features = normalizeFeatures(detail?.features)
 }
 
 // 모달이 열리면 선택 단지 상세를 조회해 최신 정보를 반영한다.
@@ -239,6 +239,8 @@ async function handleUpdateConfirm() {
     await complexStore.updateMasterComplex(code, {
       name: state.form.name,
       description: state.form.description,
+      // 단지 수정 요청에 기능 사용 여부를 함께 전달한다.
+      features: normalizeFeatures(state.form.features),
     })
 
     openResultModal({
@@ -339,7 +341,7 @@ onMounted(loadComplexDetail)
     subtitle="단지명과 설명만 수정할 수 있으며 주소 정보는 등록 이후 변경할 수 없습니다."
     @close="handleClose"
   >
-    <div class="master-complex-form">
+    <div class="master-complex-form master-complex-form--scrollable">
       <p v-if="state.loading" class="master-complex-form__feedback">단지 정보를 불러오는 중입니다.</p>
 
       <div class="master-complex-form__grid">
@@ -367,6 +369,37 @@ onMounted(loadComplexDetail)
           placeholder="단지 설명을 입력해주세요."
         />
       </label>
+
+      <div class="master-complex-form__feature-section">
+        <h3 class="master-complex-form__feature-title">사용 기능 설정</h3>
+
+        <div class="master-complex-form__feature-box">
+          <div class="master-complex-form__feature-options">
+            <!-- 수정 화면에서도 단지별 기능 사용 여부를 compact 체크박스로 변경할 수 있다. -->
+            <label class="master-complex-form__feature-toggle">
+              <input v-model="state.form.features[FEATURE_CODES.FACILITY]" type="checkbox" />
+              <span>시설/예약</span>
+            </label>
+
+            <label class="master-complex-form__feature-toggle">
+              <input
+                v-model="state.form.features[FEATURE_CODES.PARKING_STATUS]"
+                type="checkbox"
+              />
+              <span>주차 현황</span>
+            </label>
+
+            <label class="master-complex-form__feature-toggle">
+              <input v-model="state.form.features[FEATURE_CODES.VOTE]" type="checkbox" />
+              <span>전자투표</span>
+            </label>
+          </div>
+          <p class="master-complex-form__feature-help">
+            단지에서 사용할 기능만 선택해주세요. 선택하지 않은 기능은 입주민/관리자
+            메뉴에서 숨겨집니다.
+          </p>
+        </div>
+      </div>
 
       <div class="master-complex-form__meta">
         <p>코드: {{ state.form.code || '-' }}</p>
@@ -460,6 +493,12 @@ onMounted(loadComplexDetail)
   gap: 16px;
 }
 
+.master-complex-form--scrollable {
+  max-height: min(62vh, 620px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .master-complex-form__field {
   display: grid;
   gap: 8px;
@@ -492,6 +531,56 @@ onMounted(loadComplexDetail)
 .master-complex-form__field textarea[readonly] {
   background: var(--color-bg-muted);
   color: var(--color-text-secondary);
+}
+
+.master-complex-form__feature-section {
+  display: grid;
+  gap: 12px;
+}
+
+.master-complex-form__feature-title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.master-complex-form__feature-box {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-card-bg);
+}
+
+.master-complex-form__feature-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.master-complex-form__feature-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.master-complex-form__feature-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.master-complex-form__feature-help {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .master-complex-form__grid {

@@ -1,6 +1,7 @@
 // 단지 상태를 관리하는 store입니다.
 import { defineStore } from 'pinia'
 import apartmentComplexApi from '@/api/apartmentComplexApi'
+import { normalizeFeatures } from '@/utils/featureGate'
 
 const SELECTED_COMPLEX_STORAGE_KEY = 'apt_selected_complex'
 const LEGACY_SELECTED_COMPLEX_STORAGE_KEY = 'selectedComplex'
@@ -50,6 +51,7 @@ const normalizeSelectedComplex = (complex) => ({
   status: complex?.status ?? null,
   statusName: complex?.statusName ?? null,
   address: complex?.address ?? null,
+  features: normalizeFeatures(complex?.features),
 })
 
 export const useComplexStore = defineStore('complex', {
@@ -78,6 +80,10 @@ export const useComplexStore = defineStore('complex', {
         const res = await apartmentComplexApi.getMasterComplexes(params)
         // 단지 목록을 페이지 객체 형태로 정리해 화면과 페이지네이션에서 공통 사용합니다.
         const normalizedPage = normalizeMasterComplexPage(res, params?.size ?? 10)
+        normalizedPage.content = normalizedPage.content.map((complex) => ({
+          ...complex,
+          features: normalizeFeatures(complex?.features),
+        }))
 
         this.masterComplexPage = normalizedPage
         // 기존 화면 호환을 위해 기존 상태 이름도 함께 유지합니다.
@@ -98,8 +104,11 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.getMasterComplexDetail(code)
-        this.complexDetail = res
-        return res
+        this.complexDetail = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        return this.complexDetail
       } catch (e) {
         console.error(e)
         this.error = e
@@ -115,8 +124,11 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.getMyApartmentComplex()
-        this.myComplex = res
-        return res
+        this.myComplex = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        return this.myComplex
       } catch (e) {
         console.error(e)
         this.error = e
@@ -133,8 +145,11 @@ export const useComplexStore = defineStore('complex', {
       try {
         // 단지 등록 시 최초 관리자 정보도 함께 전달합니다.
         const res = await apartmentComplexApi.createComplex(payload)
-        this.complexDetail = res
-        return res
+        this.complexDetail = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        return this.complexDetail
       } catch (e) {
         console.error(e)
         this.error = e
@@ -150,8 +165,11 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.updateComplex(code, payload)
-        this.complexDetail = res
-        return res
+        this.complexDetail = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        return this.complexDetail
       } catch (e) {
         console.error(e)
         this.error = e
@@ -167,8 +185,11 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.updateComplexStatus(code, { status })
-        this.complexDetail = res
-        return res
+        this.complexDetail = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        return this.complexDetail
       } catch (e) {
         console.error(e)
         this.error = e
@@ -299,7 +320,12 @@ export const useComplexStore = defineStore('complex', {
       this.error = null
       try {
         const res = await apartmentComplexApi.getPublicComplexes(params)
-        this.publicComplexList = Array.isArray(res) ? res : []
+        this.publicComplexList = Array.isArray(res)
+          ? res.map((complex) => ({
+              ...complex,
+              features: normalizeFeatures(complex?.features),
+            }))
+          : []
         // 기존 화면 호환을 위해 alias 상태도 함께 유지합니다.
         this.publicComplexes = this.publicComplexList
         return this.publicComplexList
