@@ -3,7 +3,9 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '@/api/apiClient'
 import ResidentModal from '@/components/resident/ResidentModal.vue'
+import { useAuthStore } from '@/stores/useAuthStore'
 
+const authStore = useAuthStore()
 const router = useRouter()
 
 const form = ref({
@@ -79,7 +81,7 @@ async function handleSubmit() {
 
 function handleSuccessClose() {
   showSuccessModal.value = false
-  router.push('/resident/mypage')
+  router.push(`/resident/${authStore.complexId}/mypage`)
 }
 </script>
 

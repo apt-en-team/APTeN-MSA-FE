@@ -1,10 +1,9 @@
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import apiClient from '@/api/apiClient'
 import ResidentModal from '@/components/resident/ResidentModal.vue'
-
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -13,6 +12,7 @@ const authStore = useAuthStore()
 const userInfo = reactive({
   name: '',
   complexId: null,
+  complexName: '',
   building: '',
   unit: '',
   birthDate: '',
@@ -27,44 +27,47 @@ const showWithdrawModal = ref(false)
 const withdrawPassword = ref('')
 const withdrawError = ref('')
 
-const quickMenus = [
+// complexId 기반 경로 생성
+const residentPath = (path) => `/resident/${authStore.complexId}/${path}`
+
+const quickMenus = computed(() => [
   {
     label: '관리비 조회',
-    path: '/resident/bill',
+    path: residentPath('bill'),
     icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
     highlight: true,
   },
   {
     label: '내 차량',
-    path: '/resident/vehicle',
+    path: residentPath('vehicles'),
     icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H3v-5l2-5h14l2 5v5h-2"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M5 12h14"/></svg>`,
     highlight: false,
   },
   {
     label: '고정 방문차량 목록',
-    path: '/resident/visitor-vehicle',
+    path: residentPath('visitor-vehicle/fixed'),
     icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg>`,
     highlight: false,
   },
   {
     label: '내 예약',
-    path: '/resident/reservation',
+    path: residentPath('reservations'),
     icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`,
     highlight: false,
   },
   {
     label: '내가 쓴 글',
-    path: '/resident/my-posts',
+    path: residentPath('my-posts'),
     icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`,
     highlight: false,
   },
   {
     label: '비밀번호 변경',
-    path: '/resident/mypage/password',
+    path: residentPath('mypage/password'),
     icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
     highlight: false,
   },
-]
+])
 
 // 내 계정 정보 조회 — GET /api/users/me
 async function fetchUserInfo() {
@@ -73,6 +76,7 @@ async function fetchUserInfo() {
     const data = res.data.data
     userInfo.name = data.name
     userInfo.complexId = data.complexId
+    userInfo.complexName = data.complexName || ''
     userInfo.building = data.building
     userInfo.unit = data.unit
     userInfo.birthDate = data.birthDate
@@ -136,9 +140,9 @@ onMounted(() => {
           <div class="profile-info">
             <div class="profile-name-row">
               <p class="profile-name">{{ userInfo.name }}</p>
-              <button class="edit-btn" @click="$router.push('/resident/my-page/edit')">수정</button>
+              <button class="edit-btn" @click="$router.push(residentPath('mypage/edit'))">수정</button>
             </div>
-            <p class="profile-complex">그린아파트 {{ userInfo.building }}동 / {{ userInfo.unit }}호</p>
+            <p class="profile-complex">{{ userInfo.complexName }} {{ userInfo.building }}동 / {{ userInfo.unit }}호</p>
             <p class="profile-sub">
               <span>입주일 {{ userInfo.birthDate }}</span>
               <span class="divider">|</span>
@@ -232,6 +236,7 @@ onMounted(() => {
     </div>
   </ResidentModal>
 </template>
+
 
 <style scoped>
 .my-page {
