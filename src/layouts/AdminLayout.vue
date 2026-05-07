@@ -109,8 +109,8 @@ function isMenuActive(targetPath) {
 
 // 현재 화면에서 표시할 단지명을 store 값 기준으로 계산한다.
 const currentComplexName = computed(() => {
-  if (complexStore.selectedComplex?.name) return complexStore.selectedComplex.name
-  if (complexStore.complexDetail?.name) return complexStore.complexDetail.name
+  if (isMasterComplexMode.value && complexStore.selectedComplex?.name) return complexStore.selectedComplex.name
+  if (isMasterComplexMode.value && complexStore.complexDetail?.name) return complexStore.complexDetail.name
   if (isMasterComplexMode.value && currentComplexCode.value) return `선택 단지 ${currentComplexCode.value}`
   return 'APT-EN 아파트'
 })

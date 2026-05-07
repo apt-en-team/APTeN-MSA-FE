@@ -106,9 +106,13 @@ const adminColumns = computed(() => {
   ]
 })
 
-// route params의 code를 우선 사용하고, 일반 ADMIN 모드에서는 store 선택 단지 code를 보조로 사용한다.
+// MASTER 선택 단지 모드에서만 route params의 code를 현재 단지 식별값으로 사용한다.
 const complexCode = computed(() => {
-  return String(route.params.code || complexStore.selectedComplex?.code || '')
+  if (!isMasterComplexMode.value) {
+    return ''
+  }
+
+  return String(route.params.code || '')
 })
 
 // 현재 경로가 MASTER 선택 단지 관리자 모드인지 판별한다.
@@ -116,8 +120,19 @@ const isMasterComplexMode = computed(() => {
   return route.path.startsWith('/admin/master/complexes/') && !!route.params.code
 })
 
-// 선택 단지와 상세 조회 결과를 합쳐 화면에서 사용할 단지 정보를 만든다.
+// MASTER 모드에서는 선택 단지와 상세 조회 결과를 합쳐 현재 단지 정보를 만든다.
 const currentComplex = computed(() => {
+  if (!isMasterComplexMode.value) {
+    return {
+      complexId: null,
+      code: '-',
+      name: '내 단지 정보 연결 예정',
+      status: null,
+      address: '',
+      updatedAt: '',
+    }
+  }
+
   const base =
     complexStore.selectedComplex?.code === complexCode.value
       ? {
@@ -324,6 +339,13 @@ function resetEditForm() {
 // 선택 단지 정보가 없으면 localStorage 복구와 상세 조회를 순서대로 시도한다.
 async function restoreComplexContext() {
   state.detailWarning = ''
+
+  // 일반 관리자 모드에서는 MASTER 선택 단지 캐시를 사용하지 않는다.
+  if (!isMasterComplexMode.value) {
+    state.detailWarning = '내 단지 기준 관리자 목록 API 연결이 필요합니다.'
+    return false
+  }
+
   complexStore.restoreSelectedComplex()
 
   if (!complexCode.value) {
@@ -352,7 +374,9 @@ async function restoreComplexContext() {
 // route code 기준으로 관리자/스태프 목록을 조회한다.
 async function loadAdmins() {
   if (!complexCode.value) {
-    state.errorMessage = '단지 코드를 확인할 수 없습니다.'
+    state.errorMessage = isMasterComplexMode.value
+      ? '단지 코드를 확인할 수 없습니다.'
+      : '내 단지 기준 관리자 목록 API 연결이 필요합니다.'
     complexStore.complexAdmins = []
     return
   }

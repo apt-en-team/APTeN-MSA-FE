@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import authApi from '@/api/authApi'
+import { useComplexStore } from '@/stores/useComplexStore'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -30,6 +31,11 @@ export const useAuthStore = defineStore('auth', {
         const res = await authApi.login(body)
         this.setAuth(res)
 
+        // 일반 관리자 로그인 시 이전 MASTER 선택 단지 캐시를 사용하지 않도록 초기화한다.
+        if (this.role !== 'MASTER') {
+          useComplexStore().clearSelectedComplex()
+        }
+
         if (this.role === 'MASTER') {
           window.location.href = '/admin/master'
         } else if (this.role === 'MANAGER' || this.role === 'ADMIN') {
@@ -56,6 +62,7 @@ export const useAuthStore = defineStore('auth', {
       this.error = null
       try {
         await authApi.logout()
+        useComplexStore().clearSelectedComplex()
         this.clearAuth()
       } catch (e) {
         const serverMessage = e.response?.data?.resultMessage
