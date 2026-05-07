@@ -1,17 +1,21 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/useAuthStore'
-import { getMyVehicles } from '@/api/vehicleApi'
-import { getMyReservations } from '@/api/reservationApi'
-import { getNotices } from '@/api/noticeApi'
-import { getVisitorVehicles } from '@/api/visitorVehicleApi'
+import {ref, onMounted, computed} from 'vue'
+import {useRouter} from 'vue-router'
+import {useAuthStore} from '@/stores/useAuthStore'
+import {getMyVehicles} from '@/api/vehicleApi'
+import {getMyReservations} from '@/api/reservationApi'
+import {getNotices} from '@/api/noticeApi'
+import {getVisitorVehicles} from '@/api/visitorVehicleApi'
+import {getPublicComplexes} from '@/api/apartmentComplexApi'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 // 로그인한 사용자 이름 (useAuthStore에서 조회)
 const userName = computed(() => authStore.name || '입주민')
+
+// 소속 단지 이름
+const complexName = ref('')
 
 // 내 차량 현황
 const vehicleCount = ref(0)
@@ -50,11 +54,12 @@ async function loadHomeData() {
   loading.value = true
   try {
     // 병렬 요청으로 성능 최적화
-    const [vehicles, reservations, notices_res, visitors] = await Promise.allSettled([
+    const [vehicles, reservations, notices_res, visitors, complexes] = await Promise.allSettled([
       getMyVehicles(),
-      getMyReservations({ size: 2 }),
-      getNotices({ size: 3 }),
-      getVisitorVehicles({ status: 'PENDING', size: 1 }),
+      getMyReservations({size: 2}),
+      getNotices({size: 3}),
+      getVisitorVehicles({status: 'PENDING', size: 1}),
+      getPublicComplexes(),
     ])
 
     // 차량 건수
@@ -83,6 +88,13 @@ async function loadHomeData() {
       pendingVisitorCount.value = data?.totalElements ?? 0
     }
 
+    // 단지 목록에서 authStore.complexId와 일치하는 단지 이름 추출
+    if (complexes.status === 'fulfilled') {
+      const list = Array.isArray(complexes.value) ? complexes.value : complexes.value?.content ?? []
+      const found = list.find(c => String(c.complexId) === String(authStore.complexId))
+      complexName.value = found?.name ?? ''
+    }
+
     // // 주차 현황
     // if (parking.status === 'fulfilled') {
     //   parkingUsageRate.value = parking.value?.usageRate ?? 0
@@ -102,6 +114,7 @@ onMounted(() => {
 
     <!-- 인사말 -->
     <section class="home__greeting">
+      <p v-if="complexName" class="home__greeting-complex">{{ complexName }}</p>
       <h1 class="home__greeting-name">안녕하세요, {{ userName }}님</h1>
       <p class="home__greeting-unit">{{ authStore.building }}동 {{ authStore.unit }}호</p>
     </section>
@@ -126,7 +139,8 @@ onMounted(() => {
       <!-- 방문차량 -->
       <div class="stat-card" @click="router.push('/resident/visitor-vehicles/list')">
         <p class="stat-card__label">방문차량</p>
-        <p class="stat-card__value">{{ pendingVisitorCount }}<span class="stat-card__unit">건</span></p>
+        <p class="stat-card__value">{{ pendingVisitorCount }}<span class="stat-card__unit">건</span>
+        </p>
         <p class="stat-card__desc stat-card__desc--warn">승인 대기</p>
       </div>
 
@@ -221,12 +235,21 @@ onMounted(() => {
 .home__greeting {
   padding: var(--space-8) 0 0;
 }
+
+.home__greeting-complex {
+  font-size: var(--font-size-detail);
+  font-weight: 600;
+  color: var(--resident-primary);
+  margin: 0 0 var(--space-4);
+}
+
 .home__greeting-name {
   font-size: var(--font-size-heading-3);
   font-weight: 700;
   color: var(--color-text-primary);
   margin: 0 0 var(--space-4);
 }
+
 .home__greeting-unit {
   font-size: var(--font-size-body-sm);
   color: var(--color-text-secondary);
@@ -251,13 +274,17 @@ onMounted(() => {
   box-shadow: var(--shadow-small);
   transition: transform 0.15s;
 }
-.stat-card:active { transform: scale(0.97); }
+
+.stat-card:active {
+  transform: scale(0.97);
+}
 
 .stat-card__label {
   font-size: var(--font-size-detail);
   color: var(--color-text-secondary);
   margin: 0;
 }
+
 .stat-card__value {
   font-size: var(--font-size-heading-2);
   font-weight: 800;
@@ -265,16 +292,19 @@ onMounted(() => {
   margin: 0;
   line-height: 1.2;
 }
+
 .stat-card__unit {
   font-size: var(--font-size-body-sm);
   font-weight: 400;
   margin-left: 2px;
 }
+
 .stat-card__desc {
   font-size: var(--font-size-label);
   color: var(--resident-primary);
   margin: 0;
 }
+
 .stat-card__desc--warn {
   color: var(--color-warning);
   font-weight: 600;
@@ -288,6 +318,7 @@ onMounted(() => {
   overflow: hidden;
   margin-top: var(--space-4);
 }
+
 .stat-card__progress-bar {
   height: 100%;
   background: var(--resident-primary);
@@ -301,17 +332,20 @@ onMounted(() => {
   flex-direction: column;
   gap: var(--space-12);
 }
+
 .home__section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
+
 .home__section-title {
   font-size: var(--font-size-body);
   font-weight: 700;
   color: var(--color-text-primary);
   margin: 0;
 }
+
 .home__section-more {
   background: none;
   border: none;
@@ -320,6 +354,7 @@ onMounted(() => {
   cursor: pointer;
   padding: 0;
 }
+
 .home__empty {
   font-size: var(--font-size-detail);
   color: var(--color-text-secondary);
@@ -338,6 +373,7 @@ onMounted(() => {
   overflow: hidden;
   box-shadow: var(--shadow-small);
 }
+
 .notice-item {
   display: flex;
   align-items: center;
@@ -347,8 +383,14 @@ onMounted(() => {
   cursor: pointer;
   transition: background 0.15s;
 }
-.notice-item:last-child { border-bottom: none; }
-.notice-item:active { background: var(--color-bg-muted); }
+
+.notice-item:last-child {
+  border-bottom: none;
+}
+
+.notice-item:active {
+  background: var(--color-bg-muted);
+}
 
 .notice-item__title {
   font-size: var(--font-size-body-sm);
@@ -359,6 +401,7 @@ onMounted(() => {
   white-space: nowrap;
   margin-right: var(--space-12);
 }
+
 .notice-item__date {
   font-size: var(--font-size-label);
   color: var(--color-text-secondary);
@@ -374,6 +417,7 @@ onMounted(() => {
   flex-direction: column;
   gap: var(--space-8);
 }
+
 .reservation-item {
   display: flex;
   align-items: center;
@@ -385,22 +429,28 @@ onMounted(() => {
   box-shadow: var(--shadow-small);
   transition: transform 0.15s;
 }
-.reservation-item:active { transform: scale(0.98); }
+
+.reservation-item:active {
+  transform: scale(0.98);
+}
 
 .reservation-item__info {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
+
 .reservation-item__name {
   font-size: var(--font-size-body-sm);
   font-weight: 600;
   color: var(--color-text-primary);
 }
+
 .reservation-item__time {
   font-size: var(--font-size-label);
   color: var(--color-text-secondary);
 }
+
 .reservation-item__badge {
   font-size: var(--font-size-badge);
   font-weight: 600;
