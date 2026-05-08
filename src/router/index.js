@@ -96,8 +96,7 @@ router.beforeEach((to, from) => {
     const featureCode = getResidentFeatureByPath(to.path)
 
     if (featureCode) {
-      const residentFeatures =
-        complexStore.myComplex?.features || complexStore.complexDetail?.features || authStore.complexFeatures
+      const residentFeatures = complexStore.residentComplex?.features
 
       if (residentFeatures && !isFeatureEnabled(residentFeatures, featureCode)) {
         return `/resident/${authStore.complexId}/home`

@@ -61,6 +61,8 @@ export const useComplexStore = defineStore('complex', {
     error: null,
     complexList: createEmptyMasterComplexPage(),
     myComplex: null,
+    residentComplex: null,
+    residentComplexLoaded: false,
     complexDetail: null,
     complexAdmins: [],
     selectedComplex: null,
@@ -132,6 +134,33 @@ export const useComplexStore = defineStore('complex', {
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 입주민 내 단지 정보를 조회해 feature gate 공통 source로 저장한다.
+    async fetchResidentMyComplex(force = false) {
+      if (!force && this.residentComplexLoaded && this.residentComplex?.complexId) {
+        return this.residentComplex
+      }
+
+      this.loading = true
+      this.error = null
+      try {
+        const res = await apartmentComplexApi.getResidentMyComplex()
+        this.residentComplex = {
+          ...res,
+          features: normalizeFeatures(res?.features),
+        }
+        this.residentComplexLoaded = true
+        return this.residentComplex
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        this.residentComplex = null
+        this.residentComplexLoaded = false
         throw e
       } finally {
         this.loading = false
@@ -408,6 +437,12 @@ export const useComplexStore = defineStore('complex', {
     clearMyComplex() {
       this.myComplex = null
       this.complexAdmins = []
+    },
+
+    // 입주민 내 단지 정보를 초기화한다.
+    clearResidentComplex() {
+      this.residentComplex = null
+      this.residentComplexLoaded = false
     },
 
     // 기존 createComplex 함수명과 호환을 유지합니다.

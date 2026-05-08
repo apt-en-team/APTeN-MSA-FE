@@ -1,7 +1,42 @@
 <script setup>
 // TODO: USER 전용 모바일 레이아웃입니다.
+import { onMounted, watch } from 'vue'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { useComplexStore } from '@/stores/useComplexStore'
 import AppHeader from '@/components/resident/AppHeader.vue'
 import BottomNav from '@/components/resident/BottomNav.vue'
+
+const authStore = useAuthStore()
+const complexStore = useComplexStore()
+
+// 입주민 레이아웃 진입 시 내 단지 정보를 조회해 features source를 준비한다.
+async function ensureResidentComplex() {
+  if (!authStore.complexId) return
+
+  const currentComplexId = String(complexStore.residentComplex?.complexId || '')
+  const authComplexId = String(authStore.complexId || '')
+  const shouldReload =
+    !complexStore.residentComplexLoaded || !currentComplexId || currentComplexId !== authComplexId
+
+  if (!shouldReload) return
+
+  try {
+    await complexStore.fetchResidentMyComplex()
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+onMounted(() => {
+  ensureResidentComplex()
+})
+
+watch(
+  () => authStore.complexId,
+  () => {
+    ensureResidentComplex()
+  },
+)
 </script>
 
 <template>
