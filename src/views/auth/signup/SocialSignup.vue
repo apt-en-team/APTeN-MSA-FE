@@ -16,6 +16,7 @@ const form = reactive({
   apartmentComplexUid: '',
   email: route.query.email || '',
   name: route.query.name || '',
+  provider: route.query.provider || '',
   phone: '',
   birthDate: '',
   dong: '',
@@ -58,6 +59,7 @@ async function loadComplexes() {
 }
 
 onMounted(() => {
+  console.log('provider:', route.query.provider)
   loadComplexes()
   // 소셜 로그인 없이 직접 접근 시 로그인 페이지로
   if (!route.query.email) {
@@ -148,12 +150,16 @@ function validate() {
 // 소셜 회원가입 완료 제출
 async function handleSubmit() {
   if (!validate()) return
+  console.log('제출 데이터:', {
+    provider: form.provider,
+  })
   loading.value = true
   serverError.value = ''
   try {
     await authApi.socialSignup({
       email: form.email,
       name: form.name,
+      provider: form.provider,
       phone: form.phone,
       birthDate: form.birthDate,
       complexId: form.apartmentComplexUid,

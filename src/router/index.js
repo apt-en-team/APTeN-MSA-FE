@@ -38,9 +38,9 @@ router.beforeEach((to, from) => {
   // 이미 로그인 상태에서 랜딩/로그인 페이지 접근 시 역할별 대시보드로 이동
   // 입주민이 PWA 아이콘 눌렀을 때 로그인 화면 대신 바로 대시보드로 가게 함
   if (authStore.isAuthenticated) {
-    const guestOnlyPaths = ['/', '/login', '/admin/login']
+    const guestOnlyPaths = ['/', '/login', '/admin/login', '/master/login']
     if (guestOnlyPaths.includes(to.path)) {
-      if (authStore.role === 'USER') return '/resident/home'
+      if (authStore.role === 'USER') return `/resident/${authStore.complexId}/home`
       if (authStore.role === 'MANAGER' || authStore.role === 'ADMIN') return '/admin/dashboard'
       if (authStore.role === 'MASTER') return '/admin/master'
     }
@@ -71,7 +71,7 @@ router.beforeEach((to, from) => {
 
     const isSharedAdminRoute = to.path.startsWith('/admin/') && !to.path.startsWith('/admin/master')
 
-    if (isSharedAdminRoute && !complexStore.selectedComplex?.complexId) {
+    if (isSharedAdminRoute && !complexStore.selectedComplex?.code) {
       return '/admin/master'
     }
   }

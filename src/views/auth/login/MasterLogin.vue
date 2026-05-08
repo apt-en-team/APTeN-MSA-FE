@@ -42,15 +42,21 @@ function validate() {
 }
 
 // 마스터 로그인 처리
-// 요청/응답 방식은 관리자 로그인과 동일하게 authStore.login()을 사용한다.
+// authStore.login() 내부에서 MASTER 역할이면 /admin/master/complexes로 이동 처리한다.
 async function handleLogin() {
   if (!validate()) return
+  await authStore.login({ email: form.email, password: form.password }, { skipRedirect: true })
 
-  await authStore.login({ email: form.email, password: form.password })
+  // 로그인 성공했는데 MASTER가 아니면 접근 차단
+  if (authStore.isAuthenticated && authStore.role !== 'MASTER') {
+    await authStore.logout()
+    authStore.error = '마스터 계정으로만 로그인할 수 있습니다.'
+    return
+  }
 
-  // 로그인 성공 후 MASTER 계정이면 마스터 단지 랜딩 화면으로 이동한다.
+  // MASTER면 마스터 페이지로 이동
   if (authStore.isAuthenticated && authStore.role === 'MASTER') {
-    await router.replace('/admin/master')
+    window.location.href = '/admin/master'
   }
 }
 </script>

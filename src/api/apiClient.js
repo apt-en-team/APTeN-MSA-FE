@@ -79,6 +79,11 @@ apiClient.interceptors.response.use(
     const status = error.response?.status
 
     if (status === 401 && originalRequest && !originalRequest._retry) {
+
+      // 로그인 API 자체의 401은 인터셉터에서 처리하지 않는다
+      if (originalRequest.url?.includes('/api/auth/login')) {
+        return Promise.reject(error)
+      }
       const refreshToken = localStorage.getItem('refreshToken')
 
       if (!refreshToken) {
