@@ -20,7 +20,7 @@ const complexStore = useComplexStore()
 // TODO: 입주민용 단지 정보 API에 features가 연결되면 resident 메뉴도 features 기준으로 제어한다.
 const residentFeatures = computed(() => {
   return normalizeFeatures(
-    complexStore.myComplex?.features || complexStore.complexDetail?.features || authStore.complexFeatures,
+    complexStore.residentComplex?.features,
   )
 })
 

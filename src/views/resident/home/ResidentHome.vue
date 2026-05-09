@@ -9,7 +9,6 @@ import {getMyVehicles} from '@/api/vehicleApi'
 import {getMyReservations} from '@/api/reservationApi'
 import {getNotices} from '@/api/noticeApi'
 import {getVisitorVehicles} from '@/api/visitorVehicleApi'
-import {getPublicComplexes} from '@/api/apartmentComplexApi'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -19,7 +18,9 @@ const complexStore = useComplexStore()
 const userName = computed(() => authStore.name || '입주민')
 
 // 소속 단지 이름
-const complexName = ref('')
+const complexName = computed(() => {
+  return complexStore.residentComplex?.name || ''
+})
 
 // 내 차량 현황
 const vehicleCount = ref(0)
@@ -47,9 +48,7 @@ const loading = ref(true)
 // TODO: 입주민용 단지 정보 API에 features가 연결되면 resident 홈 카드도 실제 단지 features 기준으로 제어한다.
 const residentFeatures = computed(() => {
   return normalizeFeatures(
-    complexStore.myComplex?.features ||
-    complexStore.complexDetail?.features ||
-    authStore.complexFeatures ||
+    complexStore.residentComplex?.features ||
     DEFAULT_COMPLEX_FEATURES,
   )
 })
@@ -60,6 +59,65 @@ const showFacilitySection = computed(() => {
 
 const showParkingSection = computed(() => {
   return isFeatureEnabled(residentFeatures.value, FEATURE_CODES.PARKING_STATUS)
+})
+
+// 홈 상단 요약 카드는 사용 가능한 기능만 자연스럽게 재배치해 노출한다.
+const homeSummaryCards = computed(() => {
+  const cards = [
+    {
+      key: 'vehicle',
+      label: '내 차량',
+      value: vehicleCount.value,
+      unit: '대',
+      desc: `최대 ${maxVehicleCount}대 등록 가능`,
+      descClass: '',
+      path: '/resident/my-vehicle',
+      showProgress: false,
+      progressValue: 0,
+    },
+  ]
+
+  if (showFacilitySection.value) {
+    cards.push({
+      key: 'reservation',
+      label: '예약 현황',
+      value: reservationCount.value,
+      unit: '건',
+      desc: '이번 주 예약',
+      descClass: '',
+      path: '/resident/my-reservation',
+      showProgress: false,
+      progressValue: 0,
+    })
+  }
+
+  cards.push({
+    key: 'visitor',
+    label: '방문차량',
+    value: pendingVisitorCount.value,
+    unit: '건',
+    desc: '승인 대기',
+    descClass: 'stat-card__desc--warn',
+    path: '/resident/visitor-vehicles/list',
+    showProgress: false,
+    progressValue: 0,
+  })
+
+  if (showParkingSection.value) {
+    cards.push({
+      key: 'parking',
+      label: '주차 현황',
+      value: parkingUsageRate.value,
+      unit: '%',
+      desc: '',
+      descClass: '',
+      path: '',
+      showProgress: true,
+      progressValue: parkingUsageRate.value,
+    })
+  }
+
+  return cards
 })
 
 // 날짜 포맷 (26.02.15 형식)
@@ -77,12 +135,11 @@ async function loadHomeData() {
   loading.value = true
   try {
     // 병렬 요청으로 성능 최적화
-    const [vehicles, reservations, notices_res, visitors, complexes] = await Promise.allSettled([
+    const [vehicles, reservations, notices_res, visitors] = await Promise.allSettled([
       getMyVehicles(),
       getMyReservations({size: 2}),
       getNotices({size: 3}),
       getVisitorVehicles({status: 'PENDING', size: 1}),
-      getPublicComplexes(),
     ])
 
     // 차량 건수
@@ -111,13 +168,6 @@ async function loadHomeData() {
       pendingVisitorCount.value = data?.totalElements ?? 0
     }
 
-    // 단지 목록에서 authStore.complexId와 일치하는 단지 이름 추출
-    if (complexes.status === 'fulfilled') {
-      const list = Array.isArray(complexes.value) ? complexes.value : complexes.value?.content ?? []
-      const found = list.find(c => String(c.complexId) === String(authStore.complexId))
-      complexName.value = found?.name ?? ''
-    }
-
     // // 주차 현황
     // if (parking.status === 'fulfilled') {
     //   parkingUsageRate.value = parking.value?.usageRate ?? 0
@@ -144,58 +194,23 @@ onMounted(() => {
 
     <!-- 통계 카드 2x2 -->
     <section class="home__stats">
-
-      <!-- 내 차량 -->
-      <div class="stat-card" @click="router.push('/resident/my-vehicle')">
-        <p class="stat-card__label">내 차량</p>
-        <p class="stat-card__value">{{ vehicleCount }}<span class="stat-card__unit">대</span></p>
-        <p class="stat-card__desc">최대 {{ maxVehicleCount }}대 등록 가능</p>
-      </div>
-
-      <!-- 예약 현황 -->
       <div
+        v-for="card in homeSummaryCards"
+        :key="card.key"
         class="stat-card"
-        :class="{ 'stat-card--disabled': !showFacilitySection }"
-        @click="showFacilitySection ? router.push('/resident/my-reservation') : null"
+        :class="{ 'stat-card--static': !card.path }"
+        @click="card.path ? router.push(card.path) : null"
       >
-        <p class="stat-card__label">예약 현황</p>
-        <template v-if="showFacilitySection">
-          <p class="stat-card__value">{{ reservationCount }}<span class="stat-card__unit">건</span></p>
-          <p class="stat-card__desc">이번 주 예약</p>
-        </template>
-        <template v-else>
-          <p class="stat-card__value">-</p>
-          <p class="stat-card__desc stat-card__desc--disabled">기능이 비활성화되었습니다.</p>
-        </template>
+        <p class="stat-card__label">{{ card.label }}</p>
+        <p class="stat-card__value">{{ card.value }}<span v-if="card.unit" class="stat-card__unit">{{ card.unit }}</span></p>
+        <p v-if="card.desc" class="stat-card__desc" :class="card.descClass">{{ card.desc }}</p>
+        <div v-if="card.showProgress" class="stat-card__progress">
+          <div
+            class="stat-card__progress-bar"
+            :style="{ width: card.progressValue + '%' }"
+          ></div>
+        </div>
       </div>
-
-      <!-- 방문차량 -->
-      <div class="stat-card" @click="router.push('/resident/visitor-vehicles/list')">
-        <p class="stat-card__label">방문차량</p>
-        <p class="stat-card__value">{{ pendingVisitorCount }}<span class="stat-card__unit">건</span>
-        </p>
-        <p class="stat-card__desc stat-card__desc--warn">승인 대기</p>
-      </div>
-
-      <!-- 주차 현황 -->
-      <div class="stat-card" :class="{ 'stat-card--disabled': !showParkingSection }">
-        <p class="stat-card__label">주차 현황</p>
-        <template v-if="showParkingSection">
-          <p class="stat-card__value">{{ parkingUsageRate }}<span class="stat-card__unit">%</span></p>
-          <!-- 주차 사용률 프로그레스 바 -->
-          <div class="stat-card__progress">
-            <div
-              class="stat-card__progress-bar"
-              :style="{ width: parkingUsageRate + '%' }"
-            ></div>
-          </div>
-        </template>
-        <template v-else>
-          <p class="stat-card__value">-</p>
-          <p class="stat-card__desc stat-card__desc--disabled">기능이 비활성화되었습니다.</p>
-        </template>
-      </div>
-
     </section>
 
     <!-- 최근 공지사항 -->
@@ -227,25 +242,16 @@ onMounted(() => {
     </section>
 
     <!-- 내 예약 현황 -->
-    <section class="home__section">
+    <section v-if="showFacilitySection" class="home__section">
       <div class="home__section-header">
         <h2 class="home__section-title">내 예약 현황</h2>
-        <button
-          v-if="showFacilitySection"
-          class="home__section-more"
-          @click="router.push('/resident/my-reservation')"
-        >
+        <button class="home__section-more" @click="router.push('/resident/my-reservation')">
           더보기 →
         </button>
       </div>
 
-      <div v-if="!showFacilitySection" class="home__disabled-card">
-        <p class="home__empty">기능이 비활성화되었습니다.</p>
-        <p class="home__disabled-desc">이 단지에서는 시설/예약 기능을 사용하지 않습니다.</p>
-      </div>
-
       <!-- 예약 없을 때 -->
-      <p v-else-if="!loading && myReservations.length === 0" class="home__empty">
+      <p v-if="!loading && myReservations.length === 0" class="home__empty">
         예약 내역이 없습니다.
       </p>
 
@@ -323,7 +329,7 @@ onMounted(() => {
   transition: transform 0.15s;
 }
 
-.stat-card--disabled {
+.stat-card--static {
   cursor: default;
 }
 
@@ -331,7 +337,7 @@ onMounted(() => {
   transform: scale(0.97);
 }
 
-.stat-card--disabled:active {
+.stat-card--static:active {
   transform: none;
 }
 
@@ -364,10 +370,6 @@ onMounted(() => {
 .stat-card__desc--warn {
   color: var(--color-warning);
   font-weight: 600;
-}
-
-.stat-card__desc--disabled {
-  color: var(--color-text-secondary);
 }
 
 /* 주차 현황 프로그레스 바 */
@@ -421,20 +423,6 @@ onMounted(() => {
   text-align: center;
   padding: var(--space-16);
   margin: 0;
-}
-
-.home__disabled-card {
-  background: var(--resident-bg-2);
-  border-radius: var(--radius-12);
-  padding: var(--space-16);
-  box-shadow: var(--shadow-small);
-}
-
-.home__disabled-desc {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-label);
-  text-align: center;
 }
 
 /* 공지사항 리스트 */

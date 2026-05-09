@@ -85,6 +85,12 @@ export const getPublicComplexes = async (params) => {
   return unwrapApiData(res)
 }
 
+// 입주민 내 단지 정보 조회
+export const getResidentMyComplex = async () => {
+  const res = await apiClient.get('/api/resident/apartment-complex/me')
+  return unwrapApiData(res)
+}
+
 // MASTER 단지 선택
 export const selectMasterComplex = async (code) => {
   const res = await apiClient.get(`/api/admin/master/apartment-complexes/${code}/select`)
@@ -109,5 +115,6 @@ export default {
   deleteAdminFromMyComplex,
   assignComplexAdmin,
   getPublicComplexes,
+  getResidentMyComplex,
   selectMasterComplex,
 }
