@@ -1,0 +1,85 @@
+:root {
+  --font-family-base: "Noto Sans KR", sans-serif;
+
+  --text-primary: #333333;
+  --text-secondary: #757575;
+  --text-disabled: #bdbdbd;
+
+  --white: #ffffff;
+  --gray-100: #f5f5f5;
+  --gray-200: #e0e0e0;
+  --gray-400: #bdbdbd;
+  --gray-600: #757575;
+  --gray-800: #4a4a4a;
+  --black: #333333;
+
+  --admin-main-navy: #1e2a3e;
+  --admin-deep-text: #1a202c;
+  --admin-base-gray: #f5f6f8;
+  --admin-sub-blue: #2b3a55;
+  --admin-light-gray: #e2e8f0;
+  --admin-card-white: #ffffff;
+  --admin-success: #4d8b5a;
+  --admin-danger: #e53e3e;
+  --admin-warning: #c08b2d;
+
+  --resident-primary: #4973e5;
+  --resident-success: #50c878;
+  --resident-warning: #f5a623;
+  --resident-danger: #e74c3c;
+  --resident-bg-1: #eef3fb;
+  --resident-bg-2: #ffffff;
+  --resident-line-focus: #4973e5;
+
+  --font-size-heading-1: 32px;
+  --font-size-heading-2: 24px;
+  --font-size-heading-3: 20px;
+  --font-size-page-title-admin: 28px;
+  --font-size-body: 16px;
+  --font-size-body-sm: 14px;
+  --font-size-modal-title: 17px;
+  --font-size-detail: 13px;
+  --font-size-label: 12px;
+  --font-size-badge: 11px;
+  --font-size-caption-sm: 10px;
+
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+
+  --radius-2: 2px;
+  --radius-4: 4px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-full: 50%;
+
+  --shadow-small: 0 2px 8px rgba(17, 24, 39, 0.08);
+  --shadow-medium: 0 8px 20px rgba(17, 24, 39, 0.1);
+  --shadow-large: 0 16px 32px rgba(17, 24, 39, 0.12);
+
+  --color-bg-app: var(--white);
+  --color-bg-surface: var(--white);
+  --color-bg-muted: var(--gray-100);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border: var(--gray-200);
+  --color-border-strong: var(--gray-400);
+  --color-primary: var(--resident-primary);
+  --color-primary-contrast: var(--white);
+  --color-success: var(--resident-success);
+  --color-warning: var(--resident-warning);
+  --color-danger: var(--resident-danger);
+  --color-neutral: var(--gray-600);
+  --color-sidebar-bg: var(--admin-main-navy);
+  --color-sidebar-text: var(--white);
+  --color-header-bg: rgba(255, 255, 255, 0.88);
+  --color-card-bg: var(--white);
+  --color-table-head-bg: var(--gray-100);
+  --color-table-line: var(--gray-200);
+  --color-focus-ring: rgba(73, 115, 229, 0.2);
+}
