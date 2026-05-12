@@ -82,6 +82,18 @@ export const deleteMyAccount = async (body) => {
   return unwrapApiData(res)
 }
 
+// 내 계정 정보 조회
+export const getMyInfo = async () => {
+  const res = await apiClient.get('/api/users/me')
+  return unwrapApiData(res)
+}
+
+// 내 계정 정보 수정
+export const updateMyInfo = async (body) => {
+  const res = await apiClient.patch('/api/users/me', body)
+  return unwrapApiData(res)
+}
+
 export default {
   login,
   logout,
@@ -98,4 +110,6 @@ export default {
   checkEmail,
   changePassword,
   deleteMyAccount,
+  getMyInfo,
+  updateMyInfo,
 }
