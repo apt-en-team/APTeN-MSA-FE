@@ -124,8 +124,13 @@ const headerActions = computed(() => {
 
 // 시설 등록 화면으로 이동한다.
 const goFacilityCreate = () => {
-  router.push("/admin/facilities/create");
-};
+  router.push('/admin/facilities/create')
+}
+
+// 시설별 예약 현황 화면으로 이동한다.
+const goToFacilityStatus = () => {
+  router.push('/admin/reservations/facility-status')
+}
 
 // 일반 관리자 모드에서는 내 단지 정보를 조회해 헤더 단지명을 보강한다.
 async function ensureMyComplex() {
@@ -514,7 +519,7 @@ watch(
             v-if="route.path === '/admin/reservations'"
             type="button"
             class="admin-layout__action-button"
-            @click="handleActionClick"
+            @click="goToFacilityStatus"
           >
             시설별 현황 →
           </button>

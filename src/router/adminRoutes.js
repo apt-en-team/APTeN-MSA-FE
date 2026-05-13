@@ -6,6 +6,7 @@ import AdminNoticeList from '@/views/admin/community/AdminNoticeList.vue'
 import AdminVoteList from '@/views/admin/community/AdminVoteList.vue'
 import AdminDashboard from '@/views/admin/dashboard/AdminDashboard.vue'
 import AdminFacilityList from '@/views/admin/facility/AdminFacilityList.vue'
+import FacilityFormView from '@/views/admin/facility/FacilityFormView.vue'
 import AdminGxProgramList from '@/views/admin/facility/AdminGxProgramList.vue'
 import AdminReservationList from '@/views/admin/facility/AdminReservationList.vue'
 import AdminHouseholdList from '@/views/admin/household/AdminHouseholdList.vue'
@@ -53,6 +54,8 @@ const adminRoutes = [
 
       // 시설 / 예약 관리
       { path: 'facilities', component: AdminFacilityList, meta: { ...adminRouteMeta, title: '시설 관리' } },
+      { path: 'facilities/create', component: FacilityFormView, meta: { ...adminRouteMeta, title: '시설 등록' } },
+      { path: 'facilities/:facilityId/edit', component: FacilityFormView, meta: { ...adminRouteMeta, title: '시설 수정' } },
       { path: 'reservations', component: AdminReservationList, meta: { ...adminRouteMeta, title: '예약 현황' } },
       { path: 'gx-programs', component: AdminGxProgramList, meta: { ...adminRouteMeta, title: 'GX 프로그램 관리' } },
     ],
