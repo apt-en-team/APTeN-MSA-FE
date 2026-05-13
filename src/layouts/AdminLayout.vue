@@ -41,7 +41,6 @@ const adminMenuDefinitions = [
   {
     label: 'COMMUNITY',
     items: [
-      { label: '게시판 통계', path: 'boards/statistics', icon: 'chart' },
       { label: '공지사항 관리', path: 'notices', icon: 'notice' },
       { label: '투표 관리', path: 'votes', icon: 'vote' },
     ],
@@ -51,7 +50,6 @@ const adminMenuDefinitions = [
     items: [
       { label: '시설 관리', path: 'facilities', icon: 'facility' },
       { label: '예약 현황', path: 'reservations', icon: 'calendar' },
-      { label: 'GX 프로그램 관리', path: 'gx-programs', icon: 'gx' },
     ],
   },
 ]
@@ -79,7 +77,7 @@ const currentAdminFeatures = computed(() => {
 
 // 메뉴 경로별로 단지 기능 사용 여부를 판별한다.
 function isAdminMenuVisible(path) {
-  if (['facilities', 'reservations', 'gx-programs'].includes(path)) {
+  if (['facilities', 'reservations'].includes(path)) {
     return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.FACILITY)
   }
 
@@ -180,12 +178,38 @@ const canRegisterAdmin = computed(() => {
   return isAdminManagePage && allowedRole
 })
 
+// 경로별 상단 액션 버튼 라벨을 정의한다.
+const routeActionLabels = {
+  '/admin/admins': '+ 관리자 등록',
+  '/admin/households': '+ 세대 등록',
+  '/admin/bills': '+ 비용 확정',
+  '/admin/vehicles': '+ 차량 등록',
+  '/admin/visitor-vehicles': '+ 방문차량 등록',
+  '/admin/parking-logs': '+ 기록 등록',
+  '/admin/parking/dashboard': '+ 주차 구역 등록',
+  '/admin/notices': '+ 공지 등록',
+  '/admin/votes': '+ 투표 등록',
+  '/admin/facilities': '+ 시설 등록',
+  '/admin/reservations': '시설별 현황',
+}
+
+// 현재 경로에서 사용할 상단 액션 버튼 라벨을 계산한다.
+const currentActionLabel = computed(() => routeActionLabels[route.path] || '')
+
+// 관리자 등록 버튼은 기존 권한 조건을 유지한다.
+const showHeaderActionButton = computed(() => {
+  if (!currentActionLabel.value) return false
+  if (route.path === '/admin/admins') return canRegisterAdmin.value
+  return true
+})
+
 // 경로별 액션 버튼은 현재 페이지와 권한 기준으로 계산한다.
 const headerActions = computed(() => {
   return {
     showAlert: true,
     showComplexSelector: isMasterUser.value,
-    showAdminRegister: canRegisterAdmin.value,
+    showPageAction: showHeaderActionButton.value,
+    pageActionLabel: currentActionLabel.value,
   }
 })
 
@@ -415,21 +439,6 @@ watch(
                   <line x1="8" y1="2" x2="8" y2="6" />
                   <line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
-                <svg
-                  v-else-if="getMenuIconPath(menu.icon) === 'gx'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                  <path d="m9 15 2 2 4-4" />
-                </svg>
               </span>
               {{ menu.label }}
             </RouterLink>
@@ -485,12 +494,12 @@ watch(
             단지 선택
           </button>
           <button
-            v-if="headerActions.showAdminRegister"
+            v-if="headerActions.showPageAction"
             type="button"
             class="admin-layout__action-button"
             @click="handleActionClick"
           >
-            + 관리자 등록
+            {{ headerActions.pageActionLabel }}
           </button>
         </div>
       </header>
