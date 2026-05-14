@@ -7,27 +7,33 @@ export const getParkingLogs = async (params) => {
   return unwrapApiData(res)
 }
 
-// 주차 현황 조회
+// 관리자 주차 현황 조회
 export const getParkingStatus = async () => {
   const res = await apiClient.get('/api/admin/parking/status')
   return unwrapApiData(res)
 }
 
-// 주차층 목록 조회
-export const getParkingFloors = async (params) => {
-  const res = await apiClient.get('/api/admin/parking/floors', { params })
+// 주차 구역 목록 조회
+export const getParkingZones = async (params) => {
+  const res = await apiClient.get('/api/admin/parking/zones', { params })
   return unwrapApiData(res)
 }
 
-// 주차층 등록
-export const createParkingFloor = async (body) => {
-  const res = await apiClient.post('/api/admin/parking/floors', body)
+// 주차 구역 등록
+export const createParkingZone = async (body) => {
+  const res = await apiClient.post('/api/admin/parking/zones', body)
   return unwrapApiData(res)
 }
 
-// 주차층 수정
-export const updateParkingFloor = async (parkingFloorId, body) => {
-  const res = await apiClient.patch(`/api/admin/parking/floors/${parkingFloorId}`, body)
+// 주차 구역 수정
+export const updateParkingZone = async (zoneId, body) => {
+  const res = await apiClient.patch(`/api/admin/parking/zones/${zoneId}`, body)
+  return unwrapApiData(res)
+}
+
+// 주차 구역 삭제
+export const deleteParkingZone = async (zoneId) => {
+  const res = await apiClient.delete(`/api/admin/parking/zones/${zoneId}`)
   return unwrapApiData(res)
 }
 
@@ -43,12 +49,20 @@ export const createParkingLog = async (body) => {
   return unwrapApiData(res)
 }
 
+// 입주민 주차 현황 조회
+export const getResidentParkingStatus = async () => {
+  const res = await apiClient.get('/api/parking/status')
+  return unwrapApiData(res)
+}
+
 export default {
   getParkingLogs,
   getParkingStatus,
-  getParkingFloors,
-  createParkingFloor,
-  updateParkingFloor,
+  getParkingZones,
+  createParkingZone,
+  updateParkingZone,
+  deleteParkingZone,
   getParkingStatistics,
   createParkingLog,
+  getResidentParkingStatus,
 }
