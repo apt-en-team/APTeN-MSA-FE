@@ -1,79 +1,79 @@
 import apiClient from './apiClient'
 import { unwrapApiData } from '@/utils/apiResponse'
 
-// 관리자 시설 등록
+// API-601 시설 등록
 export const createFacility = async (body) => {
   const res = await apiClient.post('/api/admin/facilities', body)
   return unwrapApiData(res)
 }
 
-// 관리자 시설 목록 조회
+// API-602 관리자 시설 목록 조회
 export const getAdminFacilities = async (params) => {
   const res = await apiClient.get('/api/admin/facilities', { params })
   return unwrapApiData(res)
 }
 
-// 관리자 시설 상세 조회
+// API-603 관리자 시설 상세 조회
 export const getAdminFacilityDetail = async (facilityId) => {
   const res = await apiClient.get(`/api/admin/facilities/${facilityId}`)
   return unwrapApiData(res)
 }
 
-// 관리자 시설 수정
+// API-604 시설 수정
 export const updateFacility = async (facilityId, body) => {
   const res = await apiClient.patch(`/api/admin/facilities/${facilityId}`, body)
   return unwrapApiData(res)
 }
 
-// 관리자 시설 삭제
+// API-605 시설 삭제
 export const deleteFacility = async (facilityId) => {
   const res = await apiClient.delete(`/api/admin/facilities/${facilityId}`)
   return unwrapApiData(res)
 }
 
-// 시설 활성/비활성 변경
+// API-606 시설 활성/비활성 변경
 export const updateFacilityActive = async (facilityId, body) => {
   const res = await apiClient.patch(`/api/admin/facilities/${facilityId}/active`, body)
   return unwrapApiData(res)
 }
 
-// 시설 타입 등록
-export const createFacilityType = async (body) => {
-  const res = await apiClient.post('/api/admin/facility-types', body)
-  return unwrapApiData(res)
-}
+// // 시설 타입 등록
+// export const createFacilityType = async (body) => {
+//   const res = await apiClient.post('/api/admin/facility-types', body)
+//   return unwrapApiData(res)
+// }
 
-// 시설 타입 목록 조회
+// API-608 시설 타입 목록 조회
 export const getFacilityTypes = async (params) => {
   const res = await apiClient.get('/api/admin/facility-types', { params })
   return unwrapApiData(res)
 }
 
-// 시설 타입 수정
-export const updateFacilityType = async (facilityTypeId, body) => {
-  const res = await apiClient.patch(`/api/admin/facility-types/${facilityTypeId}`, body)
-  return unwrapApiData(res)
-}
+// // 시설 타입 수정
+// export const updateFacilityType = async (facilityTypeId, body) => {
+//   const res = await apiClient.patch(`/api/admin/facility-types/${facilityTypeId}`, body)
+//   return unwrapApiData(res)
+// }
 
-// 시설 예약 정책 설정
+// API-610 시설 예약 정책 설정
 export const saveFacilityPolicy = async (body) => {
   const res = await apiClient.put('/api/admin/facility-policies', body)
   return unwrapApiData(res)
 }
 
-// 시설 예약 정책 조회
+// API-611 시설 예약 정책 조회
 export const getFacilityPolicies = async (params) => {
   const res = await apiClient.get('/api/admin/facility-policies', { params })
   return unwrapApiData(res)
 }
 
-// 시설 차단 시간 등록
+// API-612 시설 차단 시간 등록
 export const createFacilityBlockTime = async (facilityId, body) => {
   const res = await apiClient.post(`/api/admin/facilities/${facilityId}/block-times`, body)
   return unwrapApiData(res)
 }
 
-// 시설 차단 시간 목록 조회
+// API-613 시설 차단 시간 조회
 export const getFacilityBlockTimes = async (facilityId, params) => {
   const res = await apiClient.get(`/api/admin/facilities/${facilityId}/block-times`, { params })
   return unwrapApiData(res)
@@ -134,9 +134,7 @@ export default {
   updateFacility,
   deleteFacility,
   updateFacilityActive,
-  createFacilityType,
   getFacilityTypes,
-  updateFacilityType,
   saveFacilityPolicy,
   getFacilityPolicies,
   createFacilityBlockTime,

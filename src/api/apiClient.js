@@ -57,14 +57,12 @@ apiClient.interceptors.request.use(
     }
 
     // MASTER가 공통 관리자 API를 호출할 때만 선택 단지 ID 헤더 추가.
-    // master 전용 API(/admin/master/*)는 단지 무관하므로 제외.
-    // env baseURL에 /api가 포함되므로 config.url은 /admin/...에서 시작한다.
-    if (
-      userInfo?.role === 'MASTER' &&
-      selectedComplex?.complexId &&
-      requestUrl.startsWith('/admin/') &&
-      !requestUrl.startsWith('/admin/master/')
-    ) {
+    // master 전용 API(/api/admin/master/*)는 단지 무관하므로 제외.
+    const isCommonAdminApi =
+      requestUrl.startsWith('/api/admin/') &&
+      !requestUrl.startsWith('/api/admin/master/')
+
+    if (userInfo?.role === 'MASTER' && selectedComplex?.complexId && isCommonAdminApi) {
       config.headers = config.headers || {}
       config.headers['X-Selected-Complex-Id'] = String(selectedComplex.complexId)
     }

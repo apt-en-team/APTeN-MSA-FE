@@ -1,32 +1,30 @@
 <script setup>
 // 관리자 레이아웃 안에서 사용하는 공용 대시보드 본문 페이지이다.
-import { computed, reactive } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import StatsCards from '@/components/admin/StatsCards.vue'
 import { FEATURE_CODES } from '@/constants/complexFeatures'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
 
-const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
 
-// MASTER 선택 단지 모드 여부를 현재 경로로 판단한다.
-const isMasterMode = computed(() => {
-  return route.path.startsWith('/admin/master/complexes/') && !!route.params.code
+// 대시보드 화면 데이터
+const state = reactive({
+  loading: false,
+  errorMessage: '',
+  pendingApproval: null,
+  parkingRate: null,
+  todayReservation: null,
+  totalHousehold: null,
+  visitors: [],
+  reservations: [],
+  records: [],
+  posts: [],
 })
-
-// MASTER 모드에서는 route params의 code를 현재 단지 기준으로 사용한다.
-const selectedComplexCode = computed(() => {
-  return String(route.params.code || '')
-})
-
-
-// MASTER/ADMIN 모드에 맞는 관리자 대표 페이지 경로를 만든다.
-function adminPath(path) {
-  return `/admin${path}`
-}
 
 // 현재 관리자 컨텍스트의 기능 사용 여부를 대시보드 카드 노출 기준으로 사용한다.
 const dashboardFeatures = computed(() => {
@@ -49,60 +47,99 @@ const showVoteSection = computed(() => {
   return isFeatureEnabled(dashboardFeatures.value, FEATURE_CODES.VOTE)
 })
 
-// 실제 API 연결 전까지 비어 있는 상태로 유지한다.
-const dashboardState = reactive({
-  summary: {
-    pendingApproval: null,
-    parkingRate: null,
-    todayReservation: null,
-    totalHousehold: null,
-  },
-  visitors: [],
-  facilities: [],
-  records: [],
-  posts: [],
-})
-
 // StatsCards에 넘길 상단 요약 카드 데이터이다.
 const dashboardStats = computed(() => {
   return [
     {
       label: '승인 대기',
-      value: dashboardState.summary.pendingApproval ?? '-',
-      unit: '',
+      value: state.pendingApproval ?? '-',
+      unit: state.pendingApproval === null ? '' : '건',
       desc: '연결된 데이터가 없습니다.',
       descClass: 'highlight-orange',
       iconClass: 'icon-orange',
     },
     {
       label: '주차 현황',
-      value: dashboardState.summary.parkingRate ?? '-',
-      unit: '',
+      value: state.parkingRate ?? '-',
+      unit: state.parkingRate === null ? '' : '%',
       desc: showParkingSection.value ? '주차 대시보드 API 연결 예정입니다.' : '기능이 비활성화되었습니다.',
       iconClass: 'icon-blue',
     },
     {
       label: '오늘 예약',
-      value: dashboardState.summary.todayReservation ?? '-',
-      unit: '',
+      value: state.todayReservation ?? '-',
+      unit: state.todayReservation === null ? '' : '건',
       desc: showFacilitySection.value ? '예약 현황 API 연결 예정입니다.' : '기능이 비활성화되었습니다.',
       descClass: 'highlight-green',
       iconClass: 'icon-green',
     },
     {
       label: '전체 세대',
-      value: dashboardState.summary.totalHousehold ?? '-',
-      unit: '',
+      value: state.totalHousehold ?? '-',
+      unit: state.totalHousehold === null ? '' : '세대',
       desc: '세대 통계 API 연결 예정입니다.',
       iconClass: 'icon-gray',
     },
   ]
 })
+
+// 대시보드 전체 조회
+async function fetchDashboard() {
+  state.loading = true
+  state.errorMessage = ''
+
+  try {
+    await fetchStats()
+    await fetchRecentItems()
+  } catch (error) {
+    console.error('대시보드 조회 실패:', error)
+    state.errorMessage = '대시보드 정보를 불러오지 못했습니다.'
+  } finally {
+    state.loading = false
+  }
+}
+
+// 통계 데이터 조회
+async function fetchStats() {
+  // 실제 대시보드 API 연결 전까지 null 값으로 빈 상태를 유지한다.
+  state.pendingApproval = null
+  state.parkingRate = null
+  state.todayReservation = null
+  state.totalHousehold = null
+}
+
+// 최근 목록 조회
+async function fetchRecentItems() {
+  // 실제 최근 목록 API 연결 전까지 빈 배열로 빈 상태를 유지한다.
+  state.visitors = []
+  state.reservations = []
+  state.records = []
+  state.posts = []
+}
+
+onMounted(() => {
+  fetchDashboard()
+})
 </script>
 
 <template>
   <section class="admin-dashboard">
-    <div class="dashboard-wrapper">
+    <div v-if="state.loading" class="status-overlay">
+      <span class="status-spinner"></span>
+      <p class="status-text">대시보드 정보를 불러오는 중입니다...</p>
+    </div>
+
+    <div v-else-if="state.errorMessage" class="status-overlay status-error">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <p class="status-text">{{ state.errorMessage }}</p>
+      <button class="retry-btn" type="button" @click="fetchDashboard">다시 시도</button>
+    </div>
+
+    <div v-else class="dashboard-wrapper">
 
       <section class="summary-section">
         <StatsCards :stats="dashboardStats" :show-icon="true">
@@ -142,12 +179,12 @@ const dashboardStats = computed(() => {
         <article class="panel">
           <div class="panel-header">
             <h2 class="panel-title">방문차량 목록</h2>
-            <router-link :to="adminPath('/visitor-vehicles')" class="panel-more">
+            <button type="button" class="panel-more" @click="router.push('/admin/visitor-vehicles')">
               전체보기 →
-            </router-link>
+            </button>
           </div>
 
-          <div v-if="dashboardState.visitors.length > 0" class="visitor-list">
+          <div v-if="state.visitors.length > 0" class="visitor-list">
             <!-- API 연결 후 방문차량 목록을 표시합니다. -->
           </div>
 
@@ -165,13 +202,14 @@ const dashboardStats = computed(() => {
         <article class="panel" :class="{ 'panel-disabled': !showFacilitySection }">
           <div class="panel-header">
             <h2 class="panel-title">오늘 시설 예약 현황</h2>
-            <router-link
+            <button
               v-if="showFacilitySection"
-              :to="adminPath('/reservations')"
+              type="button"
               class="panel-more"
+              @click="router.push('/admin/reservations')"
             >
               전체보기 →
-            </router-link>
+            </button>
           </div>
 
           <div v-if="!showFacilitySection" class="empty-state disabled-state">
@@ -185,7 +223,7 @@ const dashboardStats = computed(() => {
             <p class="disabled-desc">이 단지에서는 시설/예약 기능을 사용하지 않습니다.</p>
           </div>
 
-          <div v-else-if="dashboardState.facilities.length > 0" class="facility-list">
+          <div v-else-if="state.reservations.length > 0" class="facility-list">
             <!-- API 연결 후 시설 예약 현황을 표시합니다. -->
           </div>
 
@@ -205,13 +243,14 @@ const dashboardStats = computed(() => {
         <article class="panel" :class="{ 'panel-disabled': !showParkingSection }">
           <div class="panel-header">
             <h2 class="panel-title">최근 입출차 기록</h2>
-            <router-link
+            <button
               v-if="showParkingSection"
-              :to="adminPath('/parking-logs')"
+              type="button"
               class="panel-more"
+              @click="router.push('/admin/parking-logs')"
             >
               전체보기 →
-            </router-link>
+            </button>
           </div>
 
           <div v-if="!showParkingSection" class="empty-state disabled-state">
@@ -225,7 +264,7 @@ const dashboardStats = computed(() => {
             <p class="disabled-desc">이 단지에서는 주차 현황 기능을 사용하지 않습니다.</p>
           </div>
 
-          <template v-else-if="dashboardState.records.length > 0">
+          <template v-else-if="state.records.length > 0">
             <table class="entry-table">
               <thead>
                 <tr>
@@ -256,12 +295,12 @@ const dashboardStats = computed(() => {
         <article class="panel">
           <div class="panel-header">
             <h2 class="panel-title">최근 게시판 활동</h2>
-            <router-link :to="adminPath('/boards/statistics')" class="panel-more">
+            <button type="button" class="panel-more" @click="router.push('/admin/notices')">
               전체보기 →
-            </router-link>
+            </button>
           </div>
 
-          <div v-if="dashboardState.posts.length > 0" class="board-list">
+          <div v-if="state.posts.length > 0" class="board-list">
             <!-- API 연결 후 게시판 활동을 표시합니다. -->
           </div>
 
@@ -285,6 +324,56 @@ const dashboardStats = computed(() => {
 
 .dashboard-wrapper {
   width: 100%;
+}
+
+.status-overlay {
+  display: flex;
+  min-height: 400px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #92959D;
+}
+
+.status-spinner {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border: 3px solid #E5E7EB;
+  border-top-color: #2B3A55;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.status-text {
+  margin: 0;
+  color: #687282;
+  font-size: 14px;
+}
+
+.status-error svg {
+  width: 40px;
+  height: 40px;
+  color: #E53E3E;
+}
+
+.retry-btn {
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 8px;
+  background: #2B3A55;
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .dashboard-intro {
@@ -381,8 +470,12 @@ const dashboardStats = computed(() => {
 }
 
 .panel-more {
+  border: none;
+  background: transparent;
   color: #3D5170;
+  font-family: inherit;
   font-size: 13px;
+  cursor: pointer;
   text-decoration: none;
 }
 
