@@ -22,12 +22,20 @@ const createEmptySummary = () => ({
   monthlyDailyAverage: 0,
 })
 
+// 빈 주차 운영 타입 기본값
+const createEmptyParkingSetting = () => ({
+  complexId: null,
+  parkingTypeCode: '',
+  parkingTypeValue: '',
+})
+
 export const useParkingStore = defineStore('parking', {
   state: () => ({
     loading: false,
     error: null,
     parkingLogPage: createEmptyPage(),
     parkingLogSummary: createEmptySummary(),
+    parkingSetting: createEmptyParkingSetting(),
   }),
 
   actions: {
@@ -54,6 +62,45 @@ export const useParkingStore = defineStore('parking', {
       } catch (e) {
         console.error(e)
         this.error = e
+      }
+    },
+
+    // 주차 운영 타입 조회
+    async fetchParkingSetting() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.getParkingSetting()
+        this.parkingSetting = res ?? createEmptyParkingSetting()
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 주차 운영 타입 변경
+    async updateParkingSetting(parkingType) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.updateParkingSetting({ parkingType })
+        // 변경 응답에는 updatedAt이 추가로 오지만 화면 표시용으로는 code/value만 사용
+        if (res) {
+          this.parkingSetting = {
+            complexId: res.complexId,
+            parkingTypeCode: res.parkingTypeCode,
+            parkingTypeValue: res.parkingTypeValue,
+          }
+        }
+        return res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
       }
     },
   },

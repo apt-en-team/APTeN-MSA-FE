@@ -61,6 +61,18 @@ export const getParkingLogSummary = async () => {
   return unwrapApiData(res)
 }
 
+// 단지 주차 운영 타입 조회
+export const getParkingSetting = async () => {
+  const res = await apiClient.get('/api/admin/parking/setting')
+  return unwrapApiData(res)
+}
+
+// 단지 주차 운영 타입 변경
+export const updateParkingSetting = async (body) => {
+  const res = await apiClient.patch('/api/admin/parking/setting', body)
+  return unwrapApiData(res)
+}
+
 export default {
   getParkingLogs,
   getParkingLogSummary,
@@ -72,4 +84,6 @@ export default {
   getParkingStatistics,
   createParkingLog,
   getResidentParkingStatus,
+  getParkingSetting,
+  updateParkingSetting,
 }
