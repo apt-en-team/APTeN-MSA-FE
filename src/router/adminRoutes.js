@@ -5,7 +5,7 @@ import AdminBoardStatistics from '@/views/admin/community/AdminBoardStatistics.v
 import AdminNoticeList from '@/views/admin/community/AdminNoticeList.vue'
 import AdminVoteList from '@/views/admin/community/AdminVoteList.vue'
 import AdminDashboard from '@/views/admin/dashboard/AdminDashboard.vue'
-import AdminFacilityList from '@/views/admin/facility/AdminFacilityList.vue'
+import AdminFacilityManageView from '@/views/admin/facility/AdminFacilityManageView.vue'
 import FacilityFormView from '@/views/admin/facility/FacilityFormView.vue'
 import AdminGxProgramList from '@/views/admin/facility/AdminGxProgramList.vue'
 import AdminReservationList from '@/views/admin/facility/AdminReservationList.vue'
@@ -53,7 +53,7 @@ const adminRoutes = [
       { path: 'boards/statistics', component: AdminBoardStatistics, meta: { ...adminRouteMeta, title: '게시판 통계' } },
 
       // 시설 / 예약 관리
-      { path: 'facilities', component: AdminFacilityList, meta: { ...adminRouteMeta, title: '시설 관리' } },
+      { path: 'facilities', component: AdminFacilityManageView, meta: { ...adminRouteMeta, title: '시설 관리' } },
       { path: 'facilities/create', component: FacilityFormView, meta: { ...adminRouteMeta, title: '시설 등록' } },
       { path: 'facilities/:facilityId/edit', component: FacilityFormView, meta: { ...adminRouteMeta, title: '시설 수정' } },
       { path: 'reservations', component: AdminReservationList, meta: { ...adminRouteMeta, title: '예약 현황' } },

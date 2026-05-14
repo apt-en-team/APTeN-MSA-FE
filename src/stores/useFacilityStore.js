@@ -269,6 +269,25 @@ export const useFacilityStore = defineStore('facility', {
       }
     },
 
+    // 시설 차단 시간 등록
+    async createFacilityBlockTime(facilityId, body) {
+      // 차단 시간 등록 요청
+      this.loading = true
+      this.error = null
+      try {
+        // 차단 시간 등록 API 호출
+        const res = await facilityApi.createFacilityBlockTime(facilityId, body)
+        return res
+      } catch (e) {
+        // 차단 시간 등록 에러 저장
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
     // 입주민 시설 목록 조회
     async fetchFacilities(params) {
       // 입주민 목록 조회 요청
