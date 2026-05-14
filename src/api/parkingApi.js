@@ -55,8 +55,15 @@ export const getResidentParkingStatus = async () => {
   return unwrapApiData(res)
 }
 
+// 입출차 기록 화면 상단 통계 카드 요약 조회
+export const getParkingLogSummary = async () => {
+  const res = await apiClient.get('/api/admin/parking-logs/summary')
+  return unwrapApiData(res)
+}
+
 export default {
   getParkingLogs,
+  getParkingLogSummary,
   getParkingStatus,
   getParkingZones,
   createParkingZone,
