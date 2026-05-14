@@ -26,7 +26,7 @@ const adminRoutes = [
     component: AdminLayout,
     meta: adminRouteMeta,
     children: [
-      // 관리자 기본 진입은 대표 대시보드로 연결한다.
+      // 관리자 기본 진입은 대표 대시보드로 연결
       { path: '', redirect: '/admin/dashboard' },
 
       // 대시보드
