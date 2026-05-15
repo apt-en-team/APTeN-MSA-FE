@@ -154,8 +154,6 @@ export const useFacilityStore = defineStore('facility', {
         const res = await facilityApi.getFacilityTypes(params)
         const rawTypes = Array.isArray(res?.data?.content) ? res.data.content : toList(res)
 
-        console.log('시설 타입 원본:', rawTypes)
-
         // 시설 타입 응답 정규화
         this.facilityTypes = rawTypes.map((type) => ({
           typeId: type.typeId ?? type.facilityTypeId ?? type.id,
@@ -164,8 +162,6 @@ export const useFacilityStore = defineStore('facility', {
           description: type.description ?? '',
           isActive: type.isActive,
         }))
-
-        console.log('정규화된 시설 타입:', this.facilityTypes)
 
         return this.facilityTypes
       } catch (e) {
@@ -226,6 +222,7 @@ export const useFacilityStore = defineStore('facility', {
         // 정책 조회 에러 저장
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -245,6 +242,7 @@ export const useFacilityStore = defineStore('facility', {
         // 정책 저장 에러 저장
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -264,6 +262,7 @@ export const useFacilityStore = defineStore('facility', {
         // 차단 시간 조회 에러 저장
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }

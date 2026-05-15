@@ -3,17 +3,25 @@ import { onMounted, reactive, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useFacilityStore } from "@/stores/useFacilityStore.js";
 
-import StatsCards from "@/components/admin/StatsCards.vue";
 import BaseModal from "@/components/common/BaseModal.vue";
 import Pagination from "@/components/common/AppPagination.vue";
+
+const props = defineProps({
+  facilities: {
+    type: Array,
+    default: null,
+  },
+});
 
 const router = useRouter();
 const facilityStore = useFacilityStore();
 
+// 목록 및 페이지 상태
 const state = reactive({
   list: [],
   currentPage: 1,
   pageSize: 8,
+  errorMessage: "",
 });
 
 // 상세 모달 상태
@@ -28,8 +36,10 @@ const normalizeFacilities = (response) => {
 };
 
 // 시설 카드 데이터 구성
+const sourceList = computed(() => props.facilities ?? state.list);
+
 const facilityList = computed(() =>
-  state.list.map((f) => ({
+  sourceList.value.map((f) => ({
     ...f,
     facilityId: f.facilityId ?? f.facilityUid ?? f.id,
     typeId: f.typeId ?? f.facilityTypeId ?? f.type?.id,
@@ -37,41 +47,9 @@ const facilityList = computed(() =>
     maxCount: f.maxCount ?? f.maxCapacity ?? 0,
     slotMin: f.slotMin ?? f.slotDuration ?? 0,
     todayReserved: f.todayReserved ?? 0,
+    reservationType: normalizeReservationType(f.reservationType),
   }))
 );
-
-// 통계 카드 데이터
-const activeCount = computed(() => facilityList.value.filter((f) => f.isActive).length);
-const inactiveCount = computed(() => facilityList.value.filter((f) => f.isActive === false).length);
-
-const statsCards = computed(() => [
-  {
-    label: "전체 시설",
-    value: facilityList.value.length,
-    unit: "개",
-    desc: `운영 중 ${activeCount.value}개`,
-  },
-  {
-    label: "운영 중",
-    value: activeCount.value,
-    unit: "개",
-    desc: "예약 가능",
-    descClass: "success",
-  },
-  {
-    label: "운영 중단",
-    value: inactiveCount.value,
-    unit: "개",
-    desc: "비활성 상태",
-    descClass: "warning",
-  },
-  {
-    label: "좌석형",
-    value: facilityList.value.filter((f) => f.reservationType === "SEAT").length,
-    unit: "개",
-    desc: "좌석 단위 예약",
-  },
-]);
 
 // 운영 상태 표시
 const statusLabel = (f) => (f?.isActive ? "운영 중" : "중단");
@@ -79,6 +57,14 @@ const statusClass = (f) => (f?.isActive ? "active" : "inactive");
 
 // 시간 표시
 const formatTime = (t) => (t ? t.slice(0, 5) : "-");
+
+const normalizeReservationType = (type) => {
+  const value = String(type || "").trim();
+  if (value === "좌석형") return "SEAT";
+  if (value === "정원형") return "COUNT";
+  if (value === "승인형") return "APPROVAL";
+  return value;
+};
 
 // 예약 방식 표시
 const reservationTypeLabel = (type) => {
@@ -109,9 +95,10 @@ const getRemainingColor = (ratio) => {
   return "#C6F6D5";
 };
 
+// 현재는 별도 필터 없이 전체 목록 반환
 const filteredList = computed(() => facilityList.value);
 
-// 페이지 목록 계산
+// 현재 페이지에 표시할 슬라이스
 const pagedList = computed(() => {
   const start = (state.currentPage - 1) * state.pageSize;
   return filteredList.value.slice(start, start + state.pageSize);
@@ -121,11 +108,25 @@ const maxPage = computed(
   () => Math.ceil(filteredList.value.length / state.pageSize) || 1
 );
 
+// 시설 목록 API 조회 후 정규화하여 state에 저장
 const fetchAll = async () => {
-  const result = await facilityStore.fetchAdminFacilities();
-  state.list = normalizeFacilities(result);
+  if (props.facilities !== null) return;
+
+  state.errorMessage = "";
+
+  try {
+    const result = await facilityStore.fetchAdminFacilities();
+    state.list = normalizeFacilities(result);
+  } catch (error) {
+    console.error("시설 목록 조회 실패:", error);
+    state.errorMessage =
+      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
+      "시설 목록을 불러오지 못했습니다.";
+  }
 };
 
+// 카드 클릭 시 상세 API 조회 후 모달 표시
 const openDetail = async (f) => {
   try {
     const detail = await facilityStore.fetchAdminFacilityDetail(f.facilityId);
@@ -141,6 +142,7 @@ const closeDetail = () => {
   detailModal.facility = null;
 };
 
+// 모달 닫은 후 수정 화면으로 이동
 const goEdit = (id) => {
   closeDetail();
   router.push(`/admin/facilities/${id}/edit`);
@@ -157,10 +159,9 @@ onMounted(() => {
 
 <template>
   <div class="facility-manage-view">
-
-    <StatsCards :stats="statsCards" />
-
     <div class="table-section">
+      <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
+
       <div class="facility-grid">
         <div
           v-for="f in pagedList"
@@ -196,24 +197,10 @@ onMounted(() => {
 
           <div class="card-body">
             <div class="card-info-row">
-              <!-- <div class="card-info">
-                <span class="info-label">시설 타입</span>
-                <span class="info-value">{{ f.typeName }}</span>
-              </div> -->
               <div class="card-info">
                 <span class="info-label">예약 방식</span>
                 <span class="info-value">{{ reservationTypeLabel(f.reservationType) }}</span>
               </div>
-            </div>
-            <div class="card-info-row">
-              <!-- <div class="card-info">
-                <span class="info-label">최대 인원</span>
-                <span class="info-value">{{ f.maxCount }}명</span>
-              </div> -->
-              <!-- <div class="card-info">
-                <span class="info-label">예약 단위</span>
-                <span class="info-value">{{ f.slotMin }}분</span>
-              </div> -->
             </div>
             <div class="card-info-row">
               <div class="card-info">
@@ -377,6 +364,15 @@ onMounted(() => {
   border-radius: 10px;
   border: 1px solid #e2e8f0;
   overflow: hidden;
+}
+
+.error-box {
+  margin: 20px 20px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #e53e3e;
+  font-size: 13px;
 }
 
 .facility-grid {

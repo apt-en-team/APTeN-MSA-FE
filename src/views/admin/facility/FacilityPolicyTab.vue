@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive } from 'vue'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
+import { toList } from '@/utils/apiResponse'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const facilityStore = useFacilityStore()
@@ -49,6 +50,8 @@ const selectedPolicy = computed(() => {
   return state.policies.find((policy) => policy.facilityTypeCode === state.facilityTypeCode) || null
 })
 
+const isGxPolicy = computed(() => state.facilityTypeCode === 'GX')
+
 // 정책 폼 초기값 세팅
 const syncPolicyForm = (policy) => {
   state.baseFee = policy?.baseFee ?? 0
@@ -68,7 +71,7 @@ const fetchPolicies = async () => {
       facilityTypeCode: state.facilityTypeCode,
     })
 
-    state.policies = Array.isArray(result) ? result : []
+    state.policies = toList(result)
     syncPolicyForm(selectedPolicy.value)
   } catch (error) {
     console.error('시설 정책 조회 실패:', error)
@@ -152,6 +155,14 @@ onMounted(fetchPolicies)
           <button class="btn-secondary" type="button" @click="fetchPolicies">다시 조회</button>
         </div>
 
+        <div class="notice-box">
+          현재는 타입별 정책 구조입니다. 장기적으로 시설별 정책으로 전환할 예정입니다.
+        </div>
+
+        <div v-if="isGxPolicy" class="notice-box notice-box--warning">
+          GX 정책은 프로그램 단위로 관리 예정입니다. 현재 API 구조 유지를 위해 타입 정책 값만 조회/저장합니다.
+        </div>
+
         <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
 
         <div class="form-grid">
@@ -184,7 +195,7 @@ onMounted(fetchPolicies)
           <label class="toggle-row">
             <span>
               GX 대기 허용
-              <em>GX 타입 정책에서 대기 신청을 사용할지 선택합니다.</em>
+              <em>GX 프로그램으로 이관 예정인 설정입니다.</em>
             </span>
             <input v-model="state.gxWaitingEnabled" type="checkbox" />
           </label>
@@ -404,6 +415,20 @@ onMounted(fetchPolicies)
   background: #fff5f5;
   color: #e53e3e;
   font-size: 13px;
+}
+
+.notice-box {
+  margin-bottom: 14px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: #f0f4ff;
+  color: #2b3a55;
+  font-size: 13px;
+}
+
+.notice-box--warning {
+  background: #fff7ed;
+  color: #c08b2d;
 }
 
 @media (max-width: 960px) {

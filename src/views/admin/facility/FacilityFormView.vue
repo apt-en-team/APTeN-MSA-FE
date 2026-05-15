@@ -1,19 +1,15 @@
 <script setup>
-import { onMounted, reactive, computed, ref, watch } from "vue";
+import { onMounted, reactive, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useFacilityStore } from "@/stores/useFacilityStore.js";
-import { getFacilityPolicies } from "@/api/facilityApi.js";
 import ConfirmModal from "@/components/common/ConfirmModal.vue";
 import ActionResultModal from "@/components/common/ActionResultModal.vue";
-import FacilitySeatTab from "@/components/admin/facility/FacilitySeatTab.vue";
-import FacilityPolicyTab from "@/views/admin/facility/FacilityPolicyTab.vue";
-import FacilityBlockTimeTab from "@/views/admin/facility/FacilityBlockTimeTab.vue";
-import AdminGxProgramList from "@/views/admin/facility/AdminGxProgramList.vue";
 
 const route = useRoute();
 const router = useRouter();
 const facilityStore = useFacilityStore();
 
+// 라우트 파라미터에서 facilityId 추출 (등록/수정 모드 구분)
 const facilityId = computed(() => route.params.facilityId || route.params.id || "");
 const isEdit = computed(() => !!facilityId.value);
 
@@ -31,33 +27,22 @@ const normalizeReservationType = (value) => {
   return normalizedValue || "COUNT";
 };
 
+// 활성 타입만 선택지에 노출
 const facilityTypeOptions = computed(() =>
   facilityStore.facilityTypes.filter((type) => type?.isActive !== false)
 );
 
+// 선택된 typeId에 해당하는 typeCode 도출 (GX 판별에 사용)
 const selectedTypeCode = computed(() => {
   return facilityStore.facilityTypes.find(
     (t) => String(t.typeId) === String(state.typeId)
   )?.typeCode || "";
 });
 
+// GX 타입 여부 (typeCode 기반)
 const isGxType = computed(() => selectedTypeCode.value === "GX");
+// 좌석형 예약 방식 여부
 const isSeatType = computed(() => state.reservationType === "SEAT");
-
-const policySlotMin = ref(null);
-const policyBaseFee = ref(null);
-
-const activeTab = ref("info");
-
-const visibleTabs = computed(() => {
-  if (!isEdit.value) return [];
-  const tabs = [{ key: "info", label: "시설 정보" }];
-  if (isSeatType.value) tabs.push({ key: "seat", label: "좌석 관리" });
-  tabs.push({ key: "policy", label: "예약 정책" });
-  tabs.push({ key: "block-time", label: "차단 시간" });
-  if (isGxType.value) tabs.push({ key: "gx", label: "GX 프로그램" });
-  return tabs;
-});
 
 const state = reactive({
   typeId: "",
@@ -121,6 +106,7 @@ const resetErrors = () => {
   state.serverError = "";
 };
 
+// 시설 상세 응답 데이터를 폼 state에 매핑 (필드명 차이 흡수)
 const syncForm = (data) => {
   state.typeId = String(data.typeId ?? data.facilityTypeId ?? data.type?.id ?? "");
   state.name = data.name ?? "";
@@ -209,11 +195,15 @@ const handleSubmit = async () => {
       typeId: state.typeId,
       name: String(state.name).trim(),
       description: String(state.description || "").trim(),
+      // GX는 APPROVAL 고정, SEAT/COUNT/APPROVAL 그대로 전송
       reservationType: isGxType.value ? "APPROVAL" : state.reservationType,
+      // SEAT/GX는 maxCount 미사용 → 0 전송
       maxCount: isSeatType.value || isGxType.value ? 0 : Number(state.maxCount),
       openTime: state.openTime,
       closeTime: state.closeTime,
+      // 입력 없으면 null → 백엔드가 정책 기본값 사용
       slotMin: isGxType.value ? null : (state.slotMin ? Number(state.slotMin) : null),
+      // GX는 프로그램 탭에서 요금 관리
       baseFee: isGxType.value ? 0 : Number(state.baseFee || 0),
       isActive: !!state.isActive,
     };
@@ -325,31 +315,6 @@ const handleActiveToggle = async () => {
   }
 };
 
-watch(selectedTypeCode, async (typeCode) => {
-  if (!typeCode) return;
-  try {
-    const res = await getFacilityPolicies({ facilityTypeCode: typeCode });
-    const policies = Array.isArray(res) ? res : [];
-    const policy = policies[0] || null;
-    policySlotMin.value = policy?.slotMin ?? null;
-    policyBaseFee.value = policy?.baseFee ?? null;
-  } catch {
-    policySlotMin.value = null;
-    policyBaseFee.value = null;
-  }
-});
-
-watch(isGxType, (isGx) => {
-  if (isGx) state.reservationType = "APPROVAL";
-});
-
-watch(isSeatType, (isSeat) => {
-  if (isSeat) {
-    const seatTab = visibleTabs.value.find((t) => t.key === "seat");
-    if (!seatTab && activeTab.value === "seat") activeTab.value = "info";
-  }
-});
-
 onMounted(async () => {
   if (!facilityStore.facilityTypes.length) await facilityStore.fetchFacilityTypes();
   if (isEdit.value) await fetchFacility();
@@ -358,28 +323,7 @@ onMounted(async () => {
 
 <template>
   <div class="facility-form-view">
-    <nav v-if="isEdit && visibleTabs.length > 1" class="form-tab-bar" aria-label="시설 관리 탭">
-      <button
-        v-for="tab in visibleTabs"
-        :key="tab.key"
-        type="button"
-        class="form-tab-btn"
-        :class="{ active: activeTab === tab.key }"
-        @click="activeTab = tab.key"
-      >
-        {{ tab.label }}
-      </button>
-    </nav>
-
-    <FacilitySeatTab
-      v-if="activeTab === 'seat' && isEdit"
-      :facility-id="facilityId"
-    />
-    <FacilityPolicyTab v-else-if="activeTab === 'policy' && isEdit" />
-    <FacilityBlockTimeTab v-else-if="activeTab === 'block-time' && isEdit" />
-    <AdminGxProgramList v-else-if="activeTab === 'gx' && isEdit" />
-
-    <div v-if="!isEdit || activeTab === 'info'" class="form-layout">
+    <div class="form-layout">
       <!-- 왼쪽: 입력폼 -->
       <div class="form-section">
         <h2 class="form-title">시설 정보 {{ isEdit ? "수정" : "입력" }}</h2>
@@ -437,11 +381,12 @@ onMounted(async () => {
               />
               <span class="input-suffix">명</span>
             </div>
+            <p class="field-hint">추후 시설 정책에서 관리 예정인 호환 필드입니다.</p>
             <span v-if="state.maxCountError" class="error-msg">{{ state.maxCountError }}</span>
           </div>
           <div v-if="isSeatType && !isGxType" class="form-group" style="grid-column: 1 / -1;">
             <div class="info-note">
-              좌석형 시설은 좌석 관리 탭에서 좌석을 등록한 후 운영합니다.
+              좌석형 시설의 좌석 관리는 별도 관리 흐름으로 분리 예정입니다.
             </div>
           </div>
           <div v-if="!isGxType" class="form-group">
@@ -452,10 +397,11 @@ onMounted(async () => {
                 class="form-input"
                 :class="{ 'input-error': state.slotMinError }"
                 type="number"
-                :placeholder="policySlotMin ? `정책 기본값: ${policySlotMin}분` : '예: 60'"
+                placeholder="예: 60"
               />
               <span class="input-suffix">분</span>
             </div>
+            <p class="field-hint">정책성 필드는 백엔드 호환을 위해 임시 유지합니다.</p>
             <span v-if="state.slotMinError" class="error-msg">{{ state.slotMinError }}</span>
           </div>
         </div>
@@ -468,16 +414,17 @@ onMounted(async () => {
               class="form-input"
               :class="{ 'input-error': state.baseFeeError }"
               type="number"
-              :placeholder="policyBaseFee !== null ? `정책 기본값: ${policyBaseFee}원` : '0'"
+              placeholder="0"
             />
             <span class="input-suffix">원</span>
           </div>
+          <p class="field-hint">기본 이용료는 시설 정책으로 이관 예정입니다.</p>
           <span v-if="state.baseFeeError" class="error-msg">{{ state.baseFeeError }}</span>
         </div>
 
         <div v-if="isGxType" class="form-group">
           <div class="info-note">
-            GX 시설의 요금과 일정은 GX 프로그램 탭에서 관리합니다.
+            GX 시설의 요금, 정원, 대기 허용 여부는 GX 프로그램에서 관리 예정입니다.
           </div>
         </div>
 
@@ -628,12 +575,12 @@ onMounted(async () => {
               <li>운영 시간은 HH:MM 형식으로 입력하세요.</li>
               <li>예약 단위는 분 기준으로 설정됩니다.</li>
               <li>운영 여부는 언제든지 변경 가능합니다.</li>
-              <li>시설 공간 정보만 등록하며 프로그램 운영 정보는 포함하지 않습니다.</li>
+              <li>시설 공간 정보만 등록하며 정책성 필드는 단계적으로 이관됩니다.</li>
             </template>
             <template v-else>
               <li>수정 내용은 즉시 시설 정보에 반영됩니다.</li>
               <li>운영 시간 변경 시 예약 가능 시간에 영향을 줄 수 있습니다.</li>
-              <li>정원 변경 시 이후 예약 가능 인원에 반영됩니다.</li>
+              <li>정원, 예약 단위, 기본 이용료는 정책 이관 후보입니다.</li>
               <li>이미 생성된 예약은 자동으로 취소되지 않습니다.</li>
             </template>
           </ul>
@@ -705,40 +652,6 @@ onMounted(async () => {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-}
-
-.form-tab-bar {
-  display: flex;
-  gap: 8px;
-  padding: 6px;
-  margin-bottom: 18px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #ffffff;
-}
-
-.form-tab-btn {
-  min-height: 38px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: #687282;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-  font-family: "Noto Sans KR", sans-serif;
-}
-
-.form-tab-btn:hover {
-  background: #f5f6f8;
-  color: #2b3a55;
-}
-
-.form-tab-btn.active {
-  background: #1e2a3e;
-  color: #ffffff;
 }
 
 .info-note {
@@ -859,6 +772,12 @@ input[type="number"] {
   font-size: 11px;
   color: #e53e3e;
   margin-top: 2px;
+}
+.field-hint {
+  margin: 5px 0 0;
+  color: #7b8ea8;
+  font-size: 11px;
+  line-height: 1.5;
 }
 .input-error {
   border-color: #e53e3e !important;
