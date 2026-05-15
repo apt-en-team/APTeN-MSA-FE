@@ -22,9 +22,11 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.getAdminGxPrograms(params)
         this.gxPrograms = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -37,9 +39,11 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.getAdminGxProgramDetail(id)
         this.gxProgramDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -52,9 +56,11 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.createGxProgram(body)
         this.gxProgramDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -67,9 +73,11 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.updateGxProgram(id, body)
         this.gxProgramDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -82,9 +90,11 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.cancelGxProgram(id, body)
         this.gxProgramDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
