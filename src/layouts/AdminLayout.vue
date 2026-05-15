@@ -536,15 +536,6 @@ watch(
           </button>
 
           <button
-            v-if="route.path === '/admin/facilities' && route.query.tab === 'policy'"
-            type="button"
-            class="admin-layout__action-button"
-            @click="handleActionClick"
-          >
-            정책 설정
-          </button>
-
-          <button
             v-if="route.path === '/admin/facilities' && route.query.tab === 'block-time'"
             type="button"
             class="admin-layout__action-button"

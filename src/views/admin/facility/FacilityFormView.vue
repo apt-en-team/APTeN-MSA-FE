@@ -41,19 +41,13 @@ const selectedTypeCode = computed(() => {
 
 // GX 타입 여부 (typeCode 기반)
 const isGxType = computed(() => selectedTypeCode.value === "GX");
-// 좌석형 예약 방식 여부
-const isSeatType = computed(() => state.reservationType === "SEAT");
-
 const state = reactive({
   typeId: "",
   name: "",
   description: "",
   reservationType: "COUNT",
-  maxCount: "",
   openTime: "09:00",
   closeTime: "22:00",
-  slotMin: null,
-  baseFee: 0,
   isActive: true,
   createdAt: null,
   submitting: false,
@@ -61,11 +55,8 @@ const state = reactive({
   typeIdError: "",
   nameError: "",
   reservationTypeError: "",
-  maxCountError: "",
   openTimeError: "",
   closeTimeError: "",
-  slotMinError: "",
-  baseFeeError: "",
   serverError: "",
 });
 
@@ -98,11 +89,8 @@ const resetErrors = () => {
   state.typeIdError = "";
   state.nameError = "";
   state.reservationTypeError = "";
-  state.maxCountError = "";
   state.openTimeError = "";
   state.closeTimeError = "";
-  state.slotMinError = "";
-  state.baseFeeError = "";
   state.serverError = "";
 };
 
@@ -112,11 +100,8 @@ const syncForm = (data) => {
   state.name = data.name ?? "";
   state.description = data.description ?? "";
   state.reservationType = normalizeReservationType(data.reservationType);
-  state.maxCount = data.maxCount ?? data.maxCapacity ?? "";
   state.openTime = data.openTime?.slice(0, 5) ?? "09:00";
   state.closeTime = data.closeTime?.slice(0, 5) ?? "22:00";
-  state.slotMin = data.slotMin ?? data.slotDuration ?? null;
-  state.baseFee = data.baseFee ?? data.price ?? 0;
   state.isActive = data.isActive ?? data.active ?? true;
   state.createdAt = data.createdAt ?? null;
 };
@@ -149,11 +134,6 @@ const validateForm = () => {
     return false;
   }
 
-  if (!isSeatType.value && !isGxType.value && !state.maxCount) {
-    state.maxCountError = "최대 인원을 입력해주세요.";
-    return false;
-  }
-
   if (!state.openTime) {
     state.openTimeError = "운영 시작 시간을 입력해주세요.";
     return false;
@@ -176,7 +156,6 @@ const handleSubmitError = (error) => {
   const fieldMap = {
     "시설 타입을 선택해주세요": "typeIdError",
     "시설명을 입력해주세요": "nameError",
-    "최대 인원을 입력해주세요": "maxCountError",
     "시설 타입을 찾을 수 없습니다": "typeIdError",
     "시설을 찾을 수 없습니다": "serverError",
   };
@@ -197,14 +176,8 @@ const handleSubmit = async () => {
       description: String(state.description || "").trim(),
       // GX는 APPROVAL 고정, SEAT/COUNT/APPROVAL 그대로 전송
       reservationType: isGxType.value ? "APPROVAL" : state.reservationType,
-      // SEAT/GX는 maxCount 미사용 → 0 전송
-      maxCount: isSeatType.value || isGxType.value ? 0 : Number(state.maxCount),
       openTime: state.openTime,
       closeTime: state.closeTime,
-      // 입력 없으면 null → 백엔드가 정책 기본값 사용
-      slotMin: isGxType.value ? null : (state.slotMin ? Number(state.slotMin) : null),
-      // GX는 프로그램 탭에서 요금 관리
-      baseFee: isGxType.value ? 0 : Number(state.baseFee || 0),
       isActive: !!state.isActive,
     };
 
@@ -368,63 +341,9 @@ onMounted(async () => {
           />
         </div>
 
-        <div class="form-row">
-          <div v-if="!isSeatType && !isGxType" class="form-group">
-            <label class="form-label">최대 인원 *</label>
-            <div class="input-suffix-wrap">
-              <input
-                v-model="state.maxCount"
-                class="form-input"
-                :class="{ 'input-error': state.maxCountError }"
-                type="number"
-                placeholder="예: 30"
-              />
-              <span class="input-suffix">명</span>
-            </div>
-            <p class="field-hint">추후 시설 정책에서 관리 예정인 호환 필드입니다.</p>
-            <span v-if="state.maxCountError" class="error-msg">{{ state.maxCountError }}</span>
-          </div>
-          <div v-if="isSeatType && !isGxType" class="form-group" style="grid-column: 1 / -1;">
-            <div class="info-note">
-              좌석형 시설의 좌석 관리는 별도 관리 흐름으로 분리 예정입니다.
-            </div>
-          </div>
-          <div v-if="!isGxType" class="form-group">
-            <label class="form-label">예약 단위</label>
-            <div class="input-suffix-wrap">
-              <input
-                v-model="state.slotMin"
-                class="form-input"
-                :class="{ 'input-error': state.slotMinError }"
-                type="number"
-                placeholder="예: 60"
-              />
-              <span class="input-suffix">분</span>
-            </div>
-            <p class="field-hint">정책성 필드는 백엔드 호환을 위해 임시 유지합니다.</p>
-            <span v-if="state.slotMinError" class="error-msg">{{ state.slotMinError }}</span>
-          </div>
-        </div>
-
-        <div v-if="!isGxType" class="form-group">
-          <label class="form-label">기본 이용료</label>
-          <div class="input-suffix-wrap">
-            <input
-              v-model="state.baseFee"
-              class="form-input"
-              :class="{ 'input-error': state.baseFeeError }"
-              type="number"
-              placeholder="0"
-            />
-            <span class="input-suffix">원</span>
-          </div>
-          <p class="field-hint">기본 이용료는 시설 정책으로 이관 예정입니다.</p>
-          <span v-if="state.baseFeeError" class="error-msg">{{ state.baseFeeError }}</span>
-        </div>
-
         <div v-if="isGxType" class="form-group">
           <div class="info-note">
-            GX 시설의 요금, 정원, 대기 허용 여부는 GX 프로그램에서 관리 예정입니다.
+            GX 시설의 요금, 정원, 대기 허용 여부는 GX 프로그램에서 관리합니다.
           </div>
         </div>
 
@@ -541,12 +460,6 @@ onMounted(async () => {
                 <span>예약 방식</span><span>{{ getReservationTypeLabel(state.reservationType) }}</span>
               </div>
               <div class="preview-row">
-                <span>최대 인원</span><span>{{ state.maxCount || "-" }}명</span>
-              </div>
-              <div class="preview-row">
-                <span>예약 단위</span><span>{{ state.slotMin }}분</span>
-              </div>
-              <div class="preview-row">
                 <span>운영 시간</span
                 ><span>{{ state.openTime }} ~ {{ state.closeTime }}</span>
               </div>
@@ -554,12 +467,6 @@ onMounted(async () => {
                 <span>등록일</span
                 ><span>{{
                   state.createdAt ? state.createdAt.slice(0, 10).replace(/-/g, ".") : "-"
-                }}</span>
-              </div>
-              <div class="preview-row">
-                <span>기본 이용료</span
-                ><span>{{
-                  state.baseFee > 0 ? Number(state.baseFee).toLocaleString() + "원" : "무료"
                 }}</span>
               </div>
             </div>
@@ -573,14 +480,13 @@ onMounted(async () => {
             <template v-if="!isEdit">
               <li>등록 즉시 시설 목록에 반영됩니다.</li>
               <li>운영 시간은 HH:MM 형식으로 입력하세요.</li>
-              <li>예약 단위는 분 기준으로 설정됩니다.</li>
               <li>운영 여부는 언제든지 변경 가능합니다.</li>
-              <li>시설 공간 정보만 등록하며 정책성 필드는 단계적으로 이관됩니다.</li>
+              <li>요금, 정원, 예약 단위는 시설 정책 또는 GX 프로그램에서 관리합니다.</li>
             </template>
             <template v-else>
               <li>수정 내용은 즉시 시설 정보에 반영됩니다.</li>
               <li>운영 시간 변경 시 예약 가능 시간에 영향을 줄 수 있습니다.</li>
-              <li>정원, 예약 단위, 기본 이용료는 정책 이관 후보입니다.</li>
+              <li>요금, 정원, 예약 단위는 이 화면에서 수정하지 않습니다.</li>
               <li>이미 생성된 예약은 자동으로 취소되지 않습니다.</li>
             </template>
           </ul>
@@ -596,10 +502,8 @@ onMounted(async () => {
       subtitle-color="#e53e3e"
       item-label="시설명"
       action-text="운영 시간"
-      extra-label="최대 인원"
       :item-name="state.name"
       :action-label="`${state.openTime} ~ ${state.closeTime}`"
-      :extra-value="`${state.maxCount}명`"
       confirm-text="삭제"
       confirm-type="danger"
       :loading="deleteModal.loading"

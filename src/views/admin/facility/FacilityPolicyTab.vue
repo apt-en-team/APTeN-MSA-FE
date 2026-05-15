@@ -1,38 +1,22 @@
 <script setup>
-import { computed, inject, onMounted, onUnmounted, reactive } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import { toList } from '@/utils/apiResponse'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const facilityStore = useFacilityStore()
-const registerOpenModal = inject('registerOpenModal', () => {})
-
-const facilityTypeOptions = [
-  { value: 'STUDY_ROOM', label: '독서실' },
-  { value: 'GYM', label: '헬스장' },
-  { value: 'GOLF', label: '골프연습장' },
-  { value: 'GX', label: 'GX' },
-  { value: 'POOL', label: '수영장' },
-  { value: 'SAUNA', label: '사우나' },
-  { value: 'GUEST_HOUSE', label: '게스트하우스' },
-  { value: 'LAUNDRY', label: '세탁실' },
-  { value: 'CAFE', label: '카페' },
-  { value: 'ETC', label: '기타' },
-]
 
 const state = reactive({
-  mode: 'list', // 'list' | 'edit'
-  // list mode
+  mode: 'list',
   facilities: [],
-  policiesMap: {}, // { typeCode: policy }
-  // edit mode
-  facilityTypeCode: 'GYM',
+  policiesMap: {},
+  facilityId: '',
   baseFee: 0,
+  usageUnitType: 'MINUTE',
   slotMin: 60,
   cancelDeadlineHours: 2,
-  gxWaitingEnabled: false,
+  maxReservationCount: '',
   isActive: true,
-  editPolicies: [],
   loading: false,
   submitting: false,
   errorMessage: '',
@@ -60,38 +44,68 @@ const normalizeReservationType = (type) => {
   return value
 }
 
+const policyList = (data) => {
+  const list = toList(data)
+  if (list.length > 0) return list
+  if (data && typeof data === 'object' && !Array.isArray(data) && !data.content) return [data]
+  return []
+}
+
+const getFacilityType = (facility) => {
+  const typeId = String(facility.typeId || '')
+  return facilityStore.facilityTypes?.find((type) => String(type.typeId) === typeId) || null
+}
+
+const getFacilityTypeCode = (facility) => {
+  return getFacilityType(facility)?.typeCode || facility.typeCode || null
+}
+
+const getFacilityTypeLabel = (facility) => {
+  return getFacilityType(facility)?.typeName || facility.typeName || getFacilityTypeCode(facility) || '-'
+}
+
 const reservationTypeLabel = (type) => {
   return { SEAT: '좌석형', COUNT: '정원형', APPROVAL: '승인형' }[normalizeReservationType(type)] || type || '-'
 }
 
-const facilityTypeLabel = (typeCode) => {
-  return facilityTypeOptions.find((t) => t.value === typeCode)?.label || typeCode || '-'
-}
+const isGxFacility = (facility) => getFacilityTypeCode(facility) === 'GX'
 
-const getFacilityTypeCode = (facility) => {
-  const typeId = String(facility.typeId || '')
-  return facilityStore.facilityTypes?.find((t) => String(t.typeId) === typeId)?.typeCode || null
-}
+const policyTargets = computed(() => state.facilities.filter((facility) => !isGxFacility(facility)))
 
-const selectedTypeLabel = computed(() => {
-  return facilityTypeOptions.find((t) => t.value === state.facilityTypeCode)?.label || '-'
+const selectedFacility = computed(() => {
+  return state.facilities.find((facility) => String(facility.facilityId) === String(state.facilityId)) || null
 })
 
-const selectedEditPolicy = computed(() => {
-  return state.editPolicies.find((p) => p.facilityTypeCode === state.facilityTypeCode) || null
+const selectedPolicy = computed(() => {
+  return state.policiesMap[String(state.facilityId)] || null
 })
 
-const isGxPolicy = computed(() => state.facilityTypeCode === 'GX')
+const selectedReservationType = computed(() => {
+  return normalizeReservationType(selectedFacility.value?.reservationType)
+})
 
-const syncEditForm = (policy) => {
+const showMaxReservationCount = computed(() => {
+  return selectedReservationType.value === 'COUNT' || selectedReservationType.value === 'APPROVAL'
+})
+
+const isMinuteUnit = computed(() => state.usageUnitType !== 'DAY')
+
+const syncPolicyForm = (policy) => {
   state.baseFee = policy?.baseFee ?? 0
-  state.slotMin = policy?.slotMin ?? 60
+  state.usageUnitType = policy?.usageUnitType ?? 'MINUTE'
+  state.slotMin = policy?.usageUnitType === 'DAY' ? 60 : policy?.slotMin ?? 60
   state.cancelDeadlineHours = policy?.cancelDeadlineHours ?? 2
-  state.gxWaitingEnabled = !!policy?.gxWaitingEnabled
+  state.maxReservationCount = policy?.maxReservationCount ?? ''
   state.isActive = policy?.isActive ?? true
 }
 
-// 시설 목록 + 타입별 정책 병렬 조회
+const fetchPolicyForFacility = async (facilityId) => {
+  const result = await facilityStore.fetchFacilityPolicies({ facilityId })
+  const list = policyList(result)
+  return list.find((policy) => String(policy.facilityId) === String(facilityId)) || list[0] || null
+}
+
+// GX 정책은 프로그램 단위로 관리하므로 일반 시설만 정책 조회
 const fetchFacilitiesAndPolicies = async () => {
   state.loading = true
   state.errorMessage = ''
@@ -102,82 +116,59 @@ const fetchFacilitiesAndPolicies = async () => {
     }
 
     const result = await facilityStore.fetchAdminFacilities()
-    const all = normalizeFacilities(result).map((f) => ({
-      ...f,
-      facilityId: f.facilityId ?? f.facilityUid ?? f.id,
-      typeId: f.typeId ?? f.facilityTypeId ?? f.type?.id,
+    state.facilities = normalizeFacilities(result).map((facility) => ({
+      ...facility,
+      facilityId: facility.facilityId ?? facility.facilityUid ?? facility.id,
+      typeId: facility.typeId ?? facility.facilityTypeId ?? facility.type?.id,
+      reservationType: normalizeReservationType(facility.reservationType),
     }))
-    state.facilities = all
-
-    const typeIdSet = [...new Set(all.map((f) => String(f.typeId)).filter(Boolean))]
-    const typeCodes = typeIdSet
-      .map((tid) => facilityStore.facilityTypes?.find((t) => String(t.typeId) === tid)?.typeCode)
-      .filter(Boolean)
 
     const entries = await Promise.all(
-      typeCodes.map(async (code) => {
+      policyTargets.value.map(async (facility) => {
         try {
-          const res = await facilityStore.fetchFacilityPolicies({ facilityTypeCode: code })
-          const list = toList(res)
-          const policy = list.find((p) => p.facilityTypeCode === code) || list[0] || null
-          return [code, policy]
+          return [String(facility.facilityId), await fetchPolicyForFacility(facility.facilityId)]
         } catch {
-          return [code, null]
+          return [String(facility.facilityId), null]
         }
       }),
     )
+
     state.policiesMap = Object.fromEntries(entries)
   } catch (error) {
+    console.error('시설 정책 목록 조회 실패:', error)
     state.errorMessage =
       error.response?.data?.resultMessage ||
       error.response?.data?.message ||
-      '시설 목록을 불러오지 못했습니다.'
+      '시설 정책 목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }
 }
 
-// 수정 모드 진입 (AdminLayout 헤더 버튼 연결)
-const openEditMode = () => {
+const openEditMode = (facility = policyTargets.value[0]) => {
+  if (!facility) {
+    state.errorMessage = '정책을 설정할 수 있는 일반 시설이 없습니다.'
+    return
+  }
+
+  state.facilityId = facility.facilityId
+  syncPolicyForm(state.policiesMap[String(facility.facilityId)])
   state.mode = 'edit'
-  fetchEditPolicies()
 }
 
-// 목록 모드 복귀
-const closeEditMode = () => {
+const closeEditMode = async () => {
   state.mode = 'list'
   state.errorMessage = ''
-  fetchFacilitiesAndPolicies()
+  await fetchFacilitiesAndPolicies()
 }
 
-// 수정 모드: 타입별 정책 조회
-const fetchEditPolicies = async () => {
-  state.loading = true
-  state.errorMessage = ''
-
-  try {
-    const result = await facilityStore.fetchFacilityPolicies({
-      facilityTypeCode: state.facilityTypeCode,
-    })
-    state.editPolicies = toList(result)
-    syncEditForm(selectedEditPolicy.value)
-  } catch (error) {
-    state.errorMessage =
-      error.response?.data?.resultMessage ||
-      error.response?.data?.message ||
-      '시설 정책을 불러오지 못했습니다.'
-  } finally {
-    state.loading = false
-  }
+const selectFacility = (facility) => {
+  state.facilityId = facility.facilityId
+  syncPolicyForm(state.policiesMap[String(facility.facilityId)])
 }
 
-const selectEditType = (code) => {
-  state.facilityTypeCode = code
-  fetchEditPolicies()
-}
-
-const resetEditForm = () => {
-  syncEditForm(selectedEditPolicy.value)
+const resetPolicyForm = () => {
+  syncPolicyForm(selectedPolicy.value)
   state.errorMessage = ''
 }
 
@@ -188,28 +179,45 @@ const openResultModal = (type, title, subtitle) => {
   resultModal.show = true
 }
 
-const closeResultModal = () => {
+const closeResultModal = async () => {
+  const shouldReturnToList = resultModal.type === 'success'
   resultModal.show = false
+
+  if (shouldReturnToList) {
+    await closeEditMode()
+  }
 }
 
 const submitPolicy = async () => {
+  if (!state.facilityId) {
+    state.errorMessage = '정책을 설정할 시설을 선택해주세요.'
+    return
+  }
+
   state.submitting = true
   state.errorMessage = ''
 
   const payload = {
-    facilityTypeCode: state.facilityTypeCode,
+    facilityId: state.facilityId,
     baseFee: Number(state.baseFee || 0),
-    slotMin: Number(state.slotMin || 0),
+    usageUnitType: state.usageUnitType,
+    slotMin: isMinuteUnit.value ? Number(state.slotMin || 0) : null,
     cancelDeadlineHours: Number(state.cancelDeadlineHours || 0),
-    gxWaitingEnabled: !!state.gxWaitingEnabled,
+    maxReservationCount: showMaxReservationCount.value
+      ? state.maxReservationCount === '' || state.maxReservationCount === null
+        ? null
+        : Number(state.maxReservationCount)
+      : null,
     isActive: !!state.isActive,
   }
 
   try {
-    await facilityStore.saveFacilityPolicy(payload)
-    await fetchEditPolicies()
-    openResultModal('success', '시설 정책이 저장되었습니다.', `${selectedTypeLabel.value} 정책을 반영했습니다.`)
+    const savedPolicy = await facilityStore.saveFacilityPolicy(payload)
+    state.policiesMap[String(state.facilityId)] = savedPolicy || payload
+    syncPolicyForm(state.policiesMap[String(state.facilityId)])
+    openResultModal('success', '시설 정책이 저장되었습니다.', `${selectedFacility.value?.name || '선택 시설'} 정책을 반영했습니다.`)
   } catch (error) {
+    console.error('시설 정책 저장 실패:', error)
     openResultModal(
       'danger',
       '시설 정책 저장에 실패했습니다.',
@@ -222,28 +230,19 @@ const submitPolicy = async () => {
   }
 }
 
-onMounted(() => {
-  registerOpenModal(openEditMode)
-  fetchFacilitiesAndPolicies()
-})
-
-onUnmounted(() => {
-  registerOpenModal(null)
-})
+onMounted(fetchFacilitiesAndPolicies)
 </script>
 
 <template>
   <section class="policy-tab">
-    <!-- 목록 모드 -->
     <template v-if="state.mode === 'list'">
       <div class="notice-box">
-        현재 정책은 시설 타입 기준으로 적용됩니다. 같은 타입의 시설은 동일한 정책이 적용되며,
-        시설별 개별 정책 설정은 추후 지원될 예정입니다.
+        FacilityPolicy는 등록된 시설 기준으로 관리합니다. GX 시설의 요금, 정원, 대기 허용 여부는 GX 프로그램에서 관리합니다.
       </div>
 
       <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
 
-      <div v-if="state.loading" class="empty-box">시설 목록을 불러오는 중...</div>
+      <div v-if="state.loading" class="empty-box">시설 정책을 불러오는 중...</div>
 
       <div v-else-if="state.facilities.length === 0 && !state.errorMessage" class="empty-box">
         등록된 시설이 없습니다.
@@ -259,78 +258,89 @@ onUnmounted(() => {
             <div class="facility-policy-card__title-wrap">
               <strong class="facility-policy-card__name">{{ facility.name }}</strong>
               <div class="facility-policy-card__meta">
-                <span class="meta-tag">{{ facilityTypeLabel(getFacilityTypeCode(facility)) }}</span>
+                <span class="meta-tag">{{ getFacilityTypeLabel(facility) }}</span>
                 <span class="meta-tag">{{ reservationTypeLabel(facility.reservationType) }}</span>
               </div>
             </div>
-            <span
-              v-if="getFacilityTypeCode(facility) === 'GX'"
-              class="policy-badge policy-badge--gx"
-            >
-              GX 프로그램 정책 이관 예정
+            <span v-if="isGxFacility(facility)" class="policy-badge policy-badge--gx">
+              GX 프로그램에서 관리
             </span>
+            <button v-else class="btn-primary" type="button" @click="openEditMode(facility)">
+              정책 설정
+            </button>
           </div>
 
-          <div v-if="getFacilityTypeCode(facility) !== 'GX'" class="facility-policy-card__body">
-            <template v-if="state.policiesMap[getFacilityTypeCode(facility)]">
+          <div v-if="!isGxFacility(facility)" class="facility-policy-card__body">
+            <template v-if="state.policiesMap[String(facility.facilityId)]">
               <span class="policy-item">
-                기본요금 {{ Number(state.policiesMap[getFacilityTypeCode(facility)]?.baseFee || 0).toLocaleString() }}원
+                기본요금 {{ Number(state.policiesMap[String(facility.facilityId)]?.baseFee || 0).toLocaleString() }}원
               </span>
               <span class="policy-item">
-                예약단위 {{ state.policiesMap[getFacilityTypeCode(facility)]?.slotMin || '-' }}분
+                이용단위 {{ state.policiesMap[String(facility.facilityId)]?.usageUnitType === 'DAY' ? '하루 이용' : '시간 단위' }}
+              </span>
+              <span
+                v-if="state.policiesMap[String(facility.facilityId)]?.usageUnitType !== 'DAY'"
+                class="policy-item"
+              >
+                예약단위 {{ state.policiesMap[String(facility.facilityId)]?.slotMin || '-' }}분
               </span>
               <span class="policy-item">
-                취소마감 {{ state.policiesMap[getFacilityTypeCode(facility)]?.cancelDeadlineHours || '-' }}시간 전
+                취소마감 {{ state.policiesMap[String(facility.facilityId)]?.cancelDeadlineHours || '-' }}시간 전
+              </span>
+              <span
+                v-if="
+                  ['COUNT', 'APPROVAL'].includes(normalizeReservationType(facility.reservationType))
+                "
+                class="policy-item"
+              >
+                최대 예약 인원 {{ state.policiesMap[String(facility.facilityId)]?.maxReservationCount ?? '-' }}명
               </span>
               <span
                 class="policy-item"
                 :class="
-                  state.policiesMap[getFacilityTypeCode(facility)]?.isActive
+                  state.policiesMap[String(facility.facilityId)]?.isActive
                     ? 'policy-item--active'
                     : 'policy-item--inactive'
                 "
               >
-                {{ state.policiesMap[getFacilityTypeCode(facility)]?.isActive ? '정책 사용' : '정책 미사용' }}
+                {{ state.policiesMap[String(facility.facilityId)]?.isActive ? '정책 사용' : '정책 미사용' }}
               </span>
             </template>
-            <span v-else class="policy-item policy-item--none">정책 없음 (타입 기본값 적용)</span>
+            <span v-else class="policy-item policy-item--none">정책 없음</span>
           </div>
         </div>
       </div>
     </template>
 
-    <!-- 수정 모드 -->
     <template v-else>
       <div class="edit-mode-bar">
         <p class="edit-mode-notice">
-          타입 기준 정책을 수정합니다. 저장 시 같은 타입의 모든 시설에 동일하게 적용됩니다.
+          {{ selectedFacility?.name || '선택 시설' }} 기준 정책을 수정합니다.
         </p>
         <button class="btn-secondary" type="button" @click="closeEditMode">목록으로</button>
       </div>
 
       <div class="policy-layout">
-        <!-- 좌측: 타입 네비게이션 -->
         <aside class="type-nav">
           <button
-            v-for="type in facilityTypeOptions"
-            :key="type.value"
+            v-for="facility in policyTargets"
+            :key="facility.facilityId"
             type="button"
             class="type-nav-btn"
-            :class="{ active: state.facilityTypeCode === type.value }"
-            @click="selectEditType(type.value)"
+            :class="{ active: String(state.facilityId) === String(facility.facilityId) }"
+            @click="selectFacility(facility)"
           >
-            {{ type.label }}
+            {{ facility.name }}
           </button>
         </aside>
 
-        <!-- 우측: 정책 폼 -->
         <article class="panel">
           <div class="notice-box">
-            현재는 타입별 정책 구조입니다. 장기적으로 시설별 정책으로 전환할 예정입니다.
+            GX 시설은 정책 설정 대상에서 제외됩니다. GX 프로그램에서 요금, 정원, 대기 허용 여부를 관리해주세요.
           </div>
 
-          <div v-if="isGxPolicy" class="notice-box notice-box--warning">
-            GX 정책은 프로그램 단위로 관리 예정입니다. 현재 API 구조 유지를 위해 타입 정책 값만 조회/저장합니다.
+          <div v-if="selectedReservationType === 'SEAT'" class="notice-box notice-box--subtle">
+            좌석 수와 좌석별 사용 여부는 좌석 관리에서 설정합니다.
           </div>
 
           <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
@@ -342,6 +352,14 @@ onUnmounted(() => {
             </label>
 
             <label class="form-field">
+              <span>이용 단위</span>
+              <select v-model="state.usageUnitType">
+                <option value="MINUTE">시간 단위</option>
+                <option value="DAY">하루 이용</option>
+              </select>
+            </label>
+
+            <label v-if="isMinuteUnit" class="form-field">
               <span>예약 단위 (분)</span>
               <input v-model="state.slotMin" type="number" min="1" />
             </label>
@@ -350,17 +368,14 @@ onUnmounted(() => {
               <span>취소 마감 (시간)</span>
               <input v-model="state.cancelDeadlineHours" type="number" min="0" />
             </label>
+
+            <label v-if="showMaxReservationCount" class="form-field">
+              <span>최대 예약 인원</span>
+              <input v-model="state.maxReservationCount" type="number" min="0" />
+            </label>
           </div>
 
           <div class="toggle-list">
-            <label class="toggle-row">
-              <span>
-                GX 대기 허용
-                <em>GX 프로그램으로 이관 예정인 설정입니다.</em>
-              </span>
-              <input v-model="state.gxWaitingEnabled" type="checkbox" />
-            </label>
-
             <label class="toggle-row">
               <span>
                 정책 사용
@@ -371,7 +386,7 @@ onUnmounted(() => {
           </div>
 
           <div class="button-row">
-            <button class="btn-secondary" type="button" @click="resetEditForm">초기화</button>
+            <button class="btn-secondary" type="button" @click="resetPolicyForm">초기화</button>
             <button class="btn-primary" type="button" :disabled="state.submitting" @click="submitPolicy">
               {{ state.submitting ? '저장 중' : '정책 저장' }}
             </button>
@@ -396,7 +411,6 @@ onUnmounted(() => {
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-/* 공통 */
 .notice-box {
   margin-bottom: 14px;
   padding: 11px 12px;
@@ -406,9 +420,9 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
-.notice-box--warning {
-  background: #fff7ed;
-  color: #c08b2d;
+.notice-box--subtle {
+  background: #f8fafc;
+  color: #687282;
 }
 
 .error-box {
@@ -429,7 +443,6 @@ onUnmounted(() => {
   border-radius: 10px;
 }
 
-/* 목록 모드 */
 .facility-policy-list {
   display: grid;
   gap: 10px;
@@ -521,7 +534,6 @@ onUnmounted(() => {
   font-weight: 400;
 }
 
-/* 수정 모드 */
 .edit-mode-bar {
   display: flex;
   align-items: center;
@@ -603,12 +615,14 @@ onUnmounted(() => {
   color: #2b3a55;
 }
 
-.form-field input {
+.form-field input,
+.form-field select {
   height: 40px;
   padding: 0 12px;
   border: 1px solid #d7dee8;
   border-radius: 8px;
   color: #1e2a3e;
+  background: #ffffff;
 }
 
 .toggle-list {

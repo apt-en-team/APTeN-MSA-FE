@@ -55,15 +55,16 @@ export const getFacilityTypes = async (params) => {
 //   return unwrapApiData(res)
 // }
 
-// API-610 시설 예약 정책 설정
+// API-610 시설 예약 정책 설정 (facilityId 기준)
 export const saveFacilityPolicy = async (body) => {
   const res = await apiClient.put('/api/admin/facility-policies', body)
   return unwrapApiData(res)
 }
 
-// API-611 시설 예약 정책 조회
+// API-611 시설 예약 정책 조회 (facilityId 기준)
 export const getFacilityPolicies = async (params) => {
-  const res = await apiClient.get('/api/admin/facility-policies', { params })
+  const query = typeof params === 'string' || typeof params === 'number' ? { facilityId: params } : params
+  const res = await apiClient.get('/api/admin/facility-policies', { params: query })
   return unwrapApiData(res)
 }
 
