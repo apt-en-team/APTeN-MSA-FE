@@ -174,40 +174,6 @@ export const useFacilityStore = defineStore('facility', {
       }
     },
 
-    // 시설 타입 등록
-    async createFacilityType(body) {
-      // 타입 등록 요청
-      this.loading = true
-      this.error = null
-      try {
-        const res = await facilityApi.createFacilityType(body)
-        this.facilityTypes = res
-      } catch (e) {
-        // 타입 등록 에러 저장
-        console.error(e)
-        this.error = e
-      } finally {
-        this.loading = false
-      }
-    },
-
-    // 시설 타입 수정
-    async updateFacilityType(id, body) {
-      // 타입 수정 요청
-      this.loading = true
-      this.error = null
-      try {
-        const res = await facilityApi.updateFacilityType(id, body)
-        this.facilityTypes = res
-      } catch (e) {
-        // 타입 수정 에러 저장
-        console.error(e)
-        this.error = e
-      } finally {
-        this.loading = false
-      }
-    },
-
     // 시설 예약 정책 조회
     async fetchFacilityPolicies(params) {
       // 정책 조회 요청
