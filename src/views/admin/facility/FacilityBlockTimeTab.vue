@@ -1,11 +1,12 @@
 <script setup>
-import { onMounted, reactive } from 'vue'
+import { inject, onMounted, onUnmounted, reactive } from 'vue'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import { toList } from '@/utils/apiResponse'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
 import FacilityBlockTimeForm from '@/components/admin/facility/FacilityBlockTimeForm.vue'
 
 const facilityStore = useFacilityStore()
+const registerOpenModal = inject('registerOpenModal', () => {})
 
 const state = reactive({
   facilities: [],
@@ -125,8 +126,13 @@ const handleBlockTimeSaved = async (facilityName) => {
 }
 
 onMounted(async () => {
+  registerOpenModal(openCreateForm)
   await fetchFacilities()
   await fetchBlockTimes()
+})
+
+onUnmounted(() => {
+  registerOpenModal(null)
 })
 </script>
 
@@ -142,14 +148,6 @@ onMounted(async () => {
 
     <div v-else class="tab-grid">
       <article class="panel">
-        <div class="panel-header">
-          <div>
-            <h3>차단 시간 목록</h3>
-            <p>시설 점검, 행사, 대관 등 예약 차단 시간을 조회합니다.</p>
-          </div>
-          <button class="btn-primary" type="button" @click="openCreateForm">+ 차단 시간 등록</button>
-        </div>
-
         <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
 
         <div class="search-row">
@@ -214,6 +212,7 @@ onMounted(async () => {
 .block-time-tab {
   font-family: 'Noto Sans KR', sans-serif;
 }
+
 
 .panel {
   border: 1px solid #e2e8f0;

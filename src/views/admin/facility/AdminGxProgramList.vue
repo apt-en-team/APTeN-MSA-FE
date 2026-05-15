@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive } from 'vue'
+import { inject, onMounted, onUnmounted, reactive } from 'vue'
 import { useGxStore } from '@/stores/useGxStore.js'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import { toList } from '@/utils/apiResponse'
@@ -8,6 +8,7 @@ import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const gxStore = useGxStore()
 const facilityStore = useFacilityStore()
+const registerOpenModal = inject('registerOpenModal', () => {})
 
 const DAY_OPTIONS = [
   { value: 'MONDAY', label: '월' },
@@ -269,8 +270,13 @@ const handleCancelProgram = async () => {
 }
 
 onMounted(async () => {
+  registerOpenModal(openCreate)
   await fetchGxFacilities()
   await fetchList()
+})
+
+onUnmounted(() => {
+  registerOpenModal(null)
 })
 </script>
 
@@ -405,14 +411,6 @@ onMounted(async () => {
     <!-- 목록 화면 -->
     <template v-else>
       <article class="panel">
-        <div class="panel-header">
-          <div>
-            <h3>GX 프로그램 목록</h3>
-            <p>GX 시설별 프로그램 운영 현황을 조회하고 관리합니다.</p>
-          </div>
-          <button class="btn-primary" type="button" @click="openCreate">+ 프로그램 등록</button>
-        </div>
-
         <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
 
         <!-- 필터 -->
@@ -569,6 +567,7 @@ onMounted(async () => {
 .gx-program {
   font-family: 'Noto Sans KR', sans-serif;
 }
+
 
 .panel {
   border: 1px solid #e2e8f0;

@@ -49,7 +49,18 @@ const userRole = computed(() => authStore.role || 'ADMIN')
 const userSubtext = computed(() => {
   return authStore.userInfo?.email || authStore.user?.email || userRole.value
 })
-const currentPageTitle = computed(() => route.meta?.title || '관리자 화면')
+const facilityTabTitles = {
+  gx: '시설 관리 / GX 프로그램',
+  policy: '시설 관리 / 시설 정책',
+  'block-time': '시설 관리 / 차단 시간 목록',
+}
+
+const currentPageTitle = computed(() => {
+  if (route.path === '/admin/facilities' && facilityTabTitles[route.query.tab]) {
+    return facilityTabTitles[route.query.tab]
+  }
+  return route.meta?.title || '관리자 화면'
+})
 
 // 상단 헤더에 표시할 오늘 날짜 문자열을 계산한다.
 const todayStr = computed(() => {
@@ -507,12 +518,39 @@ watch(
           </button>
 
           <button
-            v-if="route.path === '/admin/facilities'"
+            v-if="route.path === '/admin/facilities' && (!route.query.tab || route.query.tab === 'list')"
             type="button"
             class="admin-layout__action-button"
             @click="goFacilityCreate"
           >
             + 시설 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/facilities' && route.query.tab === 'gx'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 프로그램 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/facilities' && route.query.tab === 'policy'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            정책 설정
+          </button>
+
+          <button
+            v-if="route.path === '/admin/facilities' && route.query.tab === 'block-time'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 차단 시간 등록
           </button>
 
           <button

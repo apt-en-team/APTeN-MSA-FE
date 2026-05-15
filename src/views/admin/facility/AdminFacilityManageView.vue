@@ -125,7 +125,7 @@ onMounted(fetchFacilities)
 <template>
   <section class="facility-manage">
     <!-- 페이지 제목과 액션 버튼은 AdminLayout 헤더에서 처리 -->
-    <StatsCards :stats="statsCards" />
+    <StatsCards v-if="state.activeTab === 'list'" :stats="statsCards" />
     <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
 
     <nav class="tab-bar" aria-label="시설관리 탭">
