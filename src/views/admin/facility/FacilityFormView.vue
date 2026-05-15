@@ -1,9 +1,14 @@
 <script setup>
-import { onMounted, reactive, computed } from "vue";
+import { onMounted, reactive, computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useFacilityStore } from "@/stores/useFacilityStore.js";
+import { getFacilityPolicies } from "@/api/facilityApi.js";
 import ConfirmModal from "@/components/common/ConfirmModal.vue";
 import ActionResultModal from "@/components/common/ActionResultModal.vue";
+import FacilitySeatTab from "@/components/admin/facility/FacilitySeatTab.vue";
+import FacilityPolicyTab from "@/views/admin/facility/FacilityPolicyTab.vue";
+import FacilityBlockTimeTab from "@/views/admin/facility/FacilityBlockTimeTab.vue";
+import AdminGxProgramList from "@/views/admin/facility/AdminGxProgramList.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -20,17 +25,39 @@ const reservationTypeOptions = [
 
 const normalizeReservationType = (value) => {
   const normalizedValue = String(value || "").trim();
-
   if (normalizedValue === "좌석형") return "SEAT";
   if (normalizedValue === "정원형") return "COUNT";
   if (normalizedValue === "승인형") return "APPROVAL";
-
   return normalizedValue || "COUNT";
 };
 
 const facilityTypeOptions = computed(() =>
   facilityStore.facilityTypes.filter((type) => type?.isActive !== false)
 );
+
+const selectedTypeCode = computed(() => {
+  return facilityStore.facilityTypes.find(
+    (t) => String(t.typeId) === String(state.typeId)
+  )?.typeCode || "";
+});
+
+const isGxType = computed(() => selectedTypeCode.value === "GX");
+const isSeatType = computed(() => state.reservationType === "SEAT");
+
+const policySlotMin = ref(null);
+const policyBaseFee = ref(null);
+
+const activeTab = ref("info");
+
+const visibleTabs = computed(() => {
+  if (!isEdit.value) return [];
+  const tabs = [{ key: "info", label: "시설 정보" }];
+  if (isSeatType.value) tabs.push({ key: "seat", label: "좌석 관리" });
+  tabs.push({ key: "policy", label: "예약 정책" });
+  tabs.push({ key: "block-time", label: "차단 시간" });
+  if (isGxType.value) tabs.push({ key: "gx", label: "GX 프로그램" });
+  return tabs;
+});
 
 const state = reactive({
   typeId: "",
@@ -40,7 +67,7 @@ const state = reactive({
   maxCount: "",
   openTime: "09:00",
   closeTime: "22:00",
-  slotMin: 60,
+  slotMin: null,
   baseFee: 0,
   isActive: true,
   createdAt: null,
@@ -95,14 +122,14 @@ const resetErrors = () => {
 };
 
 const syncForm = (data) => {
-  state.typeId = String(data.typeId ?? data.facilityTypeId ?? data.type?.id ?? '');
+  state.typeId = String(data.typeId ?? data.facilityTypeId ?? data.type?.id ?? "");
   state.name = data.name ?? "";
   state.description = data.description ?? "";
   state.reservationType = normalizeReservationType(data.reservationType);
   state.maxCount = data.maxCount ?? data.maxCapacity ?? "";
   state.openTime = data.openTime?.slice(0, 5) ?? "09:00";
   state.closeTime = data.closeTime?.slice(0, 5) ?? "22:00";
-  state.slotMin = data.slotMin ?? data.slotDuration ?? 60;
+  state.slotMin = data.slotMin ?? data.slotDuration ?? null;
   state.baseFee = data.baseFee ?? data.price ?? 0;
   state.isActive = data.isActive ?? data.active ?? true;
   state.createdAt = data.createdAt ?? null;
@@ -136,7 +163,7 @@ const validateForm = () => {
     return false;
   }
 
-  if (!state.maxCount) {
+  if (!isSeatType.value && !isGxType.value && !state.maxCount) {
     state.maxCountError = "최대 인원을 입력해주세요.";
     return false;
   }
@@ -148,11 +175,6 @@ const validateForm = () => {
 
   if (!state.closeTime) {
     state.closeTimeError = "운영 종료 시간을 입력해주세요.";
-    return false;
-  }
-
-  if (!state.slotMin) {
-    state.slotMinError = "예약 단위를 입력해주세요.";
     return false;
   }
 
@@ -187,12 +209,12 @@ const handleSubmit = async () => {
       typeId: state.typeId,
       name: String(state.name).trim(),
       description: String(state.description || "").trim(),
-      reservationType: state.reservationType,
-      maxCount: Number(state.maxCount),
+      reservationType: isGxType.value ? "APPROVAL" : state.reservationType,
+      maxCount: isSeatType.value || isGxType.value ? 0 : Number(state.maxCount),
       openTime: state.openTime,
       closeTime: state.closeTime,
-      slotMin: Number(state.slotMin),
-      baseFee: Number(state.baseFee || 0),
+      slotMin: isGxType.value ? null : (state.slotMin ? Number(state.slotMin) : null),
+      baseFee: isGxType.value ? 0 : Number(state.baseFee || 0),
       isActive: !!state.isActive,
     };
 
@@ -303,6 +325,31 @@ const handleActiveToggle = async () => {
   }
 };
 
+watch(selectedTypeCode, async (typeCode) => {
+  if (!typeCode) return;
+  try {
+    const res = await getFacilityPolicies({ facilityTypeCode: typeCode });
+    const policies = Array.isArray(res) ? res : [];
+    const policy = policies[0] || null;
+    policySlotMin.value = policy?.slotMin ?? null;
+    policyBaseFee.value = policy?.baseFee ?? null;
+  } catch {
+    policySlotMin.value = null;
+    policyBaseFee.value = null;
+  }
+});
+
+watch(isGxType, (isGx) => {
+  if (isGx) state.reservationType = "APPROVAL";
+});
+
+watch(isSeatType, (isSeat) => {
+  if (isSeat) {
+    const seatTab = visibleTabs.value.find((t) => t.key === "seat");
+    if (!seatTab && activeTab.value === "seat") activeTab.value = "info";
+  }
+});
+
 onMounted(async () => {
   if (!facilityStore.facilityTypes.length) await facilityStore.fetchFacilityTypes();
   if (isEdit.value) await fetchFacility();
@@ -311,7 +358,28 @@ onMounted(async () => {
 
 <template>
   <div class="facility-form-view">
-    <div class="form-layout">
+    <nav v-if="isEdit && visibleTabs.length > 1" class="form-tab-bar" aria-label="시설 관리 탭">
+      <button
+        v-for="tab in visibleTabs"
+        :key="tab.key"
+        type="button"
+        class="form-tab-btn"
+        :class="{ active: activeTab === tab.key }"
+        @click="activeTab = tab.key"
+      >
+        {{ tab.label }}
+      </button>
+    </nav>
+
+    <FacilitySeatTab
+      v-if="activeTab === 'seat' && isEdit"
+      :facility-id="facilityId"
+    />
+    <FacilityPolicyTab v-else-if="activeTab === 'policy' && isEdit" />
+    <FacilityBlockTimeTab v-else-if="activeTab === 'block-time' && isEdit" />
+    <AdminGxProgramList v-else-if="activeTab === 'gx' && isEdit" />
+
+    <div v-if="!isEdit || activeTab === 'info'" class="form-layout">
       <!-- 왼쪽: 입력폼 -->
       <div class="form-section">
         <h2 class="form-title">시설 정보 {{ isEdit ? "수정" : "입력" }}</h2>
@@ -357,7 +425,7 @@ onMounted(async () => {
         </div>
 
         <div class="form-row">
-          <div class="form-group">
+          <div v-if="!isSeatType && !isGxType" class="form-group">
             <label class="form-label">최대 인원 *</label>
             <div class="input-suffix-wrap">
               <input
@@ -369,11 +437,14 @@ onMounted(async () => {
               />
               <span class="input-suffix">명</span>
             </div>
-            <span v-if="state.maxCountError" class="error-msg">{{
-              state.maxCountError
-            }}</span>
+            <span v-if="state.maxCountError" class="error-msg">{{ state.maxCountError }}</span>
           </div>
-          <div class="form-group">
+          <div v-if="isSeatType && !isGxType" class="form-group" style="grid-column: 1 / -1;">
+            <div class="info-note">
+              좌석형 시설은 좌석 관리 탭에서 좌석을 등록한 후 운영합니다.
+            </div>
+          </div>
+          <div v-if="!isGxType" class="form-group">
             <label class="form-label">예약 단위</label>
             <div class="input-suffix-wrap">
               <input
@@ -381,7 +452,7 @@ onMounted(async () => {
                 class="form-input"
                 :class="{ 'input-error': state.slotMinError }"
                 type="number"
-                placeholder="60"
+                :placeholder="policySlotMin ? `정책 기본값: ${policySlotMin}분` : '예: 60'"
               />
               <span class="input-suffix">분</span>
             </div>
@@ -389,7 +460,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="form-group">
+        <div v-if="!isGxType" class="form-group">
           <label class="form-label">기본 이용료</label>
           <div class="input-suffix-wrap">
             <input
@@ -397,25 +468,36 @@ onMounted(async () => {
               class="form-input"
               :class="{ 'input-error': state.baseFeeError }"
               type="number"
-              placeholder="0"
+              :placeholder="policyBaseFee !== null ? `정책 기본값: ${policyBaseFee}원` : '0'"
             />
             <span class="input-suffix">원</span>
           </div>
           <span v-if="state.baseFeeError" class="error-msg">{{ state.baseFeeError }}</span>
         </div>
 
+        <div v-if="isGxType" class="form-group">
+          <div class="info-note">
+            GX 시설의 요금과 일정은 GX 프로그램 탭에서 관리합니다.
+          </div>
+        </div>
+
         <div class="form-group">
           <label class="form-label">예약 방식 *</label>
-          <select
-            v-model="state.reservationType"
-            class="form-select"
-            :class="{ 'input-error': state.reservationTypeError }"
-          >
-            <option v-for="type in reservationTypeOptions" :key="type.value" :value="type.value">
-              {{ type.label }}
-            </option>
-          </select>
-          <span v-if="state.reservationTypeError" class="error-msg">{{ state.reservationTypeError }}</span>
+          <template v-if="!isGxType">
+            <select
+              v-model="state.reservationType"
+              class="form-select"
+              :class="{ 'input-error': state.reservationTypeError }"
+            >
+              <option v-for="type in reservationTypeOptions" :key="type.value" :value="type.value">
+                {{ type.label }}
+              </option>
+            </select>
+            <span v-if="state.reservationTypeError" class="error-msg">{{ state.reservationTypeError }}</span>
+          </template>
+          <template v-else>
+            <div class="info-note">GX 시설은 승인형(APPROVAL)으로 고정됩니다.</div>
+          </template>
         </div>
 
         <div class="form-row">
@@ -559,7 +641,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- ✅ 1단계: 삭제 확인 → ConfirmModal -->
+    <!-- 1단계: 삭제 확인 → ConfirmModal -->
     <ConfirmModal
       :visible="deleteModal.show && deleteModal.stage === 'confirm'"
       title="시설을 삭제하시겠습니까?"
@@ -578,7 +660,7 @@ onMounted(async () => {
       @cancel="closeDeleteConfirm"
     />
 
-    <!-- ✅ 2단계: 삭제 결과 → ActionResultModal -->
+    <!-- 2단계: 삭제 결과 → ActionResultModal -->
     <ActionResultModal
       :visible="deleteModal.show && deleteModal.stage === 'result'"
       :type="deleteModal.resultType"
@@ -624,6 +706,50 @@ onMounted(async () => {
   margin: 0;
   padding: 0;
 }
+
+.form-tab-bar {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  margin-bottom: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.form-tab-btn {
+  min-height: 38px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #687282;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  font-family: "Noto Sans KR", sans-serif;
+}
+
+.form-tab-btn:hover {
+  background: #f5f6f8;
+  color: #2b3a55;
+}
+
+.form-tab-btn.active {
+  background: #1e2a3e;
+  color: #ffffff;
+}
+
+.info-note {
+  padding: 10px 14px;
+  background: #f0f4ff;
+  border: 1px solid #c3d0f0;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #2b3a55;
+}
+
 .facility-form-view {
   font-family: "Noto Sans KR", sans-serif;
   color: #333;

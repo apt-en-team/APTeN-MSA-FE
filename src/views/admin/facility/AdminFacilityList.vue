@@ -1,28 +1,19 @@
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, computed, inject } from "vue";
+import { onMounted, reactive, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useFacilityStore } from "@/stores/useFacilityStore.js";
 
 import StatsCards from "@/components/admin/StatsCards.vue";
-import FilterBar from "@/components/admin/AdminFilterBar.vue";
 import BaseModal from "@/components/common/BaseModal.vue";
 import Pagination from "@/components/common/AppPagination.vue";
-import ConfirmModal from "@/components/common/ConfirmModal.vue";
-import ActionResultModal from "@/components/common/ActionResultModal.vue";
 
 const router = useRouter();
 const facilityStore = useFacilityStore();
-const registerOpenModal = inject("registerOpenModal", null);
 
-// 시설 목록 화면 상태
 const state = reactive({
   list: [],
-  filterStatus: "",
-  filterSlot: "",
-  searchQuery: "",
   currentPage: 1,
   pageSize: 8,
-  submitting: false,
 });
 
 // 상세 모달 상태
@@ -118,21 +109,7 @@ const getRemainingColor = (ratio) => {
   return "#C6F6D5";
 };
 
-// 필터 조건 적용
-const filteredList = computed(() =>
-  facilityList.value.filter((f) => {
-    const matchStatus =
-      !state.filterStatus ||
-      (state.filterStatus === "active" && f.isActive) ||
-      (state.filterStatus === "inactive" && !f.isActive);
-    const matchSlot = !state.filterSlot || String(f.slotMin) === state.filterSlot;
-    const matchSearch =
-      !state.searchQuery ||
-      f.name?.includes(state.searchQuery) ||
-      f.typeName?.includes(state.searchQuery);
-    return matchStatus && matchSlot && matchSearch;
-  })
-);
+const filteredList = computed(() => facilityList.value);
 
 // 페이지 목록 계산
 const pagedList = computed(() => {
@@ -144,78 +121,37 @@ const maxPage = computed(
   () => Math.ceil(filteredList.value.length / state.pageSize) || 1
 );
 
-// 시설 목록 조회
 const fetchAll = async () => {
   const result = await facilityStore.fetchAdminFacilities();
   state.list = normalizeFacilities(result);
 };
 
-// 상세 모달 열기
 const openDetail = async (f) => {
   try {
-    const detail = await facilityStore.fetchAdminFacilityDetail(f.facilityId)
-
-    detailModal.facility = detail
-    detailModal.show = true
+    const detail = await facilityStore.fetchAdminFacilityDetail(f.facilityId);
+    detailModal.facility = detail;
+    detailModal.show = true;
   } catch (error) {
-    console.error('시설 상세 조회 실패:', error)
+    console.error('시설 상세 조회 실패:', error);
   }
 };
 
-// 상세 모달 닫기
 const closeDetail = () => {
   detailModal.show = false;
   detailModal.facility = null;
 };
 
-// 수정 화면 이동
 const goEdit = (id) => {
   closeDetail();
   router.push(`/admin/facilities/${id}/edit`);
 };
 
-// 등록 화면 이동
-const goCreate = () => {
-  router.push("/admin/facilities/create");
-};
-
-// 필터 조건 초기화
-const resetFilters = () => {
-  state.filterStatus = "";
-  state.filterSlot = "";
-  state.searchQuery = "";
-  state.currentPage = 1;
-};
-
-// 페이지 이동
 const goToPage = (page) => {
   state.currentPage = page;
 };
 
-let searchTimer = null;
-
-// 검색어 입력 처리
-const onSearch = () => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    state.currentPage = 1;
-  }, 300);
-};
-
-// 초기 데이터 조회
 onMounted(() => {
-  if (typeof registerOpenModal === "function") {
-    registerOpenModal(goCreate);
-  }
-
   fetchAll();
-});
-
-// 상단 액션 등록 해제
-onBeforeUnmount(() => {
-  if (typeof registerOpenModal === "function") {
-    registerOpenModal(null);
-  }
 });
 </script>
 
@@ -225,49 +161,6 @@ onBeforeUnmount(() => {
     <StatsCards :stats="statsCards" />
 
     <div class="table-section">
-      <FilterBar @reset="resetFilters">
-        <div class="search-wrap">
-          <svg
-            class="search-icon"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            v-model="state.searchQuery"
-            class="search-input"
-            placeholder="시설명 검색"
-            @input="onSearch"
-          />
-        </div>
-        <select
-          v-model="state.filterStatus"
-          class="filter-select"
-          @change="state.currentPage = 1"
-        >
-          <option value="">운영 상태</option>
-          <option value="active">운영 중</option>
-          <option value="inactive">중단</option>
-        </select>
-        <select
-          v-model="state.filterSlot"
-          class="filter-select"
-          @change="state.currentPage = 1"
-        >
-          <option value="">예약 단위</option>
-          <option value="30">30분</option>
-          <option value="60">60분</option>
-          <option value="90">90분</option>
-          <option value="120">120분</option>
-        </select>
-      </FilterBar>
-
       <div class="facility-grid">
         <div
           v-for="f in pagedList"
@@ -484,46 +377,6 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   border: 1px solid #e2e8f0;
   overflow: hidden;
-}
-
-.search-wrap {
-  display: flex;
-  align-items: center;
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
-  padding: 7px 12px;
-  gap: 6px;
-  background: #f5f6f8;
-}
-.search-icon {
-  color: #a0aec0;
-  flex-shrink: 0;
-}
-.search-input {
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  outline: none;
-  color: #333;
-  width: 150px;
-  font-family: "Noto Sans KR", sans-serif;
-}
-.search-input::placeholder {
-  color: #cbd5e0;
-}
-.filter-select {
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
-  padding: 7px 28px 7px 12px;
-  font-size: 13px;
-  color: #333;
-  background: #fff
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23A0AEC0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
-    no-repeat right 10px center;
-  appearance: none;
-  cursor: pointer;
-  outline: none;
-  font-family: "Noto Sans KR", sans-serif;
 }
 
 .facility-grid {

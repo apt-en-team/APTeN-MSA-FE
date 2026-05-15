@@ -1,16 +1,18 @@
 <script setup>
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, watch } from 'vue'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
+import { getFacilitySeats } from '@/api/facilityApi.js'
 import { toList } from '@/utils/apiResponse'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const facilityStore = useFacilityStore()
 
-// 차단 시간 탭 상태
 const state = reactive({
   facilities: [],
   blockTimes: [],
+  seats: [],
   facilityId: '',
+  seatId: '',
   fromDate: '',
   toDate: '',
   blockDate: '',
@@ -34,6 +36,8 @@ const resultModal = reactive({
 const selectedFacility = computed(() => {
   return state.facilities.find((facility) => String(facility.facilityId) === String(state.facilityId)) || null
 })
+
+const isSeatFacility = computed(() => selectedFacility.value?.reservationType === 'SEAT')
 
 // 페이지 응답 시설 목록 정리
 const normalizeFacilities = (response) => {
@@ -114,9 +118,33 @@ const fetchBlockTimes = async () => {
   }
 }
 
-// 시설 선택 변경
+const fetchSeats = async () => {
+  if (!state.facilityId || !isSeatFacility.value) {
+    state.seats = []
+    state.seatId = ''
+    return
+  }
+  try {
+    const res = await getFacilitySeats(state.facilityId)
+    state.seats = Array.isArray(res) ? res : []
+  } catch {
+    state.seats = []
+  }
+}
+
+watch(isSeatFacility, (isSeat) => {
+  if (!isSeat) {
+    state.seats = []
+    state.seatId = ''
+  } else {
+    fetchSeats()
+  }
+})
+
 const changeFacility = () => {
+  state.seatId = ''
   fetchBlockTimes()
+  fetchSeats()
 }
 
 // 조회 조건 초기화
@@ -126,13 +154,13 @@ const resetSearch = () => {
   fetchBlockTimes()
 }
 
-// 등록 폼 초기화
 const resetForm = () => {
   state.blockDate = ''
   state.fullDay = false
   state.startTime = '09:00'
   state.endTime = '18:00'
   state.reason = ''
+  state.seatId = ''
 }
 
 // 차단 시간 등록
@@ -155,6 +183,7 @@ const submitBlockTime = async () => {
     startTime: state.fullDay ? null : toSecondTime(state.startTime),
     endTime: state.fullDay ? null : toSecondTime(state.endTime),
     reason: String(state.reason || '').trim(),
+    seatId: isSeatFacility.value && state.seatId ? Number(state.seatId) : null,
   }
 
   try {
@@ -179,6 +208,7 @@ const submitBlockTime = async () => {
 onMounted(async () => {
   await fetchFacilities()
   await fetchBlockTimes()
+  await fetchSeats()
 })
 </script>
 
@@ -203,6 +233,16 @@ onMounted(async () => {
               <option value="" disabled>시설을 선택해주세요.</option>
               <option v-for="facility in state.facilities" :key="facility.facilityId" :value="facility.facilityId">
                 {{ facility.name }}
+              </option>
+            </select>
+          </label>
+
+          <label v-if="isSeatFacility" class="form-field form-field--wide">
+            <span>좌석 선택 (선택사항 - 미선택 시 전체 차단)</span>
+            <select v-model="state.seatId">
+              <option value="">전체 차단</option>
+              <option v-for="seat in state.seats" :key="seat.seatId" :value="seat.seatId">
+                {{ seat.seatNo }}번 {{ seat.seatName }}
               </option>
             </select>
           </label>
@@ -270,9 +310,14 @@ onMounted(async () => {
               <strong>{{ item.blockDate }}</strong>
               <p>{{ item.reason || '차단 사유 없음' }}</p>
             </div>
-            <span>
-              {{ item.startTime && item.endTime ? `${item.startTime} ~ ${item.endTime}` : '전체 차단' }}
-            </span>
+            <div class="block-card-meta">
+              <span class="block-scope">
+                {{ item.seatId ? `좌석 ${item.seatNo || item.seatId}번 차단` : '전체 차단' }}
+              </span>
+              <span>
+                {{ item.startTime && item.endTime ? `${item.startTime} ~ ${item.endTime}` : '종일' }}
+              </span>
+            </div>
           </div>
           <div v-if="state.blockTimes.length === 0" class="empty-box">
             조회된 차단 시간이 없습니다.
@@ -444,11 +489,23 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-.block-card span {
+.block-card-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+.block-card-meta span {
   color: #2b3a55;
   font-size: 12px;
   font-weight: 800;
+}
+
+.block-scope {
+  color: #7b8ea8 !important;
+  font-weight: 600 !important;
 }
 
 .empty-box,
