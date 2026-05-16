@@ -1,161 +1,527 @@
 <script setup>
-// 입주민 주차 현황 대표 페이지의 안내 카드를 준비한다.
-const parkingCards = [
-  {
-    title: '주차 가능 현황',
-    desc: '현재 단지의 주차 가능 현황을 빠르게 확인할 수 있습니다.',
-    tone: 'primary',
-  },
-  {
-    title: '최근 입출차 기록',
-    desc: '최근 차량 입출차 이력과 이용 흐름을 확인할 수 있습니다.',
-    tone: 'mint',
-  },
-  {
-    title: '준비중 안내',
-    desc: '실제 주차 API 연동 후 사용량과 입출차 기록이 함께 제공될 예정입니다.',
-    tone: 'soft',
-  },
-]
+// 입주민 주차 현황 화면이다.
+import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+
+import { useParkingStore } from '@/stores/useParkingStore'
+
+const parkingStore = useParkingStore()
+
+const isFirstLoad = ref(true)
+const selectedZoneIndex = ref(0)
+let refreshTimer = null
+
+// 입주민 주차 현황 조회
+const loadStatus = () => {
+  return parkingStore.fetchResidentParkingStatus()
+}
+
+// 자동 갱신 시작
+const startAutoRefresh = () => {
+  if (refreshTimer) return
+  refreshTimer = setInterval(loadStatus, 30000)
+}
+
+// 자동 갱신 정리
+const stopAutoRefresh = () => {
+  if (refreshTimer) clearInterval(refreshTimer)
+  refreshTimer = null
+}
+
+// 탭 활성화 상태 처리
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    stopAutoRefresh()
+  } else {
+    loadStatus()
+    startAutoRefresh()
+  }
+}
+
+// 구역 표시 라벨 변환
+const formatZoneLabel = (zone) => {
+  if (zone.zoneName) return zone.areaName + ' ' + zone.zoneName
+  return zone.areaName
+}
+
+// 점유율 기준 상태 키 분류
+const computeStatusKey = (rate) => {
+  if (rate >= 90) return 'full'
+  if (rate >= 60) return 'busy'
+  return 'free'
+}
+
+// 구역별 상태 키 산출
+const zoneStatusKey = (zone) => {
+  if (!zone || !zone.totalSlots) return 'free'
+  const r = (zone.currentParkedCount / zone.totalSlots) * 100
+  return computeStatusKey(r)
+}
+
+// 입주민 주차 현황 응답 노출
+const status = computed(() => parkingStore.residentParkingStatus)
+
+// 구역 목록 안전 노출
+const zoneList = computed(() => status.value?.zones || [])
+
+// 선택된 구역 노출
+const selectedZone = computed(() => zoneList.value[selectedZoneIndex.value] || null)
+
+// 선택된 구역 점유율 산출
+const selectedRate = computed(() => {
+  const zone = selectedZone.value
+  if (!zone || !zone.totalSlots) return 0
+  return Number(((zone.currentParkedCount / zone.totalSlots) * 100).toFixed(1))
+})
+
+// 선택된 구역 점유율 텍스트
+const selectedRateText = computed(() => selectedRate.value + '%')
+
+// 선택된 구역 상태 키
+const selectedStatusKey = computed(() => computeStatusKey(selectedRate.value))
+
+// 선택된 구역 상태 라벨
+const selectedStatusText = computed(() => {
+  const map = { free: '여유', busy: '혼잡', full: '만차' }
+  return map[selectedStatusKey.value]
+})
+
+// 구역 선택 처리
+const handleZoneSelect = (index) => {
+  selectedZoneIndex.value = index
+}
+
+// 구역 목록 변동 시 선택 인덱스 보정
+watch(zoneList, () => {
+  if (selectedZoneIndex.value >= zoneList.value.length) {
+    selectedZoneIndex.value = 0
+  }
+})
+
+onMounted(async () => {
+  await loadStatus()
+  isFirstLoad.value = false
+  startAutoRefresh()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+onUnmounted(() => {
+  stopAutoRefresh()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+})
 </script>
 
 <template>
-  <section class="resident-feature-page">
-    <header class="resident-feature-page__hero">
-      <p class="resident-feature-page__eyebrow">PARKING</p>
-      <h1 class="resident-feature-page__title">주차 현황</h1>
-      <p class="resident-feature-page__desc">
-        우리 단지 주차 현황과 입출차 기록을 확인합니다.
-      </p>
-    </header>
+  <section class="resident-parking-status">
 
-    <!-- 모바일 카드형으로 주차 현황 대표 정보를 보여준다. -->
-    <section class="resident-feature-page__cards">
-      <article
-        v-for="card in parkingCards"
-        :key="card.title"
-        class="resident-feature-card"
-        :class="`resident-feature-card--${card.tone}`"
+    <h1 class="resident-parking-status__page-title">주차 현황</h1>
+
+    <div
+      v-if="isFirstLoad && parkingStore.loading"
+      class="resident-parking-status__loading"
+    >
+      조회 중입니다...
+    </div>
+
+    <template v-else>
+      <div
+        v-if="zoneList.length === 0 || status?.totalSlots === 0"
+        class="resident-parking-status__empty"
       >
-        <div class="resident-feature-card__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <rect x="3" y="3" width="18" height="18" rx="3" />
-            <path d="M9 17V7h4a3 3 0 0 1 0 6H9" />
+        데이터 없음
+      </div>
+
+      <template v-else>
+        <div class="parking-header-card">
+          <p class="parking-header-card__title">{{ selectedZone ? formatZoneLabel(selectedZone) : '' }}</p>
+          <p class="parking-header-card__subtitle">실시간 주차 현황</p>
+          <div class="parking-header-card__divider"></div>
+
+          <div class="zone-toggle">
+            <button
+              v-for="(zone, index) in zoneList"
+              :key="zone.zoneId"
+              type="button"
+              class="zone-toggle__card"
+              :class="{ 'zone-toggle__card--active': selectedZoneIndex === index }"
+              @click="handleZoneSelect(index)"
+            >
+              <span
+                class="zone-toggle__status-dot"
+                :class="`zone-toggle__status-dot--${zoneStatusKey(zone)}`"
+              ></span>
+              <p class="zone-toggle__name">{{ formatZoneLabel(zone) }}</p>
+              <p class="zone-toggle__count">
+                {{ zone.currentParkedCount }}<span class="zone-toggle__total">/{{ zone.totalSlots }}</span>
+              </p>
+            </button>
+          </div>
+        </div>
+
+        <div class="parking-detail">
+          <div class="parking-detail__left">
+            <div class="parking-detail__row">
+              <span class="parking-detail__row-label">현재 주차 중</span>
+              <span class="parking-detail__row-value">
+                {{ selectedZone?.currentParkedCount ?? 0 }} 대
+                <span :class="`parking-detail__row-badge parking-detail__row-badge--${selectedStatusKey}`">
+                  {{ selectedStatusText }}
+                </span>
+              </span>
+            </div>
+
+            <div class="parking-detail__row">
+              <span class="parking-detail__row-label">잔여 주차면</span>
+              <span class="parking-detail__row-value">
+                {{ selectedZone?.remainingSlots ?? 0 }} 면
+              </span>
+            </div>
+          </div>
+
+          <div class="parking-detail__total">
+            <p class="parking-detail__total-label">전체</p>
+            <p class="parking-detail__total-label">주차면</p>
+            <p class="parking-detail__total-value">
+              {{ selectedZone?.totalSlots ?? 0 }} <span class="parking-detail__total-unit">면</span>
+            </p>
+            <p
+              class="parking-detail__total-caption"
+              :class="`parking-detail__total-caption--${selectedStatusKey}`"
+            >
+              총 주차 가능 대수
+            </p>
+          </div>
+        </div>
+
+        <div class="zone-status-badge" :class="`zone-status-badge--${selectedStatusKey}`">
+          <span class="zone-status-badge__dot"></span>
+          <span class="zone-status-badge__text">
+            현재 주차장 상태: <strong class="zone-status-badge__label">{{ selectedStatusText }}</strong>
+          </span>
+        </div>
+
+        <div class="usage-bar">
+          <div class="usage-bar__head">
+            <span class="usage-bar__title">주차 사용률</span>
+            <span class="usage-bar__rate">{{ selectedRateText }}</span>
+          </div>
+          <div class="usage-bar__track">
+            <div class="usage-bar__fill" :style="{ width: selectedRate + '%' }"></div>
+          </div>
+          <div class="usage-bar__foot">
+            <span class="usage-bar__used">사용 {{ selectedZone?.currentParkedCount ?? 0 }}면</span>
+            <span class="usage-bar__free">여유 {{ selectedZone?.remainingSlots ?? 0 }}면</span>
+          </div>
+        </div>
+
+        <p class="auto-refresh-note">
+          <svg class="auto-refresh-note__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"/>
+            <polyline points="12 7 12 12 15 14"/>
           </svg>
-        </div>
-        <div class="resident-feature-card__copy">
-          <h2>{{ card.title }}</h2>
-          <p>{{ card.desc }}</p>
-        </div>
-      </article>
-    </section>
+          <span>주차 현황은 30초마다 자동으로 갱신됩니다.</span>
+        </p>
+      </template>
+    </template>
+
   </section>
 </template>
 
 <style scoped>
-.resident-feature-page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 4px 16px 24px;
-}
-
-.resident-feature-page__hero {
+.resident-parking-status {
   display: grid;
-  gap: 8px;
+  gap: var(--space-12);
+  padding: var(--space-16);
 }
 
-.resident-feature-page__eyebrow {
-  margin: 0;
-  color: var(--resident-primary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.resident-feature-page__title {
+.resident-parking-status__page-title {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 500;
 }
 
-.resident-feature-page__desc {
-  margin: 0;
+/* 로딩 / 빈 상태 */
+.resident-parking-status__loading,
+.resident-parking-status__empty {
+  padding: var(--space-32);
   color: var(--color-text-secondary);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--font-size-detail);
+  text-align: center;
 }
 
-.resident-feature-page__cards {
-  display: grid;
-  gap: 14px;
-}
-
-.resident-feature-card {
-  display: flex;
-  gap: 14px;
-  padding: 18px 16px;
-  border-radius: 18px;
-  background: #FFFFFF;
+/* 헤더 통합 카드 */
+.parking-header-card {
+  padding: var(--space-16);
+  border-radius: var(--radius-12);
+  background: var(--color-card-bg);
   box-shadow: 0 4px 14px rgba(73, 115, 229, 0.08);
 }
 
-.resident-feature-card--primary {
-  border: 1px solid rgba(73, 115, 229, 0.18);
+.parking-header-card__title {
+  margin: 0 0 2px;
+  color: var(--color-text-primary);
+  font-size: 17px;
+  font-weight: 500;
 }
 
-.resident-feature-card--mint {
-  border: 1px solid rgba(50, 168, 150, 0.18);
+.parking-header-card__subtitle {
+  margin: 0 0 14px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
 }
 
-.resident-feature-card--soft {
-  border: 1px solid rgba(148, 163, 184, 0.18);
+.parking-header-card__divider {
+  height: 1px;
+  margin-bottom: 14px;
+  background: var(--color-border);
 }
 
-.resident-feature-card__icon {
-  display: flex;
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  background: rgba(73, 115, 229, 0.1);
-  color: var(--resident-primary);
-}
-
-.resident-feature-card--mint .resident-feature-card__icon {
-  background: rgba(50, 168, 150, 0.12);
-  color: #239782;
-}
-
-.resident-feature-card--soft .resident-feature-card__icon {
-  background: rgba(148, 163, 184, 0.12);
-  color: #64748B;
-}
-
-.resident-feature-card__icon svg {
-  width: 22px;
-  height: 22px;
-}
-
-.resident-feature-card__copy {
+/* zone 토글 */
+.zone-toggle {
   display: grid;
-  gap: 6px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--space-8);
 }
 
-.resident-feature-card__copy h2 {
+.zone-toggle__card {
+  position: relative;
+  padding: var(--space-12);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #F1F3F5;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.zone-toggle__card--active {
+  border: 1.5px solid var(--resident-primary);
+  background: var(--color-card-bg);
+}
+
+.zone-toggle__status-dot {
+  position: absolute;
+  top: var(--space-12);
+  right: var(--space-12);
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+}
+
+.zone-toggle__status-dot--free { background: #50C878; }
+.zone-toggle__status-dot--busy { background: #F59E0B; }
+.zone-toggle__status-dot--full { background: #E53E3E; }
+
+.zone-toggle__name {
+  margin: 0 0 6px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.zone-toggle__count {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 500;
 }
 
-.resident-feature-card__copy p {
+.zone-toggle__total {
+  margin-left: 2px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* 상세 영역 */
+.parking-detail {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-8);
+}
+
+.parking-detail__left {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--space-8);
+}
+
+.parking-detail__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-12);
+  background: var(--color-card-bg);
+  box-shadow: 0 4px 14px rgba(73, 115, 229, 0.08);
+}
+
+.parking-detail__row-label {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.parking-detail__row-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.parking-detail__row-badge {
+  font-size: 11px;
+}
+
+.parking-detail__row-badge--free { color: #2F855A; }
+.parking-detail__row-badge--busy { color: #B7791F; }
+.parking-detail__row-badge--full { color: #C53030; }
+
+.parking-detail__total {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12);
+  border-radius: var(--radius-12);
+  background: var(--color-card-bg);
+  box-shadow: 0 4px 14px rgba(73, 115, 229, 0.08);
+  text-align: center;
+}
+
+.parking-detail__total-label {
+  margin: 0 0 2px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.parking-detail__total-label + .parking-detail__total-label {
+  margin-bottom: 6px;
+}
+
+.parking-detail__total-value {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.parking-detail__total-unit {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.parking-detail__total-caption {
+  margin: 6px 0 0;
+  font-size: 9px;
+}
+
+.parking-detail__total-caption--free { color: #2F855A; }
+.parking-detail__total-caption--busy { color: #B7791F; }
+.parking-detail__total-caption--full { color: #C53030; }
+
+/* 상태 뱃지 */
+.zone-status-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-12);
+}
+
+.zone-status-badge--free { background: rgba(80, 200, 120, 0.10); }
+.zone-status-badge--busy { background: rgba(245, 158, 11, 0.10); }
+.zone-status-badge--full { background: rgba(229, 62, 62, 0.10); }
+
+.zone-status-badge__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+}
+
+.zone-status-badge--free .zone-status-badge__dot { background: #50C878; }
+.zone-status-badge--busy .zone-status-badge__dot { background: #F59E0B; }
+.zone-status-badge--full .zone-status-badge__dot { background: #E53E3E; }
+
+.zone-status-badge__text {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-detail);
+  font-weight: 600;
+}
+
+.zone-status-badge__label {
+  font-weight: 500;
+}
+
+.zone-status-badge--free .zone-status-badge__label { color: #2F855A; }
+.zone-status-badge--busy .zone-status-badge__label { color: #B7791F; }
+.zone-status-badge--full .zone-status-badge__label { color: #C53030; }
+
+/* 사용률 게이지바 */
+.usage-bar {
+  display: grid;
+  gap: var(--space-8);
+  padding: 0 var(--space-4);
+}
+
+.usage-bar__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.usage-bar__title {
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+
+.usage-bar__rate {
+  color: var(--resident-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.usage-bar__track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-bg-muted);
+  overflow: hidden;
+}
+
+.usage-bar__fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--resident-primary);
+  transition: width 0.3s ease;
+}
+
+.usage-bar__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.usage-bar__used,
+.usage-bar__free {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+/* 자동 갱신 안내 */
+.auto-refresh-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
   margin: 0;
   color: var(--color-text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--font-size-label);
+}
+
+.auto-refresh-note__icon {
+  width: 14px;
+  height: 14px;
 }
 </style>

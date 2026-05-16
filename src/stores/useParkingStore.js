@@ -38,6 +38,18 @@ const createEmptyParkingStatistics = () => ({
   averageOccupancyRate: 0,
 })
 
+// 빈 입주민 주차 현황 기본값
+const createEmptyResidentParkingStatus = () => ({
+  parkingTypeCode: '',
+  parkingTypeValue: '',
+  totalSlots: 0,
+  currentParkedCount: 0,
+  remainingSlots: 0,
+  occupancyRate: 0,
+  zones: [],
+  updatedAt: '',
+})
+
 export const useParkingStore = defineStore('parking', {
   state: () => ({
     loading: false,
@@ -46,6 +58,7 @@ export const useParkingStore = defineStore('parking', {
     parkingLogSummary: createEmptySummary(),
     parkingSetting: createEmptyParkingSetting(),
     parkingStatistics: createEmptyParkingStatistics(),
+    residentParkingStatus: createEmptyResidentParkingStatus(),
   }),
 
   actions: {
@@ -121,6 +134,21 @@ export const useParkingStore = defineStore('parking', {
       try {
         const res = await parkingApi.getParkingStatistics(params)
         this.parkingStatistics = res ?? createEmptyParkingStatistics()
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 입주민 주차 현황 조회
+    async fetchResidentParkingStatus() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.getResidentParkingStatus()
+        this.residentParkingStatus = res ?? createEmptyResidentParkingStatus()
       } catch (e) {
         console.error(e)
         this.error = e
