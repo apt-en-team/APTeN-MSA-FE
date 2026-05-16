@@ -4,6 +4,7 @@
 defineProps({
   columns: { type: Array, required: true },
   rows: { type: Array, default: () => [] },
+  rowClass: { type: Function, default: null },
 })
 
 // 행 클릭 이벤트를 부모 컴포넌트로 전달한다.
@@ -30,6 +31,7 @@ const emit = defineEmits(['row-click'])
         v-else
         v-for="row in rows"
         :key="row.id ?? row.userId ?? row.code ?? row.householdId ?? row.reservationId"
+        :class="rowClass ? rowClass(row) : null"
         @click="emit('row-click', row)"
       >
         <td v-for="col in columns" :key="col.key">

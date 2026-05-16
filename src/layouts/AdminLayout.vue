@@ -37,6 +37,7 @@ const adminMenuDefinitions = [
       { label: '입출차 기록', path: 'parking-logs', icon: 'log' },
       { label: '주차 현황', path: 'parking/dashboard', icon: 'parking' },
       { label: '주차 통계', path: 'parking/statistics', icon: 'chart' },
+      { label: '주차 구역 관리', path: 'parking/zones', icon: 'layers' },
     ],
   },
   {
@@ -85,7 +86,7 @@ function isAdminMenuVisible(path) {
   }
 
   // 주차 관련 메뉴는 단지의 주차 기능이 켜진 경우에만 노출
-  if (['parking-logs', 'parking/dashboard', 'parking/statistics'].includes(path)) {
+  if (['parking-logs', 'parking/dashboard', 'parking/statistics', 'parking/zones'].includes(path)) {
     return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.PARKING_STATUS)
   }
 
@@ -385,6 +386,15 @@ watch(
                   <line x1="3" y1="10" x2="21" y2="10" />
                   <path d="m9 15 2 2 4-4" />
                 </svg>
+                <svg
+                  v-else-if="getMenuIconPath(menu.icon) === 'layers'"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round"
+                >
+                  <path d="m12 2-10 5 10 5 10-5-10-5z" />
+                  <path d="m2 17 10 5 10-5" />
+                  <path d="m2 12 10 5 10-5" />
+                </svg>
               </span>
               {{ menu.label }}
             </RouterLink>
@@ -501,6 +511,15 @@ watch(
             @click="handleActionClick"
           >
             + 주차 구역 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/parking/zones'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 구역 등록
           </button>
 
           <button

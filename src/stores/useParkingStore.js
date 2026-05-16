@@ -59,6 +59,7 @@ export const useParkingStore = defineStore('parking', {
     parkingSetting: createEmptyParkingSetting(),
     parkingStatistics: createEmptyParkingStatistics(),
     residentParkingStatus: createEmptyResidentParkingStatus(),
+    parkingZones: [],
   }),
 
   actions: {
@@ -152,6 +153,66 @@ export const useParkingStore = defineStore('parking', {
       } catch (e) {
         console.error(e)
         this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 주차 구역 목록 조회
+    async fetchParkingZones() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.getParkingZones()
+        this.parkingZones = Array.isArray(res?.content) ? res.content : []
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 주차 구역 등록
+    async createParkingZone(body) {
+      this.loading = true
+      this.error = null
+      try {
+        return await parkingApi.createParkingZone(body)
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 주차 구역 수정
+    async updateParkingZone(zoneId, body) {
+      this.loading = true
+      this.error = null
+      try {
+        return await parkingApi.updateParkingZone(zoneId, body)
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 주차 구역 비활성화
+    async deactivateParkingZone(zoneId) {
+      this.loading = true
+      this.error = null
+      try {
+        return await parkingApi.deleteParkingZone(zoneId)
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
       } finally {
         this.loading = false
       }
