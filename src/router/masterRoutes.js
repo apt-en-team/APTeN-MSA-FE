@@ -102,6 +102,11 @@ const masterRoutes = [
     beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/parking/dashboard'),
   },
   {
+    path: '/admin/master/complexes/:code/parking/statistics',
+    meta: masterRouteMeta,
+    beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/parking/statistics'),
+  },
+  {
     path: '/admin/master/complexes/:code/notices',
     meta: masterRouteMeta,
     beforeEnter: (to) => redirectToSharedAdminPage(to, '/admin/notices'),
