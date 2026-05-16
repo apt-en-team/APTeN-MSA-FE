@@ -3,6 +3,7 @@ import { reactive, watch } from 'vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
+import ParkingTypeSelector from '@/components/admin/parking/ParkingTypeSelector.vue'
 import { DEFAULT_COMPLEX_FEATURES, FEATURE_CODES } from '@/constants/complexFeatures'
 import { normalizeFeatures } from '@/utils/featureGate'
 import { useComplexStore } from '@/stores/useComplexStore'
@@ -31,6 +32,8 @@ const state = reactive({
     managerName: '',
     managerPhone: '',
     features: normalizeFeatures(DEFAULT_COMPLEX_FEATURES),
+    // 주차 운영 타입, PARKING_STATUS 토글 OFF일 때 'NONE'
+    parkingType: 'NONE',
   },
   addressKeyword: '',
   addressResults: [],
@@ -69,6 +72,7 @@ function resetState() {
   state.form.managerName = ''
   state.form.managerPhone = ''
   state.form.features = normalizeFeatures(DEFAULT_COMPLEX_FEATURES)
+  state.form.parkingType = 'NONE'
   state.addressKeyword = ''
   state.addressResults = []
   state.addressPage = 0
@@ -221,6 +225,13 @@ function handleSelectAddress(address) {
   state.showAddressModal = false
 }
 
+// PARKING_STATUS 토글 사용자 변경 처리, parkingType도 함께 동기화
+function handleParkingStatusToggle(event) {
+  const next = event.target.checked
+  state.form.features[FEATURE_CODES.PARKING_STATUS] = next
+  state.form.parkingType = next ? 'BASIC' : 'NONE'
+}
+
 // 등록 전 확인 모달을 연다.
 function openCreateConfirm() {
   if (state.loading) return
@@ -363,10 +374,12 @@ watch(
               <span>시설/예약</span>
             </label>
 
+            <!-- 주차 현황은 토글 변경 시 parkingType 자동 동기화가 필요해 별도 핸들러 사용 -->
             <label class="master-complex-form__feature-toggle">
               <input
-                v-model="state.form.features[FEATURE_CODES.PARKING_STATUS]"
+                :checked="state.form.features[FEATURE_CODES.PARKING_STATUS]"
                 type="checkbox"
+                @change="handleParkingStatusToggle"
               />
               <span>주차 현황</span>
             </label>
@@ -376,6 +389,19 @@ watch(
               <span>전자투표</span>
             </label>
           </div>
+
+          <!-- PARKING_STATUS 켜진 경우에만 주차 운영 타입 선택 노출 -->
+          <div
+            v-if="state.form.features[FEATURE_CODES.PARKING_STATUS]"
+            class="master-complex-form__parking-type"
+          >
+            <p class="master-complex-form__parking-type-label">주차 운영 타입</p>
+            <ParkingTypeSelector
+              v-model="state.form.parkingType"
+              :disabled="state.loading"
+            />
+          </div>
+
           <p class="master-complex-form__feature-help">
             단지에서 사용할 기능만 선택해주세요. 선택하지 않은 기능은 입주민/관리자
             메뉴에서 숨겨집니다.
@@ -578,6 +604,20 @@ watch(
   color: var(--color-text-secondary);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.master-complex-form__parking-type {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.master-complex-form__parking-type-label {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .master-complex-form__field input,

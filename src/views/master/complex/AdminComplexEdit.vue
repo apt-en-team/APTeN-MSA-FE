@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
+import ParkingTypeSelector from '@/components/admin/parking/ParkingTypeSelector.vue'
 import { DEFAULT_COMPLEX_FEATURES, FEATURE_CODES } from '@/constants/complexFeatures'
 import { normalizeFeatures } from '@/utils/featureGate'
 import { useComplexStore } from '@/stores/useComplexStore'
@@ -48,6 +49,10 @@ const state = reactive({
     createdAt: '',
     updatedAt: '',
     features: normalizeFeatures(DEFAULT_COMPLEX_FEATURES),
+    // 주차 운영 타입, PARKING_STATUS 토글 OFF일 때 'NONE'
+    parkingType: 'NONE',
+    // 백엔드에 저장된 현재 코드, '현재' 뱃지 표시용
+    parkingTypeCode: '',
   },
   loading: false,
   errorMessage: '',
@@ -84,6 +89,8 @@ function resetState() {
   state.form.createdAt = ''
   state.form.updatedAt = ''
   state.form.features = normalizeFeatures(DEFAULT_COMPLEX_FEATURES)
+  state.form.parkingType = 'NONE'
+  state.form.parkingTypeCode = ''
   state.loading = false
   state.errorMessage = ''
   state.showUpdateConfirm = false
@@ -164,6 +171,13 @@ function getCurrentTimeText() {
   })
 }
 
+// 백엔드 코드를 셀렉터 name으로 변환
+function codeToParkingTypeName(code) {
+  if (code === '02') return 'BASIC'
+  if (code === '03') return 'SENSOR'
+  return 'NONE'
+}
+
 // 선택된 단지 정보가 있으면 기본 폼 값을 먼저 채운다.
 function syncForm(detail) {
   state.form.name = detail?.name || ''
@@ -176,6 +190,9 @@ function syncForm(detail) {
   state.form.updatedAt = detail?.updatedAt || ''
   // 상세 응답의 기능 설정을 수정 폼 초기값으로 반영한다.
   state.form.features = normalizeFeatures(detail?.features)
+  // 상세 응답의 parkingTypeCode를 셀렉터 name과 현재 코드로 매핑한다.
+  state.form.parkingTypeCode = detail?.parkingTypeCode || ''
+  state.form.parkingType = codeToParkingTypeName(state.form.parkingTypeCode)
 }
 
 // 모달이 열리면 선택 단지 상세를 조회해 최신 정보를 반영한다.
@@ -394,6 +411,20 @@ onMounted(loadComplexDetail)
               <span>전자투표</span>
             </label>
           </div>
+
+          <!-- PARKING_STATUS 켜진 경우에만 주차 운영 타입 선택 노출 -->
+          <div
+            v-if="state.form.features[FEATURE_CODES.PARKING_STATUS]"
+            class="master-complex-form__parking-type"
+          >
+            <p class="master-complex-form__parking-type-label">주차 운영 타입</p>
+            <ParkingTypeSelector
+              v-model="state.form.parkingType"
+              :current-code="state.form.parkingTypeCode"
+              :disabled="state.loading"
+            />
+          </div>
+
           <p class="master-complex-form__feature-help">
             단지에서 사용할 기능만 선택해주세요. 선택하지 않은 기능은 입주민/관리자
             메뉴에서 숨겨집니다.
@@ -582,6 +613,21 @@ onMounted(loadComplexDetail)
   font-size: 12px;
   line-height: 1.5;
 }
+
+.master-complex-form__parking-type {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.master-complex-form__parking-type-label {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 
 .master-complex-form__grid {
   display: grid;
