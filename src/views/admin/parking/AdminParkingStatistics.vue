@@ -75,9 +75,6 @@ onMounted(() => {
 
 <template>
   <section class="admin-parking-stats">
-    <header class="admin-parking-stats__header">
-      <h1>주차 통계</h1>
-    </header>
 
     <div class="admin-parking-stats__unit-toggle">
       <button
@@ -126,17 +123,6 @@ onMounted(() => {
 .admin-parking-stats {
   display: grid;
   gap: var(--space-20);
-}
-
-.admin-parking-stats__header {
-  margin-bottom: var(--space-8);
-}
-
-.admin-parking-stats__header h1 {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-heading-2);
-  font-weight: 700;
 }
 
 .admin-parking-stats__unit-toggle {
