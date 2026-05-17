@@ -1,13 +1,11 @@
 <script setup>
-import { reactive, computed, onMounted } from 'vue'
+import { reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
-import { useGxStore } from '@/stores/useGxStore.js'
 import { toList } from '@/utils/apiResponse'
 import {
   normalizeFacilityStatus,
   normalizeReservationType,
-  normalizeGxProgramStatus,
 } from '@/utils/normalize.js'
 import imgReadingroom from '@/assets/images/readingroom.png'
 import imgGolf from '@/assets/images/golf.png'
@@ -15,7 +13,6 @@ import imgPT from '@/assets/images/PT.png'
 import imgGroupPT from '@/assets/images/Group PT.png'
 import imgPilates from '@/assets/images/pilates.png'
 import imgGX from '@/assets/images/GX.png'
-import imgYoga from '@/assets/images/Yoga.png'
 import imgSwimmingPool from '@/assets/images/SwimmingPool.png'
 import imgSauna from '@/assets/images/Sauna.png'
 import imgGuestHouse from '@/assets/images/GuestHouse.png'
@@ -25,18 +22,11 @@ import imgCafe from '@/assets/images/Cafe.png'
 const route = useRoute()
 const router = useRouter()
 const facilityStore = useFacilityStore()
-const gxStore = useGxStore()
 
 const state = reactive({
   list: [],
-  activeSubTab: 'facility', // 'facility' | 'gx'
   loading: false,
   errorMessage: '',
-
-  gxList: [],
-  gxLoaded: false,
-  gxLoading: false,
-  gxError: '',
 })
 
 const goToReservations = () => {
@@ -47,22 +37,7 @@ const goToDetail = (facilityId) => {
   router.push(`/resident/${route.params.complexId}/facility/${facilityId}`)
 }
 
-const goToGxDetail = (programId) => {
-  router.push(`/resident/${route.params.complexId}/facility/gx-programs/${programId}`)
-}
-
-const isGx = (f) =>
-  f.typeCode === 'GX' || (f.typeName && f.typeName.includes('GX'))
-
-const filteredList = computed(() => state.list.filter((f) => !isGx(f)))
-
 const formatTime = (t) => (t ? t.slice(0, 5) : '-')
-const formatDate = (d) => (d ? d.slice(0, 10).replace(/-/g, '.') : '-')
-const formatFee = (fee) => {
-  if (fee == null) return '-'
-  if (fee === 0) return '무료'
-  return `${Number(fee).toLocaleString('ko-KR')}원`
-}
 
 const normFacilityStatus = (f) => normalizeFacilityStatus(f?.status, f?.isActive)
 
@@ -71,39 +46,15 @@ const reservationTypeLabel = (type) => {
   return { SEAT: '좌석형', COUNT: '정원형', APPROVAL: '승인형' }[n] || type || '-'
 }
 
-const DAY_LABEL = {
-  MONDAY: '월', TUESDAY: '화', WEDNESDAY: '수',
-  THURSDAY: '목', FRIDAY: '금', SATURDAY: '토', SUNDAY: '일',
-}
-const formatDays = (days) => {
-  if (!days) return '-'
-  if (Array.isArray(days)) return days.map((d) => DAY_LABEL[d] || d).join('·')
-  return String(days)
-}
-
-const gxDays = (p) => p.dayOfWeeks || p.daysOfWeek || null
-
-const gxStatusLabel = (s) => {
-  const n = normalizeGxProgramStatus(s)
-  return { RECRUITING: '모집 중', CLOSED: '마감', CANCELLED: '취소됨', ACTIVE: '진행 중' }[n] || s || ''
-}
-
-const gxStatusClass = (s) => {
-  const n = normalizeGxProgramStatus(s)
-  return { RECRUITING: 'is-open', CLOSED: 'is-closed', CANCELLED: 'is-cancelled', ACTIVE: 'is-active' }[n] || ''
-}
-
-// 시설명/프로그램명 키워드 기반 이미지 매핑 (시설 카드용)
+// 시설명 + 시설 타입명 기반 이미지 매핑
 const getNameImage = (name) => {
   if (!name) return null
   const n = name.toLowerCase()
-  // 기존 매핑 유지
   if (n.includes('독서') || n.includes('reading')) return imgReadingroom
   if (n.includes('골프') || n.includes('golf')) return imgGolf
   if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
   if (n.includes('그룹') || n.includes('group')) return imgGroupPT
   if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
-  // 신규 시설 타입 매핑
   if (n.includes('수영') || n.includes('swimming') || n.includes('pool')) return imgSwimmingPool
   if (n.includes('사우나') || n.includes('sauna')) return imgSauna
   if (n.includes('게스트') || n.includes('guest')) return imgGuestHouse
@@ -113,13 +64,8 @@ const getNameImage = (name) => {
   return null
 }
 
-// GX 프로그램 전용: 요가 우선 매핑 후 공통 매핑, 미매핑 시 GX.png fallback
-const getGxImage = (name) => {
-  if (!name) return imgGX
-  const n = name.toLowerCase()
-  if (n.includes('요가') || n.includes('yoga')) return imgYoga
-  return getNameImage(name) ?? imgGX
-}
+// 시설명 우선, 없으면 타입명으로 이미지 결정
+const getFacilityImage = (f) => getNameImage(f?.name) || getNameImage(f?.typeName)
 
 const fetchFacilities = async () => {
   state.loading = true
@@ -132,28 +78,6 @@ const fetchFacilities = async () => {
       e?.response?.data?.resultMessage || '시설 목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
-  }
-}
-
-const fetchGxPrograms = async () => {
-  state.gxLoading = true
-  state.gxError = ''
-  try {
-    const res = await gxStore.fetchGxPrograms()
-    state.gxList = toList(res)
-    state.gxLoaded = true
-  } catch (e) {
-    state.gxError =
-      e?.response?.data?.resultMessage || 'GX 프로그램 목록을 불러오지 못했습니다.'
-  } finally {
-    state.gxLoading = false
-  }
-}
-
-const onSubTabChange = (tab) => {
-  state.activeSubTab = tab
-  if (tab === 'gx' && !state.gxLoaded) {
-    fetchGxPrograms()
   }
 }
 
@@ -170,150 +94,69 @@ onMounted(() => {
       <button class="main-tab" type="button" @click="goToReservations">내 예약</button>
     </div>
 
-    <!-- 서브 탭: 편의 시설 / GX 강습 -->
-    <div class="sub-tabs">
-      <button
-        :class="['sub-tab', state.activeSubTab === 'facility' && 'is-active']"
-        type="button"
-        @click="onSubTabChange('facility')"
-      >
-        편의 시설
-      </button>
-      <button
-        :class="['sub-tab', state.activeSubTab === 'gx' && 'is-active']"
-        type="button"
-        @click="onSubTabChange('gx')"
-      >
-        GX 강습
-      </button>
+    <!-- 시설 목록 -->
+    <div v-if="state.loading" class="loading-area">
+      <p class="loading-text">불러오는 중...</p>
     </div>
 
-    <!-- 편의 시설 탭 -->
-    <template v-if="state.activeSubTab === 'facility'">
-      <div v-if="state.loading" class="loading-area">
-        <p class="loading-text">불러오는 중...</p>
-      </div>
+    <div v-else-if="state.errorMessage" class="error-area">
+      <p class="error-text">{{ state.errorMessage }}</p>
+      <button class="btn-retry" type="button" @click="fetchFacilities">다시 시도</button>
+    </div>
 
-      <div v-else-if="state.errorMessage" class="error-area">
-        <p class="error-text">{{ state.errorMessage }}</p>
-        <button class="btn-retry" type="button" @click="fetchFacilities">다시 시도</button>
-      </div>
-
-      <div v-else class="card-list">
-        <button
-          v-for="f in filteredList"
-          :key="f.facilityId ?? f.id"
-          class="item-card"
-          :class="{ 'is-inactive': normFacilityStatus(f) !== 'ACTIVE' }"
-          type="button"
-          @click="goToDetail(f.facilityId ?? f.id)"
-        >
-          <!-- 썸네일 -->
-          <div class="card-thumb">
-            <img
-              v-if="getNameImage(f.name)"
-              :src="getNameImage(f.name)"
-              :alt="f.name"
-              class="card-thumb-img"
-            />
-            <div v-else class="card-thumb-placeholder">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="3" y="3" width="18" height="18" rx="3" />
-                <path d="M3 9h18M9 21V9" />
-              </svg>
-            </div>
+    <div v-else class="card-list">
+      <button
+        v-for="f in state.list"
+        :key="f.facilityId ?? f.id"
+        class="item-card"
+        :class="{ 'is-inactive': normFacilityStatus(f) !== 'ACTIVE' }"
+        type="button"
+        @click="goToDetail(f.facilityId ?? f.id)"
+      >
+        <!-- 썸네일 -->
+        <div class="card-thumb">
+          <img
+            v-if="getFacilityImage(f)"
+            :src="getFacilityImage(f)"
+            :alt="f.name"
+            class="card-thumb-img"
+          />
+          <div v-else class="card-thumb-placeholder">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="3" />
+              <path d="M3 9h18M9 21V9" />
+            </svg>
           </div>
-
-          <!-- 정보 -->
-          <div class="card-info">
-            <div class="card-info-top">
-              <span class="card-name">{{ f.name }}</span>
-              <span :class="['status-badge', normFacilityStatus(f) === 'ACTIVE' ? 'is-active' : 'is-inactive']">
-                {{ normFacilityStatus(f) === 'ACTIVE' ? '운영 중' : '중단' }}
-              </span>
-            </div>
-            <div class="card-hours">
-              {{ formatTime(f.openTime) }} ~ {{ formatTime(f.closeTime) }}
-            </div>
-            <div class="card-tags">
-              <span class="tag">{{ reservationTypeLabel(f.reservationType) }}</span>
-              <span v-if="f.capacity" class="tag">정원 {{ f.capacity }}명</span>
-              <span v-if="f.totalSeats" class="tag">좌석 {{ f.totalSeats }}개</span>
-            </div>
-          </div>
-
-          <!-- 화살표 -->
-          <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
-
-        <div v-if="filteredList.length === 0" class="empty-area">
-          <p>이용 가능한 시설이 없습니다.</p>
         </div>
-      </div>
-    </template>
 
-    <!-- GX 강습 탭 -->
-    <template v-if="state.activeSubTab === 'gx'">
-      <div v-if="state.gxLoading" class="loading-area">
-        <p class="loading-text">불러오는 중...</p>
-      </div>
-
-      <div v-else-if="state.gxError" class="error-area">
-        <p class="error-text">{{ state.gxError }}</p>
-        <button class="btn-retry" type="button" @click="fetchGxPrograms">다시 시도</button>
-      </div>
-
-      <div v-else class="card-list">
-        <button
-          v-for="p in state.gxList"
-          :key="p.programId"
-          class="item-card"
-          type="button"
-          @click="goToGxDetail(p.programId)"
-        >
-          <!-- 썸네일 -->
-          <div class="card-thumb">
-            <img
-              :src="getGxImage(p.programName || p.name)"
-              :alt="p.programName || p.name"
-              class="card-thumb-img"
-            />
+        <!-- 정보 -->
+        <div class="card-info">
+          <div class="card-info-top">
+            <span class="card-name">{{ f.name }}</span>
+            <span :class="['status-badge', normFacilityStatus(f) === 'ACTIVE' ? 'is-active' : 'is-inactive']">
+              {{ normFacilityStatus(f) === 'ACTIVE' ? '운영 중' : '중단' }}
+            </span>
           </div>
-
-          <!-- 정보 -->
-          <div class="card-info">
-            <div class="card-info-top">
-              <span class="card-name">{{ p.programName || p.name }}</span>
-              <span :class="['gx-status-badge', gxStatusClass(p.status)]">
-                {{ gxStatusLabel(p.status) }}
-              </span>
-            </div>
-            <div class="card-hours">
-              {{ formatDate(p.startDate) }} ~ {{ formatDate(p.endDate) }}
-            </div>
-            <div class="card-tags">
-              <span v-if="gxDays(p)" class="tag">{{ formatDays(gxDays(p)) }}</span>
-              <span class="tag">{{ formatTime(p.startTime) }}~{{ formatTime(p.endTime) }}</span>
-              <span v-if="p.maxCount != null" class="tag">
-                {{ p.currentCount ?? p.confirmedCount ?? 0 }}/{{ p.maxCount }}명
-              </span>
-              <span v-else-if="p.baseFee != null" class="tag fee-tag">{{ formatFee(p.baseFee) }}</span>
-            </div>
+          <div class="card-hours">
+            {{ formatTime(f.openTime) }} ~ {{ formatTime(f.closeTime) }}
           </div>
-
-          <!-- 화살표 -->
-          <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
-
-        <div v-if="state.gxList.length === 0" class="empty-area">
-          <p>등록된 GX 프로그램이 없습니다.</p>
+          <div class="card-tags">
+            <span class="tag">{{ reservationTypeLabel(f.reservationType) }}</span>
+            <span v-if="f.capacity" class="tag">정원 {{ f.capacity }}명</span>
+            <span v-if="f.totalSeats" class="tag">좌석 {{ f.totalSeats }}개</span>
+          </div>
         </div>
+
+        <!-- 화살표 -->
+        <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </button>
+
+      <div v-if="state.list.length === 0" class="empty-area">
+        <p>이용 가능한 시설이 없습니다.</p>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
@@ -353,32 +196,6 @@ onMounted(() => {
   color: #ffffff;
 }
 
-/* 서브 탭 */
-.sub-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.sub-tab {
-  padding: 7px 16px;
-  border: 1.5px solid #d1d9e6;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  background: #ffffff;
-  color: #718096;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.sub-tab.is-active {
-  border-color: #4973e5;
-  background: #eef3fb;
-  color: #4973e5;
-}
-
 /* 카드 목록 */
 .card-list {
   display: flex;
@@ -391,7 +208,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 14px 14px 14px;
+  padding: 14px;
   background: #ffffff;
   border-radius: 16px;
   border: none;
@@ -437,12 +254,6 @@ onMounted(() => {
   justify-content: center;
   color: #4973e5;
   opacity: 0.45;
-}
-
-.card-thumb-placeholder.gx-placeholder {
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
 }
 
 /* 정보 영역 */
@@ -494,11 +305,6 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.fee-tag {
-  background: #eef3fb;
-  color: #4973e5;
-}
-
 /* 시설 상태 뱃지 */
 .status-badge {
   font-size: 11px;
@@ -517,36 +323,6 @@ onMounted(() => {
 .status-badge.is-inactive {
   background: #f1f5f9;
   color: #94a3b8;
-}
-
-/* GX 상태 뱃지 */
-.gx-status-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.gx-status-badge.is-open {
-  background: #e6f4ec;
-  color: #2e7d52;
-}
-
-.gx-status-badge.is-active {
-  background: #eef3fb;
-  color: #4973e5;
-}
-
-.gx-status-badge.is-closed {
-  background: #f1f5f9;
-  color: #94a3b8;
-}
-
-.gx-status-badge.is-cancelled {
-  background: #fff5f5;
-  color: #e53e3e;
 }
 
 /* 화살표 */

@@ -29,6 +29,14 @@ const facilityStatus = computed(() =>
 const normalizedResType = computed(() =>
   normalizeReservationType(state.detail?.reservationType),
 )
+const isGxType = computed(() => {
+  const d = state.detail
+  if (!d) return false
+  // 상세 응답에 typeCode/typeName이 없으므로 시설명으로 판단한다.
+  // getNameImage()의 GX 감지 기준과 동일하게 유지한다.
+  const n = (d.name || '').toLowerCase()
+  return n.includes('gx') || n.includes('group exercise')
+})
 
 const reservationTypeLabel = (type) => {
   const n = normalizeReservationType(type)
@@ -36,6 +44,12 @@ const reservationTypeLabel = (type) => {
 }
 
 const onReserveClick = () => {
+  if (isGxType.value) {
+    router.push(
+      `/resident/${route.params.complexId}/facility/${route.params.facilityId}/gx-programs`,
+    )
+    return
+  }
   if (normalizedResType.value === 'APPROVAL') {
     approvalModal.show = true
     return
@@ -97,8 +111,8 @@ onMounted(() => {
         <p v-if="state.detail.description" class="detail-desc">{{ state.detail.description }}</p>
       </div>
 
-      <!-- 승인형 안내 -->
-      <div v-if="normalizedResType === 'APPROVAL'" class="approval-notice">
+      <!-- 승인형 안내 (GX 타입은 프로그램 신청 흐름이므로 제외) -->
+      <div v-if="normalizedResType === 'APPROVAL' && !isGxType" class="approval-notice">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10" />
           <path d="M12 8v4M12 16h.01" stroke-linecap="round" />
@@ -138,7 +152,9 @@ onMounted(() => {
         :disabled="facilityStatus !== 'ACTIVE'"
         @click="onReserveClick"
       >
-        {{ facilityStatus === 'ACTIVE' ? '예약하기' : '운영 중단 시설' }}
+        <template v-if="facilityStatus !== 'ACTIVE'">운영 중단 시설</template>
+        <template v-else-if="isGxType">GX 신청하기</template>
+        <template v-else>예약하기</template>
       </button>
     </div>
 
