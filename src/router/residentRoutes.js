@@ -53,8 +53,18 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'facility/:facilityId',
+        component: () => import('@/views/resident/facility/ResidentFacilityDetail.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'reservations',
         component: ResidentReservationHome,
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'reservations/:reservationId',
+        component: () => import('@/views/resident/reservation/MyReservationDetail.vue'),
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {

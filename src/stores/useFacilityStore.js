@@ -255,16 +255,15 @@ export const useFacilityStore = defineStore('facility', {
 
     // 입주민 시설 목록 조회
     async fetchFacilities(params) {
-      // 입주민 목록 조회 요청
       this.loading = true
       this.error = null
       try {
         const res = await facilityApi.getFacilities(params)
         this.facilities = res
+        return res
       } catch (e) {
-        // 입주민 목록 에러 저장
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -272,16 +271,15 @@ export const useFacilityStore = defineStore('facility', {
 
     // 입주민 시설 상세 조회
     async fetchFacilityDetail(id) {
-      // 입주민 상세 조회 요청
       this.loading = true
       this.error = null
       try {
         const res = await facilityApi.getFacilityDetail(id)
         this.facilityDetail = res
+        return res
       } catch (e) {
-        // 입주민 상세 에러 저장
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
