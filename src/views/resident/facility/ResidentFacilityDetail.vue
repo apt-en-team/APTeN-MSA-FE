@@ -14,7 +14,7 @@ const state = reactive({
   errorMessage: '',
 })
 
-const pendingModal = reactive({ show: false })
+const approvalModal = reactive({ show: false })
 
 const goBack = () => {
   router.push(`/resident/${route.params.complexId}/facility`)
@@ -24,6 +24,14 @@ const formatTime = (t) => (t ? t.slice(0, 5) : '-')
 
 const reservationTypeLabel = (type) =>
   ({ SEAT: '좌석형', COUNT: '정원형', APPROVAL: '승인형' }[type] || type || '-')
+
+const onReserveClick = () => {
+  if (state.detail?.reservationType === 'APPROVAL') {
+    approvalModal.show = true
+    return
+  }
+  router.push(`/resident/${route.params.complexId}/facility/${route.params.facilityId}/reserve`)
+}
 
 const fetchDetail = async () => {
   state.loading = true
@@ -118,22 +126,22 @@ onMounted(() => {
         class="btn-reserve"
         type="button"
         :disabled="!state.detail.isActive"
-        @click="pendingModal.show = true"
+        @click="onReserveClick"
       >
         {{ state.detail.isActive ? '예약하기' : '운영 중단 시설' }}
       </button>
     </div>
 
-    <!-- 준비중 모달 -->
+    <!-- 승인형 예약 준비 중 모달 -->
     <ResidentModal
-      :visible="pendingModal.show"
+      :visible="approvalModal.show"
       type="info"
-      title="서비스 준비 중"
-      subtitle="온라인 예약 기능은 곧 제공될 예정입니다."
+      title="승인형 예약 준비 중"
+      subtitle="승인형 예약은 현재 준비 중입니다."
       confirmText="확인"
       confirmType="primary"
-      @close="pendingModal.show = false"
-      @confirm="pendingModal.show = false"
+      @close="approvalModal.show = false"
+      @confirm="approvalModal.show = false"
     />
   </div>
 </template>

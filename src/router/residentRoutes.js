@@ -58,6 +58,11 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'facility/:facilityId/reserve',
+        component: () => import('@/views/resident/facility/ResidentReservationCreate.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'reservations',
         component: ResidentReservationHome,
         meta: { requiresAuth: true, roles: ['USER'] },
