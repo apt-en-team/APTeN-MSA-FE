@@ -110,6 +110,12 @@ export const getFacilityDetail = async (facilityId) => {
   return unwrapApiData(res)
 }
 
+// 입주민 좌석 상태 조회
+export const getResidentSeatStatus = async (facilityId, params) => {
+  const res = await apiClient.get(`/api/facilities/${facilityId}/seat-status`, { params })
+  return unwrapApiData(res)
+}
+
 // 시설 이용 현황 조회
 export const getFacilityUsageStatus = async (params) => {
   const res = await apiClient.get('/api/admin/facility-usage/status', { params })
@@ -145,6 +151,7 @@ export default {
   updateFacilitySeat,
   getFacilities,
   getFacilityDetail,
+  getResidentSeatStatus,
   getFacilityUsageStatus,
   getFacilitySeatStatus,
   getFacilityCountStatus,

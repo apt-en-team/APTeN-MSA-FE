@@ -20,12 +20,17 @@ const state = reactive({
 
   form: {
     date: todayStr,
-    selectedTime: null, // { startTime, endTime }
+    selectedTime: null,
+    selectedSeat: null,
   },
 
   times: [],
   timesLoading: false,
   timesError: '',
+
+  seats: [],
+  seatsLoading: false,
+  seatsError: '',
 
   submitting: false,
 })
@@ -39,8 +44,7 @@ const isCount = computed(() => reservationType.value === 'COUNT')
 
 const canSubmit = computed(() => {
   if (!state.form.selectedTime) return false
-  // SEAT는 좌석 선택 API 미지원으로 CTA 비활성화
-  if (isSeat.value) return false
+  if (isSeat.value && !state.form.selectedSeat) return false
   return true
 })
 
@@ -71,6 +75,8 @@ const fetchAvailableTimes = async () => {
   if (!state.form.date) return
   state.times = []
   state.form.selectedTime = null
+  state.form.selectedSeat = null
+  state.seats = []
   state.timesLoading = true
   state.timesError = ''
   try {
@@ -87,28 +93,69 @@ const fetchAvailableTimes = async () => {
   }
 }
 
+const fetchSeats = async () => {
+  if (!state.form.selectedTime) return
+  state.seats = []
+  state.form.selectedSeat = null
+  state.seatsLoading = true
+  state.seatsError = ''
+  try {
+    const res = await facilityStore.fetchResidentSeatStatus(route.params.facilityId, {
+      targetDate: state.form.date,
+      startTime: state.form.selectedTime.startTime,
+      endTime: state.form.selectedTime.endTime,
+    })
+    state.seats = toList(res)
+  } catch (e) {
+    state.seatsError =
+      e?.response?.data?.resultMessage || '좌석 정보를 불러오지 못했습니다.'
+  } finally {
+    state.seatsLoading = false
+  }
+}
+
 const onDateChange = () => {
   fetchAvailableTimes()
 }
 
 const selectTime = (slot) => {
-  if (!slot.available || slot.availableCount === 0) return
+  if (slot.isReservable === false) return
   if (
     state.form.selectedTime?.startTime === slot.startTime &&
     state.form.selectedTime?.endTime === slot.endTime
   ) {
-    // 같은 칩 다시 클릭 시 선택 해제
     state.form.selectedTime = null
+    state.form.selectedSeat = null
+    state.seats = []
     return
   }
   state.form.selectedTime = slot
+  if (isSeat.value) {
+    fetchSeats()
+  }
 }
 
 const isSlotSelected = (slot) =>
   state.form.selectedTime?.startTime === slot.startTime &&
   state.form.selectedTime?.endTime === slot.endTime
 
-const isSlotDisabled = (slot) => !slot.available || slot.availableCount === 0
+const isSlotDisabled = (slot) => slot.isReservable === false || slot.availableCount === 0
+
+const selectSeat = (seat) => {
+  if (seat.status !== 'AVAILABLE') return
+  if (state.form.selectedSeat?.seatId === seat.seatId) {
+    state.form.selectedSeat = null
+    return
+  }
+  state.form.selectedSeat = seat
+}
+
+const isSeatSelected = (seat) => state.form.selectedSeat?.seatId === seat.seatId
+
+const isSeatAvailable = (seat) => seat.status === 'AVAILABLE'
+
+const seatStatusLabel = (status) =>
+  ({ AVAILABLE: '예약 가능', RESERVED: '예약됨', HOLDING: '선점됨', BLOCKED: '차단됨' }[status] || '')
 
 const submitReservation = async () => {
   if (!canSubmit.value || state.submitting) return
@@ -121,9 +168,25 @@ const submitReservation = async () => {
         startTime: state.form.selectedTime.startTime,
         endTime: state.form.selectedTime.endTime,
       })
-      resultModal.success = true
-      resultModal.message = '예약이 완료되었습니다.'
+    } else if (isSeat.value) {
+      const holdRes = await reservationStore.holdSeat({
+        facilityId: route.params.facilityId,
+        seatId: state.form.selectedSeat.seatId,
+        reservationDate: state.form.date,
+        startTime: state.form.selectedTime.startTime,
+        endTime: state.form.selectedTime.endTime,
+      })
+      await reservationStore.createReservation({
+        facilityId: route.params.facilityId,
+        reservationDate: state.form.date,
+        startTime: state.form.selectedTime.startTime,
+        endTime: state.form.selectedTime.endTime,
+        holdId: holdRes?.holdId,
+        seatId: state.form.selectedSeat.seatId,
+      })
     }
+    resultModal.success = true
+    resultModal.message = '예약이 완료되었습니다.'
   } catch (e) {
     resultModal.success = false
     resultModal.message =
@@ -143,7 +206,6 @@ const onResultClose = () => {
 
 onMounted(async () => {
   await fetchFacility()
-  // APPROVAL이 아닌 경우 오늘 날짜 기준으로 예약 가능 시간 미리 조회
   if (!isApproval.value) {
     fetchAvailableTimes()
   }
@@ -247,15 +309,39 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- SEAT 좌석 선택 안내 (시간 선택 후) -->
-        <div v-if="isSeat && state.form.selectedTime" class="notice-card is-info">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4M12 16h.01" stroke-linecap="round" />
-          </svg>
-          <div>
-            <p class="notice-title">좌석 선택 준비 중</p>
-            <p class="notice-desc">좌석 선택 기능은 현재 준비 중입니다. 좌석 선택 API 확인 후 제공될 예정입니다.</p>
+        <!-- 좌석 선택 (SEAT + 시간 선택 후) -->
+        <div v-if="isSeat && state.form.selectedTime" class="section">
+          <p class="section-label">좌석 선택</p>
+
+          <div v-if="state.seatsLoading" class="times-loading">
+            <p class="loading-text">좌석 조회 중...</p>
+          </div>
+
+          <div v-else-if="state.seatsError" class="times-error">
+            <p class="error-text-sm">{{ state.seatsError }}</p>
+            <button class="btn-retry-sm" type="button" @click="fetchSeats">다시 시도</button>
+          </div>
+
+          <div v-else-if="state.seats.length === 0" class="times-empty">
+            <p>이용 가능한 좌석이 없습니다.</p>
+          </div>
+
+          <div v-else class="seat-grid">
+            <button
+              v-for="seat in state.seats"
+              :key="seat.seatId"
+              :class="[
+                'seat-card',
+                `is-${seat.status.toLowerCase()}`,
+                isSeatSelected(seat) && 'is-selected',
+              ]"
+              type="button"
+              :disabled="!isSeatAvailable(seat)"
+              @click="selectSeat(seat)"
+            >
+              <span class="seat-name">{{ seat.seatName || `${seat.seatNo}번` }}</span>
+              <span class="seat-status-label">{{ seatStatusLabel(seat.status) }}</span>
+            </button>
           </div>
         </div>
       </template>
@@ -285,6 +371,7 @@ onMounted(async () => {
         { label: '시설', value: state.facility?.name || '-' },
         { label: '날짜', value: state.form.date },
         { label: '시간', value: `${formatTime(state.form.selectedTime?.startTime)} ~ ${formatTime(state.form.selectedTime?.endTime)}` },
+        ...(isSeat && state.form.selectedSeat ? [{ label: '좌석', value: state.form.selectedSeat.seatName || `${state.form.selectedSeat.seatNo}번` }] : [])
       ] : []"
       @close="onResultClose"
       @confirm="onResultClose"
@@ -374,11 +461,6 @@ onMounted(async () => {
 .notice-card.is-warning {
   background: #fff8e1;
   color: #b7791f;
-}
-
-.notice-card.is-info {
-  background: #eef3fb;
-  color: #4973e5;
 }
 
 .notice-card svg {
@@ -479,7 +561,63 @@ onMounted(async () => {
   opacity: 0.75;
 }
 
-/* 시간 조회 상태 */
+/* 좌석 그리드 */
+.seat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.seat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.seat-card.is-available:not(.is-selected):hover {
+  border-color: #4973e5;
+}
+
+.seat-card.is-selected {
+  border-color: #4973e5;
+  background: #4973e5;
+  color: #ffffff;
+}
+
+.seat-card.is-reserved,
+.seat-card.is-blocked {
+  background: #f8f9fa;
+  border-color: #e2e8f0;
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.seat-card.is-holding {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+  cursor: not-allowed;
+}
+
+.seat-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.seat-status-label {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+/* 시간/좌석 조회 상태 */
 .times-loading,
 .times-empty {
   display: flex;

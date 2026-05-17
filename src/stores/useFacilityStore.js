@@ -284,5 +284,20 @@ export const useFacilityStore = defineStore('facility', {
         this.loading = false
       }
     },
+
+    // 입주민 좌석 상태 조회
+    async fetchResidentSeatStatus(facilityId, params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await facilityApi.getResidentSeatStatus(facilityId, params)
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
   },
 })
