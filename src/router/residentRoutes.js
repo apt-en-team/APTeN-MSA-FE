@@ -63,6 +63,11 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'facility/gx-programs/:programId',
+        component: () => import('@/views/resident/facility/ResidentGxProgramDetail.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'reservations',
         component: ResidentReservationHome,
         meta: { requiresAuth: true, roles: ['USER'] },

@@ -8,6 +8,7 @@ export const useGxStore = defineStore('gx', {
     error: null,
     gxPrograms: [],
     gxProgramDetail: null,
+    gxReservation: null,
     gxStatus: null,
     gxWaitingStatus: null,
   }),
@@ -107,9 +108,10 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.getGxPrograms(params)
         this.gxPrograms = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -122,9 +124,10 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.getGxProgramDetail(id)
         this.gxProgramDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -136,10 +139,11 @@ export const useGxStore = defineStore('gx', {
       this.error = null
       try {
         const res = await gxApi.createGxReservation(body)
-        this.gxProgramDetail = res
+        this.gxReservation = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -152,9 +156,10 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.getGxWaitingStatus(id)
         this.gxWaitingStatus = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -166,10 +171,11 @@ export const useGxStore = defineStore('gx', {
       this.error = null
       try {
         const res = await gxApi.cancelGxReservation(id)
-        this.gxProgramDetail = res
+        this.gxReservation = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
