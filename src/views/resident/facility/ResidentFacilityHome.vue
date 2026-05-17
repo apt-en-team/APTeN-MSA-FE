@@ -14,6 +14,13 @@ import imgGolf from '@/assets/images/golf.png'
 import imgPT from '@/assets/images/PT.png'
 import imgGroupPT from '@/assets/images/Group PT.png'
 import imgPilates from '@/assets/images/pilates.png'
+import imgGX from '@/assets/images/GX.png'
+import imgYoga from '@/assets/images/Yoga.png'
+import imgSwimmingPool from '@/assets/images/SwimmingPool.png'
+import imgSauna from '@/assets/images/Sauna.png'
+import imgGuestHouse from '@/assets/images/GuestHouse.png'
+import imgLaundryRoom from '@/assets/images/LaundryRoom.png'
+import imgCafe from '@/assets/images/Cafe.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -86,16 +93,32 @@ const gxStatusClass = (s) => {
   return { RECRUITING: 'is-open', CLOSED: 'is-closed', CANCELLED: 'is-cancelled', ACTIVE: 'is-active' }[n] || ''
 }
 
-// 이름 키워드 기반 이미지 매핑
+// 시설명/프로그램명 키워드 기반 이미지 매핑 (시설 카드용)
 const getNameImage = (name) => {
   if (!name) return null
   const n = name.toLowerCase()
+  // 기존 매핑 유지
   if (n.includes('독서') || n.includes('reading')) return imgReadingroom
   if (n.includes('골프') || n.includes('golf')) return imgGolf
   if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
   if (n.includes('그룹') || n.includes('group')) return imgGroupPT
   if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
+  // 신규 시설 타입 매핑
+  if (n.includes('수영') || n.includes('swimming') || n.includes('pool')) return imgSwimmingPool
+  if (n.includes('사우나') || n.includes('sauna')) return imgSauna
+  if (n.includes('게스트') || n.includes('guest')) return imgGuestHouse
+  if (n.includes('세탁') || n.includes('laundry')) return imgLaundryRoom
+  if (n.includes('카페') || n.includes('cafe') || n.includes('café')) return imgCafe
+  if (n.includes('gx') || n.includes('group exercise')) return imgGX
   return null
+}
+
+// GX 프로그램 전용: 요가 우선 매핑 후 공통 매핑, 미매핑 시 GX.png fallback
+const getGxImage = (name) => {
+  if (!name) return imgGX
+  const n = name.toLowerCase()
+  if (n.includes('요가') || n.includes('yoga')) return imgYoga
+  return getNameImage(name) ?? imgGX
 }
 
 const fetchFacilities = async () => {
@@ -253,14 +276,10 @@ onMounted(() => {
           <!-- 썸네일 -->
           <div class="card-thumb">
             <img
-              v-if="getNameImage(p.programName || p.name)"
-              :src="getNameImage(p.programName || p.name)"
+              :src="getGxImage(p.programName || p.name)"
               :alt="p.programName || p.name"
               class="card-thumb-img"
             />
-            <div v-else class="card-thumb-placeholder gx-placeholder">
-              <span>GX</span>
-            </div>
           </div>
 
           <!-- 정보 -->
