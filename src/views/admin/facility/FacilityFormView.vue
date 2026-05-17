@@ -41,6 +41,7 @@ const selectedTypeCode = computed(() => {
 
 // GX 타입 여부 (typeCode 기반)
 const isGxType = computed(() => selectedTypeCode.value === "GX");
+const isSeatReservationType = computed(() => normalizeReservationType(state.reservationType) === "SEAT" && !isGxType.value);
 const state = reactive({
   typeId: "",
   name: "",
@@ -58,6 +59,13 @@ const state = reactive({
   openTimeError: "",
   closeTimeError: "",
   serverError: "",
+
+  bulkSeatPrefix: "",
+  bulkSeatStartNo: "",
+  bulkSeatEndNo: "",
+  bulkSeatNamePattern: "{label} 좌석",
+  bulkSeatIsActive: true,
+  bulkSeatError: "",
 });
 
 const deleteModal = reactive({
@@ -79,6 +87,13 @@ const activeModal = reactive({
   resultSubtitle: "",
 });
 
+const submitResultModal = reactive({
+  show: false,
+  type: "success",
+  title: "",
+  subtitle: "",
+});
+
 const getTypeNameById = (typeId) =>
   facilityStore.facilityTypes.find((type) => String(type.typeId) === String(typeId))?.typeName || "";
 
@@ -92,6 +107,7 @@ const resetErrors = () => {
   state.openTimeError = "";
   state.closeTimeError = "";
   state.serverError = "";
+  state.bulkSeatError = "";
 };
 
 // 시설 상세 응답 데이터를 폼 state에 매핑 (필드명 차이 흡수)
@@ -147,6 +163,44 @@ const validateForm = () => {
   return true;
 };
 
+const hasBulkSeatInput = () =>
+  !!(
+    String(state.bulkSeatPrefix || "").trim() ||
+    state.bulkSeatStartNo ||
+    state.bulkSeatEndNo
+  );
+
+const validateBulkSeats = () => {
+  state.bulkSeatError = "";
+
+  if (!isSeatReservationType.value || !hasBulkSeatInput()) return true;
+
+  if (!String(state.bulkSeatPrefix || "").trim() || !state.bulkSeatStartNo || !state.bulkSeatEndNo) {
+    state.bulkSeatError = "접두어, 시작 번호, 끝 번호를 모두 입력해주세요.";
+    return false;
+  }
+
+  const startNo = Number(state.bulkSeatStartNo);
+  const endNo = Number(state.bulkSeatEndNo);
+
+  if (!Number.isInteger(startNo) || !Number.isInteger(endNo) || startNo < 1 || endNo < 1) {
+    state.bulkSeatError = "좌석 번호는 1 이상의 정수로 입력해주세요.";
+    return false;
+  }
+
+  if (startNo > endNo) {
+    state.bulkSeatError = "끝 번호는 시작 번호보다 크거나 같아야 합니다.";
+    return false;
+  }
+
+  if (endNo - startNo + 1 > 100) {
+    state.bulkSeatError = "좌석은 한 번에 최대 100개까지 등록할 수 있습니다.";
+    return false;
+  }
+
+  return true;
+};
+
 const handleSubmitError = (error) => {
   const message =
     error.response?.data?.message ||
@@ -166,6 +220,7 @@ const handleSubmitError = (error) => {
 
 const handleSubmit = async () => {
   if (!validateForm()) return;
+  if (!validateBulkSeats()) return;
 
   try {
     state.submitting = true;
@@ -183,16 +238,52 @@ const handleSubmit = async () => {
 
     if (isEdit.value) {
       await facilityStore.updateFacility(facilityId.value, submitData);
+      router.push("/admin/facilities");
     } else {
-      await facilityStore.createFacility(submitData);
-    }
+      const created = await facilityStore.createFacility(submitData);
+      const createdFacilityId = created?.facilityId ?? created?.id;
 
-    router.push("/admin/facilities");
+      if (isSeatReservationType.value && hasBulkSeatInput()) {
+        try {
+          if (!createdFacilityId) {
+            throw new Error("생성된 시설 ID를 확인할 수 없습니다.");
+          }
+
+          await facilityStore.bulkCreateFacilitySeats(createdFacilityId, {
+            prefix: String(state.bulkSeatPrefix || "").trim(),
+            startNo: Number(state.bulkSeatStartNo),
+            endNo: Number(state.bulkSeatEndNo),
+            seatNamePattern: String(state.bulkSeatNamePattern || "{label} 좌석").trim(),
+            isActive: !!state.bulkSeatIsActive,
+          });
+
+          submitResultModal.type = "success";
+          submitResultModal.title = "시설과 좌석이 등록되었습니다.";
+          submitResultModal.subtitle = "좌석형 시설 예약 테스트를 바로 진행할 수 있습니다.";
+        } catch (bulkError) {
+          submitResultModal.type = "warning";
+          submitResultModal.title = "시설은 등록되었지만 좌석 일괄 등록에 실패했습니다.";
+          submitResultModal.subtitle =
+            bulkError.response?.data?.resultMessage ||
+            bulkError.response?.data?.message ||
+            bulkError.message ||
+            "상세 화면에서 좌석을 다시 등록해주세요.";
+        }
+        submitResultModal.show = true;
+      } else {
+        router.push("/admin/facilities");
+      }
+    }
   } catch (error) {
     handleSubmitError(error);
   } finally {
     state.submitting = false;
   }
+};
+
+const closeSubmitResult = () => {
+  submitResultModal.show = false;
+  router.push("/admin/facilities");
 };
 
 const openDeleteModal = () => {
@@ -364,6 +455,66 @@ onMounted(async () => {
           <template v-else>
             <div class="info-note">GX 시설은 승인형(APPROVAL)으로 고정됩니다.</div>
           </template>
+        </div>
+
+        <div v-if="!isEdit && isSeatReservationType" class="bulk-seat-box">
+          <div class="bulk-seat-box__header">
+            <div>
+              <h3 class="bulk-seat-box__title">좌석 일괄 등록</h3>
+              <p class="bulk-seat-box__desc">
+                선택사항입니다. 접두어와 번호 범위를 입력하면 시설 생성 후 좌석을 자동 생성합니다.
+              </p>
+            </div>
+            <label class="bulk-seat-box__toggle">
+              <input v-model="state.bulkSeatIsActive" type="checkbox" />
+              <span>활성</span>
+            </label>
+          </div>
+
+          <div class="form-row bulk-seat-box__row">
+            <div class="form-group">
+              <label class="form-label">접두어</label>
+              <input
+                v-model="state.bulkSeatPrefix"
+                class="form-input"
+                placeholder="예: W"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">시작 번호</label>
+              <input
+                v-model="state.bulkSeatStartNo"
+                class="form-input"
+                type="number"
+                min="1"
+                placeholder="예: 1"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">끝 번호</label>
+              <input
+                v-model="state.bulkSeatEndNo"
+                class="form-input"
+                type="number"
+                min="1"
+                placeholder="예: 12"
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">좌석명 형식</label>
+            <input
+              v-model="state.bulkSeatNamePattern"
+              class="form-input"
+              placeholder="{label} 좌석"
+            />
+          </div>
+
+          <p class="bulk-seat-box__guide">
+            예: W, 1~12 입력 시 W-1 좌석부터 W-12 좌석까지 자동 생성됩니다.
+          </p>
+          <p v-if="state.bulkSeatError" class="error-msg">{{ state.bulkSeatError }}</p>
         </div>
 
         <div class="form-row">
@@ -548,6 +699,15 @@ onMounted(async () => {
       confirm-text="확인"
       @close="closeActiveResult"
     />
+
+    <ActionResultModal
+      :visible="submitResultModal.show"
+      :type="submitResultModal.type"
+      :title="submitResultModal.title"
+      :subtitle="submitResultModal.subtitle"
+      confirm-text="확인"
+      @close="closeSubmitResult"
+    />
   </div>
 </template>
 
@@ -565,6 +725,53 @@ onMounted(async () => {
   border-radius: 7px;
   font-size: 13px;
   color: #2b3a55;
+}
+
+.bulk-seat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.bulk-seat-box__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bulk-seat-box__title {
+  margin: 0 0 4px;
+  color: #1a202c;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.bulk-seat-box__desc,
+.bulk-seat-box__guide {
+  margin: 0;
+  color: #687282;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bulk-seat-box__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #4a5568;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bulk-seat-box__row {
+  grid-template-columns: 1fr 1fr 1fr;
 }
 
 .facility-form-view {

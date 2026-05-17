@@ -86,6 +86,12 @@ export const createFacilitySeat = async (facilityId, body) => {
   return unwrapApiData(res)
 }
 
+// 시설 좌석 일괄 등록
+export const bulkCreateFacilitySeats = async (facilityId, body) => {
+  const res = await apiClient.post(`/api/admin/facilities/${facilityId}/seats/bulk`, body)
+  return unwrapApiData(res)
+}
+
 // 시설 좌석 목록 조회
 export const getFacilitySeats = async (facilityId) => {
   const res = await apiClient.get(`/api/admin/facilities/${facilityId}/seats`)
@@ -147,6 +153,7 @@ export default {
   createFacilityBlockTime,
   getFacilityBlockTimes,
   createFacilitySeat,
+  bulkCreateFacilitySeats,
   getFacilitySeats,
   updateFacilitySeat,
   getFacilities,
