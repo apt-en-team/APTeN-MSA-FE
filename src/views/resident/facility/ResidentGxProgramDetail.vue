@@ -80,8 +80,10 @@ const DAY_LABEL = {
 }
 const formatDays = (days) => {
   if (!days) return '-'
-  if (Array.isArray(days)) return days.map((d) => DAY_LABEL[d] || d).join('·')
-  return String(days)
+  const arr = Array.isArray(days)
+    ? days
+    : String(days).split(',').map((s) => s.trim()).filter(Boolean)
+  return arr.map((d) => DAY_LABEL[d] || d).join(', ')
 }
 
 const gxStatusLabel = (s) =>
@@ -268,6 +270,15 @@ onMounted(() => {
             </span>
           </div>
         </template>
+      </div>
+
+      <!-- 프로그램 안내 카드 -->
+      <div class="notice-section">
+        <p class="notice-section-title">프로그램 안내</p>
+        <div class="notice-section-body">
+          <p v-if="state.detail.description" class="notice-section-text">{{ state.detail.description }}</p>
+          <p v-else class="notice-section-empty">등록된 프로그램 안내가 없습니다.</p>
+        </div>
       </div>
 
       <!-- 내 신청 현황 -->
@@ -524,6 +535,42 @@ onMounted(() => {
   height: 1px;
   background: #f1f5f9;
   margin: 0 16px;
+}
+
+/* 프로그램 안내 카드 */
+.notice-section {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 10px rgba(73, 115, 229, 0.07);
+}
+
+.notice-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #94a3b8;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.notice-section-body {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 12px;
+}
+
+.notice-section-text {
+  font-size: 14px;
+  color: #4a5568;
+  line-height: 1.7;
+  margin: 0;
+  white-space: pre-line;
+}
+
+.notice-section-empty {
+  font-size: 13px;
+  color: #cbd5e1;
+  margin: 0;
 }
 
 /* 내 신청 현황 카드 */

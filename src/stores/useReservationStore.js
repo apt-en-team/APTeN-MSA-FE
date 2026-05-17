@@ -1,5 +1,5 @@
 // 예약 상태를 관리하는 store입니다.
-import { defineStore } from 'pinia'
+import { acceptHMRUpdate, defineStore } from 'pinia'
 import reservationApi from '@/api/reservationApi'
 
 export const useReservationStore = defineStore('reservation', {
@@ -161,3 +161,7 @@ export const useReservationStore = defineStore('reservation', {
     },
   },
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useReservationStore, import.meta.hot))
+}

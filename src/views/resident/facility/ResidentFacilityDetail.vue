@@ -32,8 +32,11 @@ const normalizedResType = computed(() =>
 const isGxType = computed(() => {
   const d = state.detail
   if (!d) return false
-  // 상세 응답에 typeCode/typeName이 없으므로 시설명으로 판단한다.
-  // getNameImage()의 GX 감지 기준과 동일하게 유지한다.
+  // 1순위: typeCode (FacilityTypeCode.GX.getValue() = "GX")
+  if (d.typeCode != null) return String(d.typeCode).toUpperCase() === 'GX'
+  // 2순위: typeName (DB facility_type.type_name, e.g. "GX강습")
+  if (d.typeName) return String(d.typeName).toUpperCase().includes('GX')
+  // 최후 fallback: 시설명 (typeCode/typeName 미응답 시)
   const n = (d.name || '').toLowerCase()
   return n.includes('gx') || n.includes('group exercise')
 })
@@ -108,7 +111,6 @@ onMounted(() => {
           </span>
         </div>
         <h1 class="detail-title">{{ state.detail.name }}</h1>
-        <p v-if="state.detail.description" class="detail-desc">{{ state.detail.description }}</p>
       </div>
 
       <!-- 승인형 안내 (GX 타입은 프로그램 신청 흐름이므로 제외) -->
@@ -118,6 +120,15 @@ onMounted(() => {
           <path d="M12 8v4M12 16h.01" stroke-linecap="round" />
         </svg>
         <span>관리자 승인 후 이용 가능한 시설입니다.</span>
+      </div>
+
+      <!-- 안내사항 카드 -->
+      <div class="notice-section">
+        <p class="notice-section-title">이용 안내</p>
+        <div class="notice-section-body">
+          <p v-if="state.detail.description" class="notice-section-text">{{ state.detail.description }}</p>
+          <p v-else class="notice-section-empty">등록된 안내사항이 없습니다.</p>
+        </div>
       </div>
 
       <!-- 정보 카드 -->
@@ -261,6 +272,42 @@ onMounted(() => {
   color: #b7791f;
   font-size: 13px;
   font-weight: 500;
+}
+
+/* 안내사항 카드 */
+.notice-section {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 10px rgba(73, 115, 229, 0.07);
+}
+
+.notice-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #94a3b8;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.notice-section-body {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 12px;
+}
+
+.notice-section-text {
+  font-size: 14px;
+  color: #4a5568;
+  line-height: 1.7;
+  margin: 0;
+  white-space: pre-line;
+}
+
+.notice-section-empty {
+  font-size: 13px;
+  color: #cbd5e1;
+  margin: 0;
 }
 
 /* 정보 카드 */

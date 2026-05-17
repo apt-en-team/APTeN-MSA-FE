@@ -64,8 +64,23 @@ const getNameImage = (name) => {
   return null
 }
 
-// 시설명 우선, 없으면 타입명으로 이미지 결정
-const getFacilityImage = (f) => getNameImage(f?.name) || getNameImage(f?.typeName)
+const TYPE_CODE_IMAGE = {
+  STUDY_ROOM: imgReadingroom,
+  GYM: imgPT,
+  GOLF: imgGolf,
+  GX: imgGX,
+  POOL: imgSwimmingPool,
+  SAUNA: imgSauna,
+  GUEST_HOUSE: imgGuestHouse,
+  LAUNDRY: imgLaundryRoom,
+  CAFE: imgCafe,
+}
+
+// typeCode 우선, 없으면 시설명/타입명 키워드 기반으로 이미지 결정
+const getFacilityImage = (f) => {
+  if (f?.typeCode) return TYPE_CODE_IMAGE[String(f.typeCode).toUpperCase()] || null
+  return getNameImage(f?.name) || getNameImage(f?.typeName)
+}
 
 const fetchFacilities = async () => {
   state.loading = true

@@ -1,5 +1,5 @@
 // GX 상태를 관리하는 store입니다.
-import { defineStore } from 'pinia'
+import { acceptHMRUpdate, defineStore } from 'pinia'
 import gxApi from '@/api/gxApi'
 
 export const useGxStore = defineStore('gx', {
@@ -94,6 +94,21 @@ export const useGxStore = defineStore('gx', {
         return res
       } catch (e) {
         console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 내 GX 예약 목록 조회
+    async fetchMyGxReservations() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await gxApi.getMyGxReservations()
+        return res
+      } catch (e) {
         this.error = e
         throw e
       } finally {
@@ -257,3 +272,7 @@ export const useGxStore = defineStore('gx', {
     },
   },
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useGxStore, import.meta.hot))
+}

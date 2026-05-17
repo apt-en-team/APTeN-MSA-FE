@@ -43,6 +43,12 @@ export const getGxProgramDetail = async (programId) => {
   return unwrapApiData(res)
 }
 
+// 내 GX 예약 목록 조회
+export const getMyGxReservations = async () => {
+  const res = await apiClient.get('/api/gx-reservations/my')
+  return unwrapApiData(res)
+}
+
 // GX 예약 신청
 export const createGxReservation = async (body) => {
   const res = await apiClient.post('/api/gx-reservations', body)
@@ -99,6 +105,7 @@ export default {
   cancelGxProgram,
   getGxPrograms,
   getGxProgramDetail,
+  getMyGxReservations,
   createGxReservation,
   getGxWaitingStatus,
   cancelGxReservation,
