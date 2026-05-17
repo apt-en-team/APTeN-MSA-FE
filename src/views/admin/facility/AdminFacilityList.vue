@@ -44,9 +44,6 @@ const facilityList = computed(() =>
     facilityId: f.facilityId ?? f.facilityUid ?? f.id,
     typeId: f.typeId ?? f.facilityTypeId ?? f.type?.id,
     typeName: f.typeName ?? f.type?.name ?? "-",
-    maxCount: f.maxCount ?? f.maxCapacity ?? 0,
-    slotMin: f.slotMin ?? f.slotDuration ?? 0,
-    todayReserved: f.todayReserved ?? 0,
     reservationType: normalizeReservationType(f.reservationType),
   }))
 );
@@ -73,26 +70,6 @@ const reservationTypeLabel = (type) => {
     COUNT: "정원형",
     APPROVAL: "승인형",
   }[type] || type || "-";
-};
-
-// 예약 비율 계산
-const getReservedRatio = (f) => {
-  if (!f.isActive || !f.maxCount) return 0;
-  return Math.min(Math.round(((f.todayReserved ?? 0) / f.maxCount) * 100), 100);
-};
-
-// 예약 비율 색상
-const getBarColor = (ratio) => {
-  if (ratio >= 80) return "#E53E3E";
-  if (ratio >= 40) return "#ED8936";
-  return "#48BB78";
-};
-
-// 잔여 비율 색상
-const getRemainingColor = (ratio) => {
-  if (ratio >= 80) return "#FED7D7";
-  if (ratio >= 50) return "#FEEBC8";
-  return "#C6F6D5";
 };
 
 // 현재는 별도 필터 없이 전체 목록 반환
@@ -205,49 +182,7 @@ onMounted(() => {
             <div class="card-info-row">
               <div class="card-info">
                 <span class="info-label">운영 시간</span>
-                <span class="info-value"
-                  >{{ formatTime(f.openTime) }} ~ {{ formatTime(f.closeTime) }}</span
-                >
-              </div>
-              <div class="card-info">
-                <span class="info-label">오늘 예약</span>
-                <span class="info-value">
-                  {{ f.isActive ? (f.todayReserved ?? 0) + " / " + f.maxCount + "명" : "운영 중단" }}
-                </span>
-              </div>
-            </div>
-            <div class="stacked-bar-wrap">
-              <div class="stacked-bar">
-                <div
-                  class="bar-segment bar-reserved"
-                  :style="{
-                    width: f.isActive ? getReservedRatio(f) + '%' : '0%',
-                    background: getBarColor(getReservedRatio(f)),
-                  }"
-                ></div>
-                <div
-                  class="bar-segment bar-remaining"
-                  :style="{
-                    width: f.isActive ? 100 - getReservedRatio(f) + '%' : '100%',
-                    background: f.isActive ? getRemainingColor(getReservedRatio(f)) : '#E2E8F0',
-                  }"
-                ></div>
-              </div>
-              <div class="stacked-bar-legend">
-                <span class="legend-item">
-                  <span
-                    class="legend-dot"
-                    :style="{ background: f.isActive ? getBarColor(getReservedRatio(f)) : '#A0AEC0' }"
-                  ></span>
-                  예약 완료 {{ f.isActive ? getReservedRatio(f) : 0 }}%
-                </span>
-                <span class="legend-item">
-                  <span
-                    class="legend-dot"
-                    :style="{ background: f.isActive ? getRemainingColor(getReservedRatio(f)) : '#E2E8F0' }"
-                  ></span>
-                  잔여 {{ f.isActive ? 100 - getReservedRatio(f) : 0 }}%
-                </span>
+                <span class="info-value">{{ formatTime(f.openTime) }} ~ {{ formatTime(f.closeTime) }}</span>
               </div>
             </div>
           </div>
@@ -294,46 +229,24 @@ onMounted(() => {
           <span class="detail-value">{{ detailModal.facility?.name }}</span>
         </div>
         <div class="detail-cell">
-          <span class="detail-label">최대 인원</span>
-          <span class="detail-value">{{ detailModal.facility?.maxCount }}명</span>
-        </div>
-        <div class="detail-cell">
-          <span class="detail-label">예약 단위</span>
-          <span class="detail-value">{{ detailModal.facility?.slotMin }}분</span>
-        </div>
-        <div class="detail-cell">
           <span class="detail-label">시설 타입</span>
           <span class="detail-value">{{ detailModal.facility?.typeName || "-" }}</span>
         </div>
         <div class="detail-cell">
           <span class="detail-label">예약 방식</span>
-          <span class="detail-value">{{
-            reservationTypeLabel(detailModal.facility?.reservationType)
-          }}</span>
+          <span class="detail-value">{{ reservationTypeLabel(detailModal.facility?.reservationType) }}</span>
         </div>
         <div class="detail-cell">
           <span class="detail-label">운영 시작</span>
-          <span class="detail-value">{{
-            formatTime(detailModal.facility?.openTime)
-          }}</span>
+          <span class="detail-value">{{ formatTime(detailModal.facility?.openTime) }}</span>
         </div>
         <div class="detail-cell">
           <span class="detail-label">운영 종료</span>
-          <span class="detail-value">{{
-            formatTime(detailModal.facility?.closeTime)
-          }}</span>
+          <span class="detail-value">{{ formatTime(detailModal.facility?.closeTime) }}</span>
         </div>
-          <div class="detail-cell">
-            <span class="detail-label">기본 이용료</span>
-            <span class="detail-value">
-              {{ detailModal.facility?.baseFee > 0 ? Number(detailModal.facility.baseFee).toLocaleString() + '원' : '무료' }}
-            </span>
-          </div>
         <div class="detail-cell">
           <span class="detail-label">등록일</span>
-          <span class="detail-value">{{
-            detailModal.facility?.createdAt?.slice(0, 10) ?? "-"
-          }}</span>
+          <span class="detail-value">{{ detailModal.facility?.createdAt?.slice(0, 10) ?? "-" }}</span>
         </div>
       </div>
       <template #footer>
@@ -479,51 +392,6 @@ onMounted(() => {
   color: #1a202c;
 }
 
-.stacked-bar-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.stacked-bar {
-  display: flex;
-  height: 8px;
-  border-radius: 4px;
-  overflow: hidden;
-  background: #e2e8f0;
-}
-.bar-segment {
-  transition: width 0.4s ease, background 0.4s ease;
-}
-.bar-reserved {
-  border-radius: 4px;
-}
-.bar-remaining {
-  border-radius: 0 4px 4px 0;
-}
-.bar-reserved:only-child {
-  border-radius: 4px;
-}
-.bar-remaining:first-child {
-  border-radius: 4px;
-}
-.stacked-bar-legend {
-  display: flex;
-  gap: 12px;
-}
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  color: #718096;
-}
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  flex-shrink: 0;
-  transition: background 0.4s ease;
-}
 .card-actions {
   display: flex;
   flex-wrap: wrap;

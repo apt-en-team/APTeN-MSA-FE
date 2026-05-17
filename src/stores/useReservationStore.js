@@ -113,9 +113,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.getAdminReservations(params)
         this.adminReservations = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -128,9 +129,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.getAdminReservationDetail(id)
         this.reservationDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -143,9 +145,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.cancelAdminReservation(id, body)
         this.reservationDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
