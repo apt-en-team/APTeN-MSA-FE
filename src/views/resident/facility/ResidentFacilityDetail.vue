@@ -1,8 +1,9 @@
 <script setup>
-import { reactive, onMounted } from 'vue'
+import { reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import ResidentModal from '@/components/resident/ResidentModal.vue'
+import { normalizeFacilityStatus, normalizeReservationType } from '@/utils/normalize.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,11 +23,20 @@ const goBack = () => {
 
 const formatTime = (t) => (t ? t.slice(0, 5) : '-')
 
-const reservationTypeLabel = (type) =>
-  ({ SEAT: '좌석형', COUNT: '정원형', APPROVAL: '승인형' }[type] || type || '-')
+const facilityStatus = computed(() =>
+  normalizeFacilityStatus(state.detail?.status, state.detail?.isActive),
+)
+const normalizedResType = computed(() =>
+  normalizeReservationType(state.detail?.reservationType),
+)
+
+const reservationTypeLabel = (type) => {
+  const n = normalizeReservationType(type)
+  return { SEAT: '좌석형', COUNT: '정원형', APPROVAL: '승인형' }[n] || type || '-'
+}
 
 const onReserveClick = () => {
-  if (state.detail?.reservationType === 'APPROVAL') {
+  if (normalizedResType.value === 'APPROVAL') {
     approvalModal.show = true
     return
   }
@@ -79,8 +89,8 @@ onMounted(() => {
       <div class="detail-hero">
         <div class="hero-badges">
           <span class="type-badge">{{ state.detail.typeName || '-' }}</span>
-          <span :class="['status-badge', state.detail.isActive ? 'is-active' : 'is-inactive']">
-            {{ state.detail.isActive ? '운영 중' : '운영 중단' }}
+          <span :class="['status-badge', facilityStatus === 'ACTIVE' ? 'is-active' : 'is-inactive']">
+            {{ facilityStatus === 'ACTIVE' ? '운영 중' : '운영 중단' }}
           </span>
         </div>
         <h1 class="detail-title">{{ state.detail.name }}</h1>
@@ -88,7 +98,7 @@ onMounted(() => {
       </div>
 
       <!-- 승인형 안내 -->
-      <div v-if="state.detail.reservationType === 'APPROVAL'" class="approval-notice">
+      <div v-if="normalizedResType === 'APPROVAL'" class="approval-notice">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10" />
           <path d="M12 8v4M12 16h.01" stroke-linecap="round" />
@@ -125,10 +135,10 @@ onMounted(() => {
       <button
         class="btn-reserve"
         type="button"
-        :disabled="!state.detail.isActive"
+        :disabled="facilityStatus !== 'ACTIVE'"
         @click="onReserveClick"
       >
-        {{ state.detail.isActive ? '예약하기' : '운영 중단 시설' }}
+        {{ facilityStatus === 'ACTIVE' ? '예약하기' : '운영 중단 시설' }}
       </button>
     </div>
 

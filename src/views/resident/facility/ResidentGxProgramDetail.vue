@@ -3,6 +3,7 @@ import { reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGxStore } from '@/stores/useGxStore.js'
 import ResidentModal from '@/components/resident/ResidentModal.vue'
+import { normalizeGxProgramStatus, normalizeGxReservationStatus } from '@/utils/normalize.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,21 +31,20 @@ const resultModal = reactive({ show: false, success: false, message: '' })
 // 서버에서 내려온 기존 신청 정보 우선 사용
 const myReservation = computed(() => state.detail?.myReservation ?? null)
 const activeGxReservationId = computed(
-  () => myReservation.value?.gxReservationId || state.gxReservationId,
+  () =>
+    myReservation.value?.gxReservationId ||
+    myReservation.value?.id ||
+    state.detail?.myReservationId ||
+    state.gxReservationId,
 )
-const activeMyStatus = computed(
-  () => myReservation.value?.status || state.myStatus,
+const activeMyStatus = computed(() =>
+  normalizeGxReservationStatus(myReservation.value?.status || state.myStatus),
 )
+const normalizedDetailStatus = computed(() => normalizeGxProgramStatus(state.detail?.status))
 
 const isProgramApplicable = computed(() => {
-  const s = state.detail?.status
-  if (!s) return false
-  return (
-    s === 'OPEN' ||
-    s === 'WAITING_REGISTRATION' ||
-    s === 'RECRUITING' ||
-    (s === 'CLOSED' && state.detail?.waitingEnabled)
-  )
+  const n = normalizedDetailStatus.value
+  return n === 'RECRUITING' || (n === 'CLOSED' && state.detail?.waitingEnabled)
 })
 
 const canApply = computed(() => {
@@ -86,26 +86,22 @@ const formatDays = (days) => {
 
 const gxStatusLabel = (s) =>
   ({
-    OPEN: '신청 가능',
-    WAITING_REGISTRATION: '신청 가능',
     RECRUITING: '모집 중',
     ACTIVE: '진행 중',
     CLOSED: '마감',
     CANCELLED: '취소됨',
-  }[s] || s || '')
+  }[normalizeGxProgramStatus(s)] || s || '')
 
 const gxStatusClass = (s) =>
   ({
-    OPEN: 'is-open',
-    WAITING_REGISTRATION: 'is-open',
     RECRUITING: 'is-open',
     ACTIVE: 'is-active',
     CLOSED: 'is-closed',
     CANCELLED: 'is-cancelled',
-  }[s] || '')
+  }[normalizeGxProgramStatus(s)] || '')
 
 const reservationStatusLabel = (s) =>
-  ({ WAITING: '대기 중', CONFIRMED: '신청 완료', CANCELLED: '취소됨', REJECTED: '거절됨' }[s] || s || '')
+  ({ WAITING: '대기 중', CONFIRMED: '신청 완료', CANCELLED: '취소됨', REJECTED: '거절됨' }[normalizeGxReservationStatus(s)] || s || '')
 
 const reservationStatusClass = (s) =>
   ({
@@ -113,7 +109,7 @@ const reservationStatusClass = (s) =>
     CONFIRMED: 'is-confirmed',
     CANCELLED: 'is-cancelled',
     REJECTED: 'is-rejected',
-  }[s] || '')
+  }[normalizeGxReservationStatus(s)] || '')
 
 const fetchDetail = async () => {
   state.loading = true
@@ -121,7 +117,7 @@ const fetchDetail = async () => {
   try {
     const res = await gxStore.fetchGxProgramDetail(route.params.programId)
     state.detail = res
-    if (res?.myReservation?.status === 'WAITING' && res?.myReservation?.gxReservationId) {
+    if (normalizeGxReservationStatus(res?.myReservation?.status) === 'WAITING' && res?.myReservation?.gxReservationId) {
       fetchWaitingOrder(res.myReservation.gxReservationId)
     }
   } catch (e) {
@@ -137,7 +133,7 @@ const fetchWaitingOrder = async (gxReservationId) => {
   state.waitingLoading = true
   try {
     const res = await gxStore.fetchGxWaitingStatus(gxReservationId)
-    state.waitingOrder = res?.waitingOrder ?? res?.waitingNumber ?? null
+    state.waitingOrder = res?.waitingOrder ?? res?.waitingNumber ?? res?.waitNo ?? null
   } catch {
     // 대기 순번 조회 실패는 표시 생략
   } finally {
@@ -153,7 +149,7 @@ const onApplyConfirm = async () => {
     state.gxReservationId = res?.gxReservationId
     state.myStatus = res?.status
 
-    const isWaiting = res?.status === 'WAITING'
+    const isWaiting = normalizeGxReservationStatus(res?.status) === 'WAITING'
     resultModal.success = true
     resultModal.message = isWaiting
       ? '대기 신청이 완료되었습니다.'
@@ -232,7 +228,7 @@ onMounted(() => {
             {{ gxStatusLabel(state.detail.status) }}
           </span>
         </div>
-        <h1 class="detail-title">{{ state.detail.programName }}</h1>
+        <h1 class="detail-title">{{ state.detail.programName || state.detail.name }}</h1>
       </div>
 
       <!-- 프로그램 정보 카드 -->
@@ -243,11 +239,11 @@ onMounted(() => {
             {{ formatDate(state.detail.startDate) }} ~ {{ formatDate(state.detail.endDate) }}
           </span>
         </div>
-        <template v-if="state.detail.dayOfWeeks">
+        <template v-if="state.detail.dayOfWeeks || state.detail.daysOfWeek">
           <div class="info-divider" />
           <div class="info-row">
             <span class="info-label">요일</span>
-            <span class="info-value">{{ formatDays(state.detail.dayOfWeeks) }}</span>
+            <span class="info-value">{{ formatDays(state.detail.dayOfWeeks || state.detail.daysOfWeek) }}</span>
           </div>
         </template>
         <div class="info-divider" />
@@ -294,7 +290,7 @@ onMounted(() => {
 
       <!-- 마감 안내 (대기 불가) -->
       <div
-        v-if="state.detail.status === 'CLOSED' && !state.detail.waitingEnabled && !isMyStatusActive"
+        v-if="normalizedDetailStatus === 'CLOSED' && !state.detail.waitingEnabled && !isMyStatusActive"
         class="notice-card is-warning"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -309,7 +305,7 @@ onMounted(() => {
 
       <!-- 마감 안내 (대기 가능) -->
       <div
-        v-else-if="state.detail.status === 'CLOSED' && state.detail.waitingEnabled && !isMyStatusActive"
+        v-else-if="normalizedDetailStatus === 'CLOSED' && state.detail.waitingEnabled && !isMyStatusActive"
         class="notice-card is-info"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -324,7 +320,7 @@ onMounted(() => {
 
       <!-- 프로그램 취소 안내 -->
       <div
-        v-else-if="state.detail.status === 'CANCELLED'"
+        v-else-if="normalizedDetailStatus === 'CANCELLED'"
         class="notice-card is-warning"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -348,7 +344,7 @@ onMounted(() => {
         @click="applyModal.show = true"
       >
         {{
-          state.detail.status === 'CLOSED' && state.detail.waitingEnabled
+          normalizedDetailStatus === 'CLOSED' && state.detail.waitingEnabled
             ? '대기 신청하기'
             : '신청하기'
         }}
@@ -372,7 +368,7 @@ onMounted(() => {
       confirmText="신청하기"
       confirmType="primary"
       :infoRows="state.detail ? [
-        { label: '프로그램', value: state.detail.programName },
+        { label: '프로그램', value: state.detail.programName || state.detail.name },
         { label: '기간', value: `${formatDate(state.detail.startDate)} ~ ${formatDate(state.detail.endDate)}` },
         { label: '시간', value: `${formatTime(state.detail.startTime)} ~ ${formatTime(state.detail.endTime)}` },
         { label: '수강료', value: formatFee(state.detail.baseFee) },
@@ -390,7 +386,7 @@ onMounted(() => {
       confirmText="신청 취소"
       confirmType="danger"
       :infoRows="state.detail ? [
-        { label: '프로그램', value: state.detail.programName },
+        { label: '프로그램', value: state.detail.programName || state.detail.name },
         { label: '기간', value: `${formatDate(state.detail.startDate)} ~ ${formatDate(state.detail.endDate)}` },
       ] : []"
       @close="cancelModal.show = false"

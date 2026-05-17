@@ -3,6 +3,7 @@ import { reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useReservationStore } from '@/stores/useReservationStore.js'
 import { toList } from '@/utils/apiResponse'
+import { normalizeReservationStatus } from '@/utils/normalize.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -25,19 +26,20 @@ const goToDetail = (reservationId) => {
 
 const filteredList = computed(() => {
   if (state.activeFilterTab === 'confirmed') {
-    return state.list.filter((r) => r.status === 'CONFIRMED')
+    return state.list.filter((r) => normalizeReservationStatus(r.status) === 'CONFIRMED')
   }
   if (state.activeFilterTab === 'past') {
-    return state.list.filter((r) => r.status === 'COMPLETED' || r.status === 'CANCELLED')
+    const n = normalizeReservationStatus
+    return state.list.filter((r) => n(r.status) === 'COMPLETED' || n(r.status) === 'CANCELLED')
   }
   return state.list
 })
 
 const statusLabel = (s) =>
-  ({ CONFIRMED: '예약완료', COMPLETED: '이용완료', CANCELLED: '취소됨' }[s] || s || '-')
+  ({ CONFIRMED: '예약완료', COMPLETED: '이용완료', CANCELLED: '취소됨' }[normalizeReservationStatus(s)] || s || '-')
 
 const statusClass = (s) =>
-  ({ CONFIRMED: 'is-confirmed', COMPLETED: 'is-completed', CANCELLED: 'is-cancelled' }[s] || '')
+  ({ CONFIRMED: 'is-confirmed', COMPLETED: 'is-completed', CANCELLED: 'is-cancelled' }[normalizeReservationStatus(s)] || '')
 
 const formatDate = (d) => (d ? d.slice(0, 10).replace(/-/g, '.') : '-')
 const formatTime = (t) => (t ? t.slice(0, 5) : '-')

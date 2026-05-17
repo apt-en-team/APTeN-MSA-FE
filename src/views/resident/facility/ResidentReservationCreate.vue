@@ -5,13 +5,24 @@ import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import { useReservationStore } from '@/stores/useReservationStore.js'
 import ResidentModal from '@/components/resident/ResidentModal.vue'
 import { toList } from '@/utils/apiResponse'
+import { normalizeReservationType } from '@/utils/normalize.js'
 
 const route = useRoute()
 const router = useRouter()
 const facilityStore = useFacilityStore()
 const reservationStore = useReservationStore()
 
-const todayStr = new Date().toISOString().slice(0, 10)
+// 로컬 날짜 기준 오늘 (toISOString은 UTC 기준이므로 UTC+9에서 이른 시간대에 어제 날짜가 될 수 있음)
+const _now = new Date()
+const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`
+
+// API 전송용 날짜를 yyyy-MM-dd 형식으로 보정한다.
+// "2026. 05. 17.", "2026.05.17" → "2026-05-17"
+const toApiDate = (value) => {
+  if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  return value.replace(/\s/g, '').replace(/\./g, '-').replace(/-$/, '')
+}
 
 const state = reactive({
   facility: null,
@@ -37,7 +48,7 @@ const state = reactive({
 
 const resultModal = reactive({ show: false, success: false, message: '' })
 
-const reservationType = computed(() => state.facility?.reservationType)
+const reservationType = computed(() => normalizeReservationType(state.facility?.reservationType))
 const isApproval = computed(() => reservationType.value === 'APPROVAL')
 const isSeat = computed(() => reservationType.value === 'SEAT')
 const isCount = computed(() => reservationType.value === 'COUNT')
@@ -82,7 +93,7 @@ const fetchAvailableTimes = async () => {
   try {
     const res = await reservationStore.fetchAvailableTimes({
       facilityId: route.params.facilityId,
-      date: state.form.date,
+      reservationDate: toApiDate(state.form.date),
     })
     state.times = toList(res)
   } catch (e) {
@@ -101,7 +112,7 @@ const fetchSeats = async () => {
   state.seatsError = ''
   try {
     const res = await facilityStore.fetchResidentSeatStatus(route.params.facilityId, {
-      targetDate: state.form.date,
+      targetDate: toApiDate(state.form.date),
       startTime: state.form.selectedTime.startTime,
       endTime: state.form.selectedTime.endTime,
     })
@@ -161,10 +172,11 @@ const submitReservation = async () => {
   if (!canSubmit.value || state.submitting) return
   state.submitting = true
   try {
+    const apiDate = toApiDate(state.form.date)
     if (isCount.value) {
       await reservationStore.createReservation({
         facilityId: route.params.facilityId,
-        reservationDate: state.form.date,
+        reservationDate: apiDate,
         startTime: state.form.selectedTime.startTime,
         endTime: state.form.selectedTime.endTime,
       })
@@ -172,13 +184,13 @@ const submitReservation = async () => {
       const holdRes = await reservationStore.holdSeat({
         facilityId: route.params.facilityId,
         seatId: state.form.selectedSeat.seatId,
-        reservationDate: state.form.date,
+        reservationDate: apiDate,
         startTime: state.form.selectedTime.startTime,
         endTime: state.form.selectedTime.endTime,
       })
       await reservationStore.createReservation({
         facilityId: route.params.facilityId,
-        reservationDate: state.form.date,
+        reservationDate: apiDate,
         startTime: state.form.selectedTime.startTime,
         endTime: state.form.selectedTime.endTime,
         holdId: holdRes?.holdId,

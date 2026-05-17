@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import {useRouter} from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import {useAuthStore} from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { FEATURE_CODES, DEFAULT_COMPLEX_FEATURES } from '@/constants/complexFeatures'
@@ -11,6 +11,7 @@ import {getNotices} from '@/api/noticeApi'
 import {getVisitorVehicles} from '@/api/visitorVehicleApi'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
 
@@ -85,7 +86,7 @@ const homeSummaryCards = computed(() => {
       unit: '건',
       desc: '이번 주 예약',
       descClass: '',
-      path: '/resident/my-reservation',
+      path: `/resident/${route.params.complexId}/reservations`,
       showProgress: false,
       progressValue: 0,
     })
@@ -245,7 +246,7 @@ onMounted(() => {
     <section v-if="showFacilitySection" class="home__section">
       <div class="home__section-header">
         <h2 class="home__section-title">내 예약 현황</h2>
-        <button class="home__section-more" @click="router.push('/resident/my-reservation')">
+        <button class="home__section-more" @click="router.push(`/resident/${route.params.complexId}/reservations`)">
           더보기 →
         </button>
       </div>
@@ -261,7 +262,7 @@ onMounted(() => {
           v-for="item in myReservations"
           :key="item.reservationUid"
           class="reservation-item"
-          @click="router.push(`/resident/my-reservation/${item.reservationUid}`)"
+          @click="router.push(`/resident/${route.params.complexId}/reservations/${item.reservationId ?? item.reservationUid}`)"
         >
           <div class="reservation-item__info">
             <span class="reservation-item__name">{{ item.facilityName }}</span>

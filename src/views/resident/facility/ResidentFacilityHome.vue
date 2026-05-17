@@ -4,6 +4,16 @@ import { useRoute, useRouter } from 'vue-router'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import { useGxStore } from '@/stores/useGxStore.js'
 import { toList } from '@/utils/apiResponse'
+import {
+  normalizeFacilityStatus,
+  normalizeReservationType,
+  normalizeGxProgramStatus,
+} from '@/utils/normalize.js'
+import imgReadingroom from '@/assets/images/readingroom.png'
+import imgGolf from '@/assets/images/golf.png'
+import imgPT from '@/assets/images/PT.png'
+import imgGroupPT from '@/assets/images/Group PT.png'
+import imgPilates from '@/assets/images/pilates.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,7 +47,6 @@ const goToGxDetail = (programId) => {
 const isGx = (f) =>
   f.typeCode === 'GX' || (f.typeName && f.typeName.includes('GX'))
 
-// 편의 시설 탭: GX 타입 제외
 const filteredList = computed(() => state.list.filter((f) => !isGx(f)))
 
 const formatTime = (t) => (t ? t.slice(0, 5) : '-')
@@ -48,8 +57,12 @@ const formatFee = (fee) => {
   return `${Number(fee).toLocaleString('ko-KR')}원`
 }
 
-const reservationTypeLabel = (type) =>
-  ({ SEAT: '좌석형', COUNT: '정원형', APPROVAL: '승인형' }[type] || type || '-')
+const normFacilityStatus = (f) => normalizeFacilityStatus(f?.status, f?.isActive)
+
+const reservationTypeLabel = (type) => {
+  const n = normalizeReservationType(type)
+  return { SEAT: '좌석형', COUNT: '정원형', APPROVAL: '승인형' }[n] || type || '-'
+}
 
 const DAY_LABEL = {
   MONDAY: '월', TUESDAY: '화', WEDNESDAY: '수',
@@ -61,18 +74,29 @@ const formatDays = (days) => {
   return String(days)
 }
 
-const gxStatusLabel = (s) =>
-  ({ OPEN: '신청 가능', CLOSED: '마감', CANCELLED: '취소됨', ACTIVE: '진행 중', WAITING_REGISTRATION: '신청 가능', RECRUITING: '모집 중' }[s] || s || '')
+const gxDays = (p) => p.dayOfWeeks || p.daysOfWeek || null
 
-const gxStatusClass = (s) =>
-  ({
-    OPEN: 'is-open',
-    WAITING_REGISTRATION: 'is-open',
-    RECRUITING: 'is-open',
-    ACTIVE: 'is-active',
-    CLOSED: 'is-closed',
-    CANCELLED: 'is-cancelled',
-  }[s] || '')
+const gxStatusLabel = (s) => {
+  const n = normalizeGxProgramStatus(s)
+  return { RECRUITING: '모집 중', CLOSED: '마감', CANCELLED: '취소됨', ACTIVE: '진행 중' }[n] || s || ''
+}
+
+const gxStatusClass = (s) => {
+  const n = normalizeGxProgramStatus(s)
+  return { RECRUITING: 'is-open', CLOSED: 'is-closed', CANCELLED: 'is-cancelled', ACTIVE: 'is-active' }[n] || ''
+}
+
+// 이름 키워드 기반 이미지 매핑
+const getNameImage = (name) => {
+  if (!name) return null
+  const n = name.toLowerCase()
+  if (n.includes('독서') || n.includes('reading')) return imgReadingroom
+  if (n.includes('골프') || n.includes('golf')) return imgGolf
+  if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
+  if (n.includes('그룹') || n.includes('group')) return imgGroupPT
+  if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
+  return null
+}
 
 const fetchFacilities = async () => {
   state.loading = true
@@ -152,31 +176,53 @@ onMounted(() => {
         <button class="btn-retry" type="button" @click="fetchFacilities">다시 시도</button>
       </div>
 
-      <div v-else class="facility-list">
+      <div v-else class="card-list">
         <button
           v-for="f in filteredList"
           :key="f.facilityId ?? f.id"
-          class="facility-card"
-          :class="{ 'is-inactive': !f.isActive }"
+          class="item-card"
+          :class="{ 'is-inactive': normFacilityStatus(f) !== 'ACTIVE' }"
           type="button"
           @click="goToDetail(f.facilityId ?? f.id)"
         >
-          <div class="card-left">
-            <div class="card-type-badge">{{ f.typeName || '-' }}</div>
-            <div class="card-name">{{ f.name }}</div>
-            <div class="card-hours">
-              {{ formatTime(f.openTime) }} ~ {{ formatTime(f.closeTime) }}
-              <span class="card-reserve-type">{{ reservationTypeLabel(f.reservationType) }}</span>
+          <!-- 썸네일 -->
+          <div class="card-thumb">
+            <img
+              v-if="getNameImage(f.name)"
+              :src="getNameImage(f.name)"
+              :alt="f.name"
+              class="card-thumb-img"
+            />
+            <div v-else class="card-thumb-placeholder">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M3 9h18M9 21V9" />
+              </svg>
             </div>
           </div>
-          <div class="card-right">
-            <span :class="['status-badge', f.isActive ? 'is-active' : 'is-inactive']">
-              {{ f.isActive ? '운영 중' : '중단' }}
-            </span>
-            <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6" />
-            </svg>
+
+          <!-- 정보 -->
+          <div class="card-info">
+            <div class="card-info-top">
+              <span class="card-name">{{ f.name }}</span>
+              <span :class="['status-badge', normFacilityStatus(f) === 'ACTIVE' ? 'is-active' : 'is-inactive']">
+                {{ normFacilityStatus(f) === 'ACTIVE' ? '운영 중' : '중단' }}
+              </span>
+            </div>
+            <div class="card-hours">
+              {{ formatTime(f.openTime) }} ~ {{ formatTime(f.closeTime) }}
+            </div>
+            <div class="card-tags">
+              <span class="tag">{{ reservationTypeLabel(f.reservationType) }}</span>
+              <span v-if="f.capacity" class="tag">정원 {{ f.capacity }}명</span>
+              <span v-if="f.totalSeats" class="tag">좌석 {{ f.totalSeats }}개</span>
+            </div>
           </div>
+
+          <!-- 화살표 -->
+          <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
         </button>
 
         <div v-if="filteredList.length === 0" class="empty-area">
@@ -196,30 +242,52 @@ onMounted(() => {
         <button class="btn-retry" type="button" @click="fetchGxPrograms">다시 시도</button>
       </div>
 
-      <div v-else class="gx-list">
+      <div v-else class="card-list">
         <button
           v-for="p in state.gxList"
           :key="p.programId"
-          class="gx-card"
+          class="item-card"
           type="button"
           @click="goToGxDetail(p.programId)"
         >
-          <div class="gx-card-header">
-            <span class="gx-facility-badge">{{ p.facilityName || 'GX' }}</span>
-            <span :class="['gx-status-badge', gxStatusClass(p.status)]">{{ gxStatusLabel(p.status) }}</span>
+          <!-- 썸네일 -->
+          <div class="card-thumb">
+            <img
+              v-if="getNameImage(p.programName || p.name)"
+              :src="getNameImage(p.programName || p.name)"
+              :alt="p.programName || p.name"
+              class="card-thumb-img"
+            />
+            <div v-else class="card-thumb-placeholder gx-placeholder">
+              <span>GX</span>
+            </div>
           </div>
-          <div class="gx-card-name">{{ p.programName }}</div>
-          <div class="gx-card-meta">
-            <span>{{ formatDate(p.startDate) }} ~ {{ formatDate(p.endDate) }}</span>
-            <template v-if="p.dayOfWeeks && (Array.isArray(p.dayOfWeeks) ? p.dayOfWeeks.length : p.dayOfWeeks)">
-              <span class="gx-meta-dot">·</span>
-              <span>{{ formatDays(p.dayOfWeeks) }}</span>
-            </template>
+
+          <!-- 정보 -->
+          <div class="card-info">
+            <div class="card-info-top">
+              <span class="card-name">{{ p.programName || p.name }}</span>
+              <span :class="['gx-status-badge', gxStatusClass(p.status)]">
+                {{ gxStatusLabel(p.status) }}
+              </span>
+            </div>
+            <div class="card-hours">
+              {{ formatDate(p.startDate) }} ~ {{ formatDate(p.endDate) }}
+            </div>
+            <div class="card-tags">
+              <span v-if="gxDays(p)" class="tag">{{ formatDays(gxDays(p)) }}</span>
+              <span class="tag">{{ formatTime(p.startTime) }}~{{ formatTime(p.endTime) }}</span>
+              <span v-if="p.maxCount != null" class="tag">
+                {{ p.currentCount ?? p.confirmedCount ?? 0 }}/{{ p.maxCount }}명
+              </span>
+              <span v-else-if="p.baseFee != null" class="tag fee-tag">{{ formatFee(p.baseFee) }}</span>
+            </div>
           </div>
-          <div class="gx-card-bottom">
-            <span class="gx-card-time">{{ formatTime(p.startTime) }} ~ {{ formatTime(p.endTime) }}</span>
-            <span class="gx-card-fee">{{ formatFee(p.baseFee) }}</span>
-          </div>
+
+          <!-- 화살표 -->
+          <svg class="arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
         </button>
 
         <div v-if="state.gxList.length === 0" class="empty-area">
@@ -292,18 +360,19 @@ onMounted(() => {
   color: #4973e5;
 }
 
-/* 시설 목록 */
-.facility-list {
+/* 카드 목록 */
+.card-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.facility-card {
+/* 공통 카드 */
+.item-card {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 16px;
+  gap: 14px;
+  padding: 14px 14px 14px 14px;
   background: #ffffff;
   border-radius: 16px;
   border: none;
@@ -312,76 +381,113 @@ onMounted(() => {
   text-align: left;
   width: 100%;
   font-family: 'Noto Sans KR', sans-serif;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s, transform 0.1s;
 }
 
-.facility-card:active {
+.item-card:active {
   box-shadow: 0 1px 4px rgba(73, 115, 229, 0.1);
+  transform: scale(0.99);
 }
 
-.facility-card.is-inactive {
-  opacity: 0.65;
-  background: #f8f9fa;
+.item-card.is-inactive {
+  opacity: 0.6;
 }
 
-.card-left {
+/* 썸네일 */
+.card-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #eef3fb;
+}
+
+.card-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.card-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4973e5;
+  opacity: 0.45;
+}
+
+.card-thumb-placeholder.gx-placeholder {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+/* 정보 영역 */
+.card-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  flex: 1;
-  min-width: 0;
 }
 
-.card-type-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  background: #eef3fb;
-  color: #4973e5;
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 6px;
-  width: fit-content;
+.card-info-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 .card-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #1a202c;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 .card-hours {
   font-size: 12px;
-  color: #718096;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.card-reserve-type {
-  padding: 1px 6px;
-  background: #f1f5f9;
-  border-radius: 4px;
-  font-size: 11px;
   color: #94a3b8;
+  margin-top: 1px;
 }
 
-.card-right {
+.card-tags {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  flex-shrink: 0;
-  margin-left: 12px;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 3px;
 }
 
+.tag {
+  padding: 2px 7px;
+  background: #f1f5f9;
+  border-radius: 5px;
+  font-size: 11px;
+  color: #718096;
+  font-weight: 600;
+}
+
+.fee-tag {
+  background: #eef3fb;
+  color: #4973e5;
+}
+
+/* 시설 상태 뱃지 */
 .status-badge {
   font-size: 11px;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .status-badge.is-active {
@@ -394,58 +500,14 @@ onMounted(() => {
   color: #94a3b8;
 }
 
-.arrow-icon {
-  color: #cbd5e1;
-}
-
-/* GX 목록 */
-.gx-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.gx-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px;
-  background: #ffffff;
-  border-radius: 16px;
-  border: none;
-  box-shadow: 0 2px 10px rgba(73, 115, 229, 0.07);
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  font-family: 'Noto Sans KR', sans-serif;
-  transition: box-shadow 0.15s;
-}
-
-.gx-card:active {
-  box-shadow: 0 1px 4px rgba(73, 115, 229, 0.1);
-}
-
-.gx-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.gx-facility-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  background: #eef3fb;
-  color: #4973e5;
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 6px;
-}
-
+/* GX 상태 뱃지 */
 .gx-status-badge {
   font-size: 11px;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .gx-status-badge.is-open {
@@ -468,41 +530,10 @@ onMounted(() => {
   color: #e53e3e;
 }
 
-.gx-card-name {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1a202c;
-}
-
-.gx-card-meta {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #718096;
-}
-
-.gx-meta-dot {
+/* 화살표 */
+.arrow-icon {
   color: #cbd5e1;
-}
-
-.gx-card-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 2px;
-}
-
-.gx-card-time {
-  font-size: 13px;
-  font-weight: 600;
-  color: #4973e5;
-}
-
-.gx-card-fee {
-  font-size: 13px;
-  font-weight: 700;
-  color: #1a202c;
+  flex-shrink: 0;
 }
 
 /* 공통 상태 */

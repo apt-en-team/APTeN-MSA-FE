@@ -3,6 +3,7 @@ import { reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useReservationStore } from '@/stores/useReservationStore.js'
 import ResidentModal from '@/components/resident/ResidentModal.vue'
+import { normalizeReservationStatus } from '@/utils/normalize.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,17 +18,17 @@ const state = reactive({
 const cancelModal = reactive({ show: false })
 const resultModal = reactive({ show: false, success: false, message: '' })
 
-const isCancellable = computed(() => state.detail?.status === 'CONFIRMED')
+const isCancellable = computed(() => normalizeReservationStatus(state.detail?.status) === 'CONFIRMED')
 
 const goBack = () => {
   router.push(`/resident/${route.params.complexId}/reservations`)
 }
 
 const statusLabel = (s) =>
-  ({ CONFIRMED: '예약완료', COMPLETED: '이용완료', CANCELLED: '취소됨' }[s] || s || '-')
+  ({ CONFIRMED: '예약완료', COMPLETED: '이용완료', CANCELLED: '취소됨' }[normalizeReservationStatus(s)] || s || '-')
 
 const statusClass = (s) =>
-  ({ CONFIRMED: 'is-confirmed', COMPLETED: 'is-completed', CANCELLED: 'is-cancelled' }[s] || '')
+  ({ CONFIRMED: 'is-confirmed', COMPLETED: 'is-completed', CANCELLED: 'is-cancelled' }[normalizeReservationStatus(s)] || '')
 
 const formatDate = (d) => (d ? d.slice(0, 10).replace(/-/g, '.') : '-')
 const formatTime = (t) => (t ? t.slice(0, 5) : '-')
@@ -142,8 +143,8 @@ onMounted(() => {
           <circle cx="12" cy="12" r="10" />
           <path d="M12 8v4M12 16h.01" stroke-linecap="round" />
         </svg>
-        <span v-if="state.detail.status === 'COMPLETED'">이미 이용이 완료된 예약입니다.</span>
-        <span v-else-if="state.detail.status === 'CANCELLED'">이미 취소된 예약입니다.</span>
+        <span v-if="normalizeReservationStatus(state.detail.status) === 'COMPLETED'">이미 이용이 완료된 예약입니다.</span>
+        <span v-else-if="normalizeReservationStatus(state.detail.status) === 'CANCELLED'">이미 취소된 예약입니다.</span>
       </div>
     </template>
 
