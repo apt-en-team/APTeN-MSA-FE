@@ -386,7 +386,6 @@ onMounted(fetchFacilitiesAndPolicies)
           </div>
 
           <div class="button-row">
-            <button class="btn-secondary" type="button" @click="resetPolicyForm">초기화</button>
             <button class="btn-primary" type="button" :disabled="state.submitting" @click="submitPolicy">
               {{ state.submitting ? '저장 중' : '정책 저장' }}
             </button>
