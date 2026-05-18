@@ -259,6 +259,8 @@ async function handleCreateConfirm() {
       managerPhone: state.form.managerPhone,
       // 단지 등록 요청에 사용 기능 설정을 함께 전달한다.
       features: normalizeFeatures(state.form.features),
+      // 주차 운영 타입 enum name(NONE/BASIC/SENSOR) 전송
+      parkingType: state.form.parkingType,
     })
 
     const createdAt = new Date().toLocaleString('ko-KR', {

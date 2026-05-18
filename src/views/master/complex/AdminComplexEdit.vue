@@ -6,6 +6,7 @@ import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
 import ParkingTypeSelector from '@/components/admin/parking/ParkingTypeSelector.vue'
 import { DEFAULT_COMPLEX_FEATURES, FEATURE_CODES } from '@/constants/complexFeatures'
+import { codeToParkingTypeName } from '@/constants/parkingTypes'
 import { normalizeFeatures } from '@/utils/featureGate'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -171,13 +172,6 @@ function getCurrentTimeText() {
   })
 }
 
-// 백엔드 코드를 셀렉터 name으로 변환
-function codeToParkingTypeName(code) {
-  if (code === '02') return 'BASIC'
-  if (code === '03') return 'SENSOR'
-  return 'NONE'
-}
-
 // 선택된 단지 정보가 있으면 기본 폼 값을 먼저 채운다.
 function syncForm(detail) {
   state.form.name = detail?.name || ''
@@ -258,6 +252,8 @@ async function handleUpdateConfirm() {
       description: state.form.description,
       // 단지 수정 요청에 기능 사용 여부를 함께 전달한다.
       features: normalizeFeatures(state.form.features),
+      // 주차 운영 타입 enum name(NONE/BASIC/SENSOR) 전송
+      parkingType: state.form.parkingType,
     })
 
     openResultModal({

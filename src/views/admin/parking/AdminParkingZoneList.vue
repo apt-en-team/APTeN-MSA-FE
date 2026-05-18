@@ -1,6 +1,7 @@
 <script setup>
 // 관리자 주차 구역 관리 화면, BaseModal/ConfirmModal/ActionResultModal 표준 패턴을 따른다.
 import { computed, inject, onMounted, onUnmounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useParkingStore } from '@/stores/useParkingStore'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -13,7 +14,13 @@ import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const parkingStore = useParkingStore()
 const authStore = useAuthStore()
-const { parkingZones } = storeToRefs(parkingStore)
+const router = useRouter()
+const { parkingZones, parkingSetting } = storeToRefs(parkingStore)
+
+// 센서 관리 화면으로 이동
+const goToSensorList = (zoneId) => {
+  router.push({ path: '/admin/parking/sensors', query: { zoneId } })
+}
 
 // AdminLayout 헤더 액션 버튼에 등록 모달 열기 함수를 등록한다.
 const registerOpenModal = inject('registerOpenModal', null)
@@ -338,6 +345,8 @@ onMounted(() => {
     registerOpenModal(openCreateModal)
   }
   loadZones()
+  // 주차 운영 타입 조회, [센서 관리] 버튼 노출 여부 판별에 사용
+  parkingStore.fetchParkingSetting()
 })
 
 onUnmounted(() => {
@@ -374,6 +383,14 @@ onUnmounted(() => {
           <div class="action-cell">
             <template v-if="row.isActive">
               <button type="button" class="btn-action" @click.stop="openEditModal(row)">수정</button>
+              <button
+                v-if="parkingSetting?.parkingTypeCode === '03'"
+                type="button"
+                class="btn-action"
+                @click.stop="goToSensorList(row.zoneId)"
+              >
+                센서 관리
+              </button>
               <button
                 type="button"
                 class="btn-action btn-action--danger"
