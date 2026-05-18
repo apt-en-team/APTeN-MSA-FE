@@ -3,6 +3,7 @@
 // AdminParkingSetting의 옵션 카드 UI를 재사용 가능한 컴포넌트로 추출한 것이다.
 // NONE은 옵션 정의에는 포함되지만 사용자 노출 카드에서는 제외한다.
 import { computed } from 'vue'
+import { PARKING_TYPE_OPTIONS } from '@/constants/parkingTypes'
 import BaseBadge from '@/components/common/BaseBadge.vue'
 
 const props = defineProps({
@@ -21,36 +22,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue'])
-
-// 운영 타입 옵션 정의
-// name: 백엔드 enum 이름 (v-model 값으로 사용)
-// code: DB 저장 코드 (현재값 비교에 사용)
-const PARKING_TYPE_OPTIONS = [
-  {
-    name: 'NONE',
-    code: '01',
-    label: '미사용',
-    badgeVariant: 'neutral',
-    summary: '주차 시스템을 사용하지 않음',
-    description: '주차 구역, 입출차 기록, 주차 현황 화면이 모두 비활성화됩니다.',
-  },
-  {
-    name: 'BASIC',
-    code: '02',
-    label: '기본',
-    badgeVariant: 'info',
-    summary: '단지 전체 점유율 기준으로 관리',
-    description: '주차 구역과 입출차 기록을 관리하며, 전체 면수 대비 점유율을 집계해 표시합니다.',
-  },
-  {
-    name: 'SENSOR',
-    code: '03',
-    label: '센서',
-    badgeVariant: 'primary',
-    summary: '자리별 센서로 실시간 점유 관리',
-    description: '주차면 단위 실시간 점유 정보를 SSE로 받아 표시합니다. 더 정밀한 운영이 가능합니다.',
-  },
-]
 
 // 카드로 노출할 옵션 필터링 (NONE 제외)
 const visibleOptions = computed(() =>
