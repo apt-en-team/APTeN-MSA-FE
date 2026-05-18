@@ -7,8 +7,22 @@ import { FEATURE_CODES, DEFAULT_COMPLEX_FEATURES } from '@/constants/complexFeat
 import { isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
 import {getMyVehicles} from '@/api/vehicleApi'
 import {getMyReservations} from '@/api/reservationApi'
+import {getMyGxReservations} from '@/api/gxApi'
 import {getNotices} from '@/api/noticeApi'
 import {getVisitorVehicles} from '@/api/visitorVehicleApi'
+import { normalizeReservationStatus, normalizeGxReservationStatus } from '@/utils/normalize.js'
+import imgReadingroom from '@/assets/images/readingroom.png'
+import imgGolf from '@/assets/images/golf.png'
+import imgPT from '@/assets/images/PT.png'
+import imgGroupPT from '@/assets/images/Group PT.png'
+import imgPilates from '@/assets/images/pilates.png'
+import imgGX from '@/assets/images/GX.png'
+import imgSwimmingPool from '@/assets/images/SwimmingPool.png'
+import imgSauna from '@/assets/images/Sauna.png'
+import imgGuestHouse from '@/assets/images/GuestHouse.png'
+import imgLaundryRoom from '@/assets/images/LaundryRoom.png'
+import imgCafe from '@/assets/images/Cafe.png'
+import imgYoga from '@/assets/images/Yoga.png'
 
 const router = useRouter()
 const route = useRoute()
@@ -27,8 +41,9 @@ const complexName = computed(() => {
 const vehicleCount = ref(0)
 const maxVehicleCount = 2 // 최대 등록 가능 대수
 
-// 예약 현황 (이번 주 예약 건수)
-const reservationCount = ref(0)
+// 내 예약 현황 목록
+const myReservations = ref([])
+const myGxReservations = ref([])
 
 // 방문차량 현황 (승인 대기 건수)
 const pendingVisitorCount = ref(0)
@@ -38,9 +53,6 @@ const parkingUsageRate = ref(0)
 
 // 최근 공지사항 목록
 const notices = ref([])
-
-// 내 예약 현황 목록
-const myReservations = ref([])
 
 // 로딩 상태
 const loading = ref(true)
@@ -131,16 +143,76 @@ function formatDate(dateStr) {
   return `${yy}.${mm}.${dd}`
 }
 
+// 예약 카드 이미지 헬퍼
+function getGxDashboardImage(name) {
+  if (!name) return imgGX
+  const n = name.toLowerCase()
+  if (n.includes('요가') || n.includes('yoga')) return imgYoga
+  if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
+  if (n.includes('그룹') || n.includes('group')) return imgGroupPT
+  if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
+  return imgGX
+}
+
+function getFacilityDashboardImage(name) {
+  if (!name) return null
+  const n = name.toLowerCase()
+  if (n.includes('독서') || n.includes('reading')) return imgReadingroom
+  if (n.includes('골프') || n.includes('golf')) return imgGolf
+  if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
+  if (n.includes('그룹') || n.includes('group')) return imgGroupPT
+  if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
+  if (n.includes('gx') || n.includes('group exercise')) return imgGX
+  if (n.includes('수영') || n.includes('swimming') || n.includes('pool')) return imgSwimmingPool
+  if (n.includes('사우나') || n.includes('sauna')) return imgSauna
+  if (n.includes('게스트') || n.includes('guest')) return imgGuestHouse
+  if (n.includes('세탁') || n.includes('laundry')) return imgLaundryRoom
+  if (n.includes('카페') || n.includes('cafe') || n.includes('café')) return imgCafe
+  return null
+}
+
+// 이용예정 전체 목록 (종료 상태 제외, 정렬)
+const upcomingReservations = computed(() => {
+  const facilityItems = myReservations.value
+    .filter(r => {
+      const s = normalizeReservationStatus(r.status)
+      return s !== 'COMPLETED' && s !== 'CANCELLED'
+    })
+    .map(r => ({ ...r, _type: 'facility', _sortDate: r.reservationDate }))
+
+  const gxItems = myGxReservations.value
+    .filter(r => {
+      const s = normalizeGxReservationStatus(r.status)
+      return s === 'CONFIRMED' || s === 'WAITING'
+    })
+    .map(r => ({ ...r, _type: 'gx', _sortDate: r.startDate }))
+
+  const combined = [...facilityItems, ...gxItems]
+  combined.sort((a, b) => {
+    if (!a._sortDate) return 1
+    if (!b._sortDate) return -1
+    return String(a._sortDate).localeCompare(String(b._sortDate))
+  })
+  return combined
+})
+
+// 홈 표시용: 최대 4개
+const dashboardReservations = computed(() => upcomingReservations.value.slice(0, 4))
+
+// 예약현황 카운트는 화면 표시 개수가 아니라 이용예정 전체 개수
+const reservationCount = computed(() => upcomingReservations.value.length)
+
 // 홈 데이터 전체 로드
 async function loadHomeData() {
   loading.value = true
   try {
     // 병렬 요청으로 성능 최적화
-    const [vehicles, reservations, notices_res, visitors] = await Promise.allSettled([
+    const [vehicles, reservations, notices_res, visitors, gxRes] = await Promise.allSettled([
       getMyVehicles(),
-      getMyReservations({size: 2}),
+      getMyReservations({size: 10}),
       getNotices({size: 3}),
       getVisitorVehicles({status: 'PENDING', size: 1}),
+      getMyGxReservations(),
     ])
 
     // 차량 건수
@@ -154,7 +226,11 @@ async function loadHomeData() {
     if (reservations.status === 'fulfilled') {
       const data = reservations.value
       myReservations.value = Array.isArray(data) ? data : data?.content ?? []
-      reservationCount.value = data?.totalElements ?? myReservations.value.length
+    }
+
+    // GX 예약 현황
+    if (gxRes.status === 'fulfilled') {
+      myGxReservations.value = Array.isArray(gxRes.value) ? gxRes.value : []
     }
 
     // 최근 공지사항
@@ -252,26 +328,56 @@ onMounted(() => {
       </div>
 
       <!-- 예약 없을 때 -->
-      <p v-if="!loading && myReservations.length === 0" class="home__empty">
+      <p v-if="!loading && dashboardReservations.length === 0" class="home__empty">
         예약 내역이 없습니다.
       </p>
 
-      <!-- 예약 목록 -->
+      <!-- 예약 목록 (이용예정만, 최대 4개) -->
       <ul v-else class="reservation-list">
         <li
-          v-for="item in myReservations"
-          :key="item.reservationUid"
+          v-for="item in dashboardReservations"
+          :key="item._type === 'gx' ? `gx-${item.gxReservationId}` : `f-${item.reservationId ?? item.reservationUid}`"
           class="reservation-item"
-          @click="router.push(`/resident/${route.params.complexId}/reservations/${item.reservationId ?? item.reservationUid}`)"
+          @click="item._type === 'gx'
+            ? router.push(`/resident/${route.params.complexId}/facility/gx-programs/${item.programId}?from=reservations&gxReservationId=${item.gxReservationId}&status=${item.status}`)
+            : router.push(`/resident/${route.params.complexId}/reservations/${item.reservationId ?? item.reservationUid}`)"
         >
+          <!-- 썸네일 -->
+          <div class="reservation-item__thumb">
+            <img
+              v-if="item._type === 'gx' ? getGxDashboardImage(item.programName) : getFacilityDashboardImage(item.facilityName)"
+              :src="item._type === 'gx' ? getGxDashboardImage(item.programName) : getFacilityDashboardImage(item.facilityName)"
+              :alt="item._type === 'gx' ? item.programName : item.facilityName"
+              class="reservation-item__thumb-img"
+            />
+            <div v-else class="reservation-item__thumb-placeholder">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M3 9h18M9 21V9" />
+              </svg>
+            </div>
+          </div>
+          <!-- 정보 -->
           <div class="reservation-item__info">
-            <span class="reservation-item__name">{{ item.facilityName }}</span>
+            <span class="reservation-item__name">
+              <span v-if="item._type === 'gx'" class="reservation-item__gx-badge">GX</span>
+              {{ item._type === 'gx' ? item.programName : item.facilityName }}
+            </span>
             <span class="reservation-item__time">
-              {{ item.startTime }}~{{ item.endTime }} {{ formatDate(item.reservationDate) }}
+              <template v-if="item._type === 'gx'">
+                {{ formatDate(item.startDate) }} ~ {{ formatDate(item.endDate) }}
+              </template>
+              <template v-else>
+                {{ item.startTime }}~{{ item.endTime }} {{ formatDate(item.reservationDate) }}
+              </template>
             </span>
           </div>
-          <!-- 예약 상태 뱃지 -->
-          <span class="reservation-item__badge">예약중</span>
+          <!-- 상태 뱃지 -->
+          <span :class="['reservation-item__badge', item._type === 'gx' && normalizeGxReservationStatus(item.status) === 'WAITING' ? 'is-waiting' : '']">
+            {{ item._type === 'gx'
+              ? (normalizeGxReservationStatus(item.status) === 'WAITING' ? '대기 중' : '신청완료')
+              : '예약중' }}
+          </span>
         </li>
       </ul>
     </section>
@@ -484,7 +590,7 @@ onMounted(() => {
 .reservation-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-12);
   padding: var(--space-12) var(--space-16);
   background: var(--resident-bg-2);
   border-radius: var(--radius-12);
@@ -497,7 +603,35 @@ onMounted(() => {
   transform: scale(0.98);
 }
 
+.reservation-item__thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #eef3fb;
+}
+
+.reservation-item__thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.reservation-item__thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4973e5;
+  opacity: 0.4;
+}
+
 .reservation-item__info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -507,6 +641,22 @@ onMounted(() => {
   font-size: var(--font-size-body-sm);
   font-weight: 600;
   color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reservation-item__gx-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: #4973e5;
+  padding: 1px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .reservation-item__time {
@@ -522,5 +672,10 @@ onMounted(() => {
   padding: 3px 8px;
   border-radius: 20px;
   flex-shrink: 0;
+}
+
+.reservation-item__badge.is-waiting {
+  color: #c08b2d;
+  background: rgba(192, 139, 45, 0.12);
 }
 </style>

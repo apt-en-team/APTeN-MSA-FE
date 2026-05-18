@@ -64,21 +64,25 @@ const getNameImage = (name) => {
   return null
 }
 
+// FacilityTypeCode.getValue() 기준 매핑 (API 응답 typeCode = enum value = 한글 표시값)
 const TYPE_CODE_IMAGE = {
-  STUDY_ROOM: imgReadingroom,
-  GYM: imgPT,
-  GOLF: imgGolf,
+  독서실: imgReadingroom,
+  헬스장: imgPT,
+  골프연습장: imgGolf,
   GX: imgGX,
-  POOL: imgSwimmingPool,
-  SAUNA: imgSauna,
-  GUEST_HOUSE: imgGuestHouse,
-  LAUNDRY: imgLaundryRoom,
-  CAFE: imgCafe,
+  수영장: imgSwimmingPool,
+  사우나: imgSauna,
+  게스트하우스: imgGuestHouse,
+  세탁실: imgLaundryRoom,
+  카페: imgCafe,
 }
 
-// typeCode 우선, 없으면 시설명/타입명 키워드 기반으로 이미지 결정
+// typeCode 우선, 없거나 매핑 실패 시 시설명/타입명 키워드 기반으로 이미지 결정
 const getFacilityImage = (f) => {
-  if (f?.typeCode) return TYPE_CODE_IMAGE[String(f.typeCode).toUpperCase()] || null
+  if (f?.typeCode) {
+    const img = TYPE_CODE_IMAGE[String(f.typeCode)]
+    if (img) return img
+  }
   return getNameImage(f?.name) || getNameImage(f?.typeName)
 }
 

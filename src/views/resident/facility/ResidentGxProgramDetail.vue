@@ -62,8 +62,32 @@ const isMyStatusActive = computed(() => {
   return cur && cur !== 'CANCELLED' && cur !== 'REJECTED'
 })
 
+const fromReservations = computed(() => route.query.from === 'reservations')
+
+const reservationStatusDesc = (s) => ({
+  WAITING: '대기 중입니다.',
+  CONFIRMED: '예약이 확정되었습니다.',
+  CANCELLED: '취소된 예약입니다.',
+  REJECTED: '거절된 예약입니다.',
+}[s] || '')
+
+const backLabel = computed(() => {
+  if (route.query.from === 'reservations') return '내 예약'
+  return 'GX 프로그램'
+})
+
 const goBack = () => {
-  router.push(`/resident/${route.params.complexId}/facility`)
+  const complexId = route.params.complexId
+  if (route.query.from === 'reservations') {
+    router.push(`/resident/${complexId}/reservations`)
+    return
+  }
+  const facilityId = route.query.facilityId || state.detail?.facilityId
+  if (facilityId) {
+    router.push(`/resident/${complexId}/facility/${facilityId}/gx-programs`)
+  } else {
+    router.push(`/resident/${complexId}/facility`)
+  }
 }
 
 const formatTime = (t) => (t ? t.slice(0, 5) : '-')
@@ -164,7 +188,9 @@ const onApplyConfirm = async () => {
   } catch (e) {
     resultModal.success = false
     resultModal.message =
-      e?.response?.data?.resultMessage || '신청에 실패했습니다. 다시 시도해 주세요.'
+      e?.response?.data?.resultMessage ||
+      e?.response?.data?.message ||
+      '신청에 실패했습니다. 다시 시도해 주세요.'
   } finally {
     state.submitting = false
     resultModal.show = true
@@ -196,6 +222,12 @@ const onResultClose = () => {
 }
 
 onMounted(() => {
+  // 내 예약에서 진입한 경우 query 값으로 상태를 미리 설정해 "신청하기" 버튼이 잠시 노출되는 문제를 방지한다
+  if (route.query.from === 'reservations') {
+    if (route.query.gxReservationId) state.gxReservationId = route.query.gxReservationId
+    if (route.query.status) state.myStatus = route.query.status
+    if (route.query.waitNo) state.waitingOrder = Number(route.query.waitNo)
+  }
   fetchDetail()
 })
 </script>
@@ -207,7 +239,7 @@ onMounted(() => {
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M15 18l-6-6 6-6" />
       </svg>
-      <span>GX 강습</span>
+      <span>{{ backLabel }}</span>
     </button>
 
     <!-- 로딩 -->
@@ -281,14 +313,17 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 내 신청 현황 -->
-      <div v-if="isMyStatusActive" class="my-status-card">
+      <!-- 내 신청 현황 (내 예약에서 진입 또는 활성 상태가 있는 경우 표시) -->
+      <div v-if="activeMyStatus && (isMyStatusActive || fromReservations)" class="my-status-card">
         <div class="my-status-header">
           <span class="my-status-label">내 신청 현황</span>
           <span :class="['reservation-status-badge', reservationStatusClass(activeMyStatus)]">
             {{ reservationStatusLabel(activeMyStatus) }}
           </span>
         </div>
+        <p v-if="reservationStatusDesc(activeMyStatus)" class="my-status-desc">
+          {{ reservationStatusDesc(activeMyStatus) }}
+        </p>
         <template v-if="activeMyStatus === 'WAITING'">
           <div v-if="state.waitingLoading" class="waiting-loading">
             <span>순번 조회 중...</span>
@@ -621,6 +656,12 @@ onMounted(() => {
 .reservation-status-badge.is-rejected {
   background: #f1f5f9;
   color: #94a3b8;
+}
+
+.my-status-desc {
+  font-size: 13px;
+  color: #718096;
+  margin: 0;
 }
 
 .waiting-loading {
