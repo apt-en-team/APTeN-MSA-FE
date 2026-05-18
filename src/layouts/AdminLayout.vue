@@ -197,9 +197,6 @@ const canRegisterAdmin = computed(() => {
   return isAdminManagePage && allowedRole
 })
 
-<<<<<<< HEAD
-// 헤더 공통 버튼 노출 여부를 계산한다.
-=======
 // 입출차 기록 화면에서 기록 등록 버튼을 표시할지 판단한다.
 const canRegisterParkingLog = computed(() => route.path === '/admin/parking-logs')
 
@@ -209,19 +206,15 @@ const canRegisterParkingZone = computed(() => route.path === '/admin/parking/zon
 // 센서 관리 화면에서 센서 등록 버튼을 표시할지 판단한다.
 const canRegisterSensor = computed(() => route.path === '/admin/parking/sensors')
 
-// 경로별 액션 버튼은 현재 페이지와 권한 기준으로 계산한다.
->>>>>>> 708150c (feat(parking): 매니저 주차 구역 관리 및 센서 화면 추가)
+// 헤더 공통 버튼 노출 여부를 계산한다.
 const headerActions = computed(() => {
   return {
     showAlert: true,
     showComplexSelector: isMasterUser.value,
-<<<<<<< HEAD
-=======
     showAdminRegister: canRegisterAdmin.value,
     showParkingLogCreate: canRegisterParkingLog.value,
     showParkingZoneCreate: canRegisterParkingZone.value,
     showSensorCreate: canRegisterSensor.value,
->>>>>>> 708150c (feat(parking): 매니저 주차 구역 관리 및 센서 화면 추가)
   }
 })
 
@@ -471,7 +464,7 @@ watch(
           </button>
 
           <button
-            v-if="canRegisterAdmin"
+            v-if="headerActions.showAdminRegister"
             type="button"
             class="admin-layout__action-button"
             @click="handleActionClick"
@@ -516,7 +509,7 @@ watch(
           </button>
 
           <button
-            v-if="route.path === '/admin/parking-logs'"
+            v-if="headerActions.showParkingLogCreate"
             type="button"
             class="admin-layout__action-button"
             @click="handleActionClick"
@@ -534,7 +527,7 @@ watch(
           </button>
 
           <button
-            v-if="route.path === '/admin/parking/zones'"
+            v-if="headerActions.showParkingZoneCreate"
             type="button"
             class="admin-layout__action-button"
             @click="handleActionClick"
@@ -543,16 +536,20 @@ watch(
           </button>
 
           <button
-<<<<<<< HEAD
-            v-if="route.path === '/admin/notices'"
-=======
             v-if="headerActions.showSensorCreate"
->>>>>>> 708150c (feat(parking): 매니저 주차 구역 관리 및 센서 화면 추가)
             type="button"
             class="admin-layout__action-button"
             @click="handleActionClick"
           >
-<<<<<<< HEAD
+            + 센서 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/notices'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
             + 공지 등록
           </button>
 
@@ -599,9 +596,6 @@ watch(
             @click="goToFacilityStatus"
           >
             시설별 현황 →
-=======
-            + 센서 등록
->>>>>>> 708150c (feat(parking): 매니저 주차 구역 관리 및 센서 화면 추가)
           </button>
         </div>
       </header>
