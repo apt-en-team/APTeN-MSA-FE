@@ -59,6 +59,8 @@ export default defineConfig(({ mode }) => {
           navigateFallbackDenylist: [/^\/api/],
           // 정적 자원만 precache
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+          // 시설/GX 이미지 중 대용량(~2.5 MB)이 있어 precache 한도를 4 MiB로 설정
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           // 알림과 주차는 실시간성 때문에 캐싱 부적합. 추후 화면별로 추가.
           runtimeCaching: [],
         },

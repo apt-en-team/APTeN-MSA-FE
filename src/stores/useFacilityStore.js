@@ -1,5 +1,5 @@
 // 시설 상태를 관리하는 store입니다.
-import { defineStore } from 'pinia'
+import { acceptHMRUpdate, defineStore } from 'pinia'
 import facilityApi from '@/api/facilityApi'
 import { toList } from '@/utils/apiResponse'
 
@@ -19,6 +19,8 @@ export const useFacilityStore = defineStore('facility', {
     facilityPolicies: null,
     // 시설 차단 시간 상태
     facilityBlockTimes: [],
+    // 시설 좌석 목록 상태
+    facilitySeats: [],
   }),
   getters: {
     hasFacilityDetail: (state) => !!state.facilityDetail,
@@ -154,8 +156,6 @@ export const useFacilityStore = defineStore('facility', {
         const res = await facilityApi.getFacilityTypes(params)
         const rawTypes = Array.isArray(res?.data?.content) ? res.data.content : toList(res)
 
-        console.log('시설 타입 원본:', rawTypes)
-
         // 시설 타입 응답 정규화
         this.facilityTypes = rawTypes.map((type) => ({
           typeId: type.typeId ?? type.facilityTypeId ?? type.id,
@@ -165,48 +165,12 @@ export const useFacilityStore = defineStore('facility', {
           isActive: type.isActive,
         }))
 
-        console.log('정규화된 시설 타입:', this.facilityTypes)
-
         return this.facilityTypes
       } catch (e) {
         // 타입 목록 에러 저장
         console.error(e)
         this.error = e
         throw e
-      } finally {
-        this.loading = false
-      }
-    },
-
-    // 시설 타입 등록
-    async createFacilityType(body) {
-      // 타입 등록 요청
-      this.loading = true
-      this.error = null
-      try {
-        const res = await facilityApi.createFacilityType(body)
-        this.facilityTypes = res
-      } catch (e) {
-        // 타입 등록 에러 저장
-        console.error(e)
-        this.error = e
-      } finally {
-        this.loading = false
-      }
-    },
-
-    // 시설 타입 수정
-    async updateFacilityType(id, body) {
-      // 타입 수정 요청
-      this.loading = true
-      this.error = null
-      try {
-        const res = await facilityApi.updateFacilityType(id, body)
-        this.facilityTypes = res
-      } catch (e) {
-        // 타입 수정 에러 저장
-        console.error(e)
-        this.error = e
       } finally {
         this.loading = false
       }
@@ -226,6 +190,7 @@ export const useFacilityStore = defineStore('facility', {
         // 정책 조회 에러 저장
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -245,6 +210,7 @@ export const useFacilityStore = defineStore('facility', {
         // 정책 저장 에러 저장
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -264,6 +230,7 @@ export const useFacilityStore = defineStore('facility', {
         // 차단 시간 조회 에러 저장
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -288,18 +255,82 @@ export const useFacilityStore = defineStore('facility', {
       }
     },
 
+    // 관리자 시설 좌석 목록 조회
+    async fetchFacilitySeats(facilityId) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await facilityApi.getFacilitySeats(facilityId)
+        this.facilitySeats = toList(res)
+        return res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 시설 좌석 등록
+    async createFacilitySeat(facilityId, body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await facilityApi.createFacilitySeat(facilityId, body)
+        return res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 시설 좌석 일괄 등록
+    async bulkCreateFacilitySeats(facilityId, body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await facilityApi.bulkCreateFacilitySeats(facilityId, body)
+        return res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 시설 좌석 수정
+    async updateFacilitySeat(seatId, body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await facilityApi.updateFacilitySeat(seatId, body)
+        return res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
     // 입주민 시설 목록 조회
     async fetchFacilities(params) {
-      // 입주민 목록 조회 요청
       this.loading = true
       this.error = null
       try {
         const res = await facilityApi.getFacilities(params)
         this.facilities = res
+        return res
       } catch (e) {
-        // 입주민 목록 에러 저장
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -307,19 +338,37 @@ export const useFacilityStore = defineStore('facility', {
 
     // 입주민 시설 상세 조회
     async fetchFacilityDetail(id) {
-      // 입주민 상세 조회 요청
       this.loading = true
       this.error = null
       try {
         const res = await facilityApi.getFacilityDetail(id)
         this.facilityDetail = res
+        return res
       } catch (e) {
-        // 입주민 상세 에러 저장
-        console.error(e)
         this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 입주민 좌석 상태 조회
+    async fetchResidentSeatStatus(facilityId, params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await facilityApi.getResidentSeatStatus(facilityId, params)
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
       } finally {
         this.loading = false
       }
     },
   },
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useFacilityStore, import.meta.hot))
+}

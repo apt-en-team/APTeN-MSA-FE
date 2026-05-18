@@ -9,6 +9,7 @@ const route = useRoute();
 const router = useRouter();
 const facilityStore = useFacilityStore();
 
+// 라우트 파라미터에서 facilityId 추출 (등록/수정 모드 구분)
 const facilityId = computed(() => route.params.facilityId || route.params.id || "");
 const isEdit = computed(() => !!facilityId.value);
 
@@ -20,28 +21,34 @@ const reservationTypeOptions = [
 
 const normalizeReservationType = (value) => {
   const normalizedValue = String(value || "").trim();
-
   if (normalizedValue === "좌석형") return "SEAT";
   if (normalizedValue === "정원형") return "COUNT";
   if (normalizedValue === "승인형") return "APPROVAL";
-
   return normalizedValue || "COUNT";
 };
 
+// 활성 타입만 선택지에 노출
 const facilityTypeOptions = computed(() =>
   facilityStore.facilityTypes.filter((type) => type?.isActive !== false)
 );
 
+// 선택된 typeId에 해당하는 typeCode 도출 (GX 판별에 사용)
+const selectedTypeCode = computed(() => {
+  return facilityStore.facilityTypes.find(
+    (t) => String(t.typeId) === String(state.typeId)
+  )?.typeCode || "";
+});
+
+// GX 타입 여부 (typeCode 기반)
+const isGxType = computed(() => selectedTypeCode.value === "GX");
+const isSeatReservationType = computed(() => normalizeReservationType(state.reservationType) === "SEAT" && !isGxType.value);
 const state = reactive({
   typeId: "",
   name: "",
   description: "",
   reservationType: "COUNT",
-  maxCount: "",
   openTime: "09:00",
   closeTime: "22:00",
-  slotMin: 60,
-  baseFee: 0,
   isActive: true,
   createdAt: null,
   submitting: false,
@@ -49,12 +56,16 @@ const state = reactive({
   typeIdError: "",
   nameError: "",
   reservationTypeError: "",
-  maxCountError: "",
   openTimeError: "",
   closeTimeError: "",
-  slotMinError: "",
-  baseFeeError: "",
   serverError: "",
+
+  bulkSeatPrefix: "",
+  bulkSeatStartNo: "",
+  bulkSeatEndNo: "",
+  bulkSeatNamePattern: "{label} 좌석",
+  bulkSeatIsActive: true,
+  bulkSeatError: "",
 });
 
 const deleteModal = reactive({
@@ -76,6 +87,13 @@ const activeModal = reactive({
   resultSubtitle: "",
 });
 
+const submitResultModal = reactive({
+  show: false,
+  type: "success",
+  title: "",
+  subtitle: "",
+});
+
 const getTypeNameById = (typeId) =>
   facilityStore.facilityTypes.find((type) => String(type.typeId) === String(typeId))?.typeName || "";
 
@@ -86,24 +104,20 @@ const resetErrors = () => {
   state.typeIdError = "";
   state.nameError = "";
   state.reservationTypeError = "";
-  state.maxCountError = "";
   state.openTimeError = "";
   state.closeTimeError = "";
-  state.slotMinError = "";
-  state.baseFeeError = "";
   state.serverError = "";
+  state.bulkSeatError = "";
 };
 
+// 시설 상세 응답 데이터를 폼 state에 매핑 (필드명 차이 흡수)
 const syncForm = (data) => {
-  state.typeId = String(data.typeId ?? data.facilityTypeId ?? data.type?.id ?? '');
+  state.typeId = String(data.typeId ?? data.facilityTypeId ?? data.type?.id ?? "");
   state.name = data.name ?? "";
   state.description = data.description ?? "";
   state.reservationType = normalizeReservationType(data.reservationType);
-  state.maxCount = data.maxCount ?? data.maxCapacity ?? "";
   state.openTime = data.openTime?.slice(0, 5) ?? "09:00";
   state.closeTime = data.closeTime?.slice(0, 5) ?? "22:00";
-  state.slotMin = data.slotMin ?? data.slotDuration ?? 60;
-  state.baseFee = data.baseFee ?? data.price ?? 0;
   state.isActive = data.isActive ?? data.active ?? true;
   state.createdAt = data.createdAt ?? null;
 };
@@ -136,11 +150,6 @@ const validateForm = () => {
     return false;
   }
 
-  if (!state.maxCount) {
-    state.maxCountError = "최대 인원을 입력해주세요.";
-    return false;
-  }
-
   if (!state.openTime) {
     state.openTimeError = "운영 시작 시간을 입력해주세요.";
     return false;
@@ -151,8 +160,41 @@ const validateForm = () => {
     return false;
   }
 
-  if (!state.slotMin) {
-    state.slotMinError = "예약 단위를 입력해주세요.";
+  return true;
+};
+
+const hasBulkSeatInput = () =>
+  !!(
+    String(state.bulkSeatPrefix || "").trim() ||
+    state.bulkSeatStartNo ||
+    state.bulkSeatEndNo
+  );
+
+const validateBulkSeats = () => {
+  state.bulkSeatError = "";
+
+  if (!isSeatReservationType.value || !hasBulkSeatInput()) return true;
+
+  if (!String(state.bulkSeatPrefix || "").trim() || !state.bulkSeatStartNo || !state.bulkSeatEndNo) {
+    state.bulkSeatError = "접두어, 시작 번호, 끝 번호를 모두 입력해주세요.";
+    return false;
+  }
+
+  const startNo = Number(state.bulkSeatStartNo);
+  const endNo = Number(state.bulkSeatEndNo);
+
+  if (!Number.isInteger(startNo) || !Number.isInteger(endNo) || startNo < 1 || endNo < 1) {
+    state.bulkSeatError = "좌석 번호는 1 이상의 정수로 입력해주세요.";
+    return false;
+  }
+
+  if (startNo > endNo) {
+    state.bulkSeatError = "끝 번호는 시작 번호보다 크거나 같아야 합니다.";
+    return false;
+  }
+
+  if (endNo - startNo + 1 > 100) {
+    state.bulkSeatError = "좌석은 한 번에 최대 100개까지 등록할 수 있습니다.";
     return false;
   }
 
@@ -168,7 +210,6 @@ const handleSubmitError = (error) => {
   const fieldMap = {
     "시설 타입을 선택해주세요": "typeIdError",
     "시설명을 입력해주세요": "nameError",
-    "최대 인원을 입력해주세요": "maxCountError",
     "시설 타입을 찾을 수 없습니다": "typeIdError",
     "시설을 찾을 수 없습니다": "serverError",
   };
@@ -179,6 +220,7 @@ const handleSubmitError = (error) => {
 
 const handleSubmit = async () => {
   if (!validateForm()) return;
+  if (!validateBulkSeats()) return;
 
   try {
     state.submitting = true;
@@ -187,27 +229,61 @@ const handleSubmit = async () => {
       typeId: state.typeId,
       name: String(state.name).trim(),
       description: String(state.description || "").trim(),
-      reservationType: state.reservationType,
-      maxCount: Number(state.maxCount),
+      // GX는 APPROVAL 고정, SEAT/COUNT/APPROVAL 그대로 전송
+      reservationType: isGxType.value ? "APPROVAL" : state.reservationType,
       openTime: state.openTime,
       closeTime: state.closeTime,
-      slotMin: Number(state.slotMin),
-      baseFee: Number(state.baseFee || 0),
       isActive: !!state.isActive,
     };
 
     if (isEdit.value) {
       await facilityStore.updateFacility(facilityId.value, submitData);
+      router.push("/admin/facilities");
     } else {
-      await facilityStore.createFacility(submitData);
-    }
+      const created = await facilityStore.createFacility(submitData);
+      const createdFacilityId = created?.facilityId ?? created?.id;
 
-    router.push("/admin/facilities");
+      if (isSeatReservationType.value && hasBulkSeatInput()) {
+        try {
+          if (!createdFacilityId) {
+            throw new Error("생성된 시설 ID를 확인할 수 없습니다.");
+          }
+
+          await facilityStore.bulkCreateFacilitySeats(createdFacilityId, {
+            prefix: String(state.bulkSeatPrefix || "").trim(),
+            startNo: Number(state.bulkSeatStartNo),
+            endNo: Number(state.bulkSeatEndNo),
+            seatNamePattern: String(state.bulkSeatNamePattern || "{label} 좌석").trim(),
+            isActive: !!state.bulkSeatIsActive,
+          });
+
+          submitResultModal.type = "success";
+          submitResultModal.title = "시설과 좌석이 등록되었습니다.";
+          submitResultModal.subtitle = "좌석형 시설 예약 테스트를 바로 진행할 수 있습니다.";
+        } catch (bulkError) {
+          submitResultModal.type = "warning";
+          submitResultModal.title = "시설은 등록되었지만 좌석 일괄 등록에 실패했습니다.";
+          submitResultModal.subtitle =
+            bulkError.response?.data?.resultMessage ||
+            bulkError.response?.data?.message ||
+            bulkError.message ||
+            "상세 화면에서 좌석을 다시 등록해주세요.";
+        }
+        submitResultModal.show = true;
+      } else {
+        router.push("/admin/facilities");
+      }
+    }
   } catch (error) {
     handleSubmitError(error);
   } finally {
     state.submitting = false;
   }
+};
+
+const closeSubmitResult = () => {
+  submitResultModal.show = false;
+  router.push("/admin/facilities");
 };
 
 const openDeleteModal = () => {
@@ -356,66 +432,89 @@ onMounted(async () => {
           />
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">최대 인원 *</label>
-            <div class="input-suffix-wrap">
-              <input
-                v-model="state.maxCount"
-                class="form-input"
-                :class="{ 'input-error': state.maxCountError }"
-                type="number"
-                placeholder="예: 30"
-              />
-              <span class="input-suffix">명</span>
-            </div>
-            <span v-if="state.maxCountError" class="error-msg">{{
-              state.maxCountError
-            }}</span>
+        <div v-if="isGxType" class="form-group">
+          <div class="info-note">
+            GX 시설의 요금, 정원, 대기 허용 여부는 GX 프로그램에서 관리합니다.
           </div>
-          <div class="form-group">
-            <label class="form-label">예약 단위</label>
-            <div class="input-suffix-wrap">
-              <input
-                v-model="state.slotMin"
-                class="form-input"
-                :class="{ 'input-error': state.slotMinError }"
-                type="number"
-                placeholder="60"
-              />
-              <span class="input-suffix">분</span>
-            </div>
-            <span v-if="state.slotMinError" class="error-msg">{{ state.slotMinError }}</span>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">기본 이용료</label>
-          <div class="input-suffix-wrap">
-            <input
-              v-model="state.baseFee"
-              class="form-input"
-              :class="{ 'input-error': state.baseFeeError }"
-              type="number"
-              placeholder="0"
-            />
-            <span class="input-suffix">원</span>
-          </div>
-          <span v-if="state.baseFeeError" class="error-msg">{{ state.baseFeeError }}</span>
         </div>
 
         <div class="form-group">
           <label class="form-label">예약 방식 *</label>
-          <select
-            v-model="state.reservationType"
-            class="form-select"
-            :class="{ 'input-error': state.reservationTypeError }"
-          >
-            <option v-for="type in reservationTypeOptions" :key="type.value" :value="type.value">
-              {{ type.label }}
-            </option>
-          </select>
-          <span v-if="state.reservationTypeError" class="error-msg">{{ state.reservationTypeError }}</span>
+          <template v-if="!isGxType">
+            <select
+              v-model="state.reservationType"
+              class="form-select"
+              :class="{ 'input-error': state.reservationTypeError }"
+            >
+              <option v-for="type in reservationTypeOptions" :key="type.value" :value="type.value">
+                {{ type.label }}
+              </option>
+            </select>
+            <span v-if="state.reservationTypeError" class="error-msg">{{ state.reservationTypeError }}</span>
+          </template>
+          <template v-else>
+            <div class="info-note">GX 시설은 승인형(APPROVAL)으로 고정됩니다.</div>
+          </template>
+        </div>
+
+        <div v-if="!isEdit && isSeatReservationType" class="bulk-seat-box">
+          <div class="bulk-seat-box__header">
+            <div>
+              <h3 class="bulk-seat-box__title">좌석 일괄 등록</h3>
+              <p class="bulk-seat-box__desc">
+                선택사항입니다. 접두어와 번호 범위를 입력하면 시설 생성 후 좌석을 자동 생성합니다.
+              </p>
+            </div>
+            <label class="bulk-seat-box__toggle">
+              <input v-model="state.bulkSeatIsActive" type="checkbox" />
+              <span>활성</span>
+            </label>
+          </div>
+
+          <div class="form-row bulk-seat-box__row">
+            <div class="form-group">
+              <label class="form-label">접두어</label>
+              <input
+                v-model="state.bulkSeatPrefix"
+                class="form-input"
+                placeholder="예: W"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">시작 번호</label>
+              <input
+                v-model="state.bulkSeatStartNo"
+                class="form-input"
+                type="number"
+                min="1"
+                placeholder="예: 1"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">끝 번호</label>
+              <input
+                v-model="state.bulkSeatEndNo"
+                class="form-input"
+                type="number"
+                min="1"
+                placeholder="예: 12"
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">좌석명 형식</label>
+            <input
+              v-model="state.bulkSeatNamePattern"
+              class="form-input"
+              placeholder="{label} 좌석"
+            />
+          </div>
+
+          <p class="bulk-seat-box__guide">
+            예: W, 1~12 입력 시 W-1 좌석부터 W-12 좌석까지 자동 생성됩니다.
+          </p>
+          <p v-if="state.bulkSeatError" class="error-msg">{{ state.bulkSeatError }}</p>
         </div>
 
         <div class="form-row">
@@ -512,12 +611,6 @@ onMounted(async () => {
                 <span>예약 방식</span><span>{{ getReservationTypeLabel(state.reservationType) }}</span>
               </div>
               <div class="preview-row">
-                <span>최대 인원</span><span>{{ state.maxCount || "-" }}명</span>
-              </div>
-              <div class="preview-row">
-                <span>예약 단위</span><span>{{ state.slotMin }}분</span>
-              </div>
-              <div class="preview-row">
                 <span>운영 시간</span
                 ><span>{{ state.openTime }} ~ {{ state.closeTime }}</span>
               </div>
@@ -525,12 +618,6 @@ onMounted(async () => {
                 <span>등록일</span
                 ><span>{{
                   state.createdAt ? state.createdAt.slice(0, 10).replace(/-/g, ".") : "-"
-                }}</span>
-              </div>
-              <div class="preview-row">
-                <span>기본 이용료</span
-                ><span>{{
-                  state.baseFee > 0 ? Number(state.baseFee).toLocaleString() + "원" : "무료"
                 }}</span>
               </div>
             </div>
@@ -544,14 +631,13 @@ onMounted(async () => {
             <template v-if="!isEdit">
               <li>등록 즉시 시설 목록에 반영됩니다.</li>
               <li>운영 시간은 HH:MM 형식으로 입력하세요.</li>
-              <li>예약 단위는 분 기준으로 설정됩니다.</li>
               <li>운영 여부는 언제든지 변경 가능합니다.</li>
-              <li>시설 공간 정보만 등록하며 프로그램 운영 정보는 포함하지 않습니다.</li>
+              <li>요금, 정원, 예약 단위는 시설 정책 또는 GX 프로그램에서 관리합니다.</li>
             </template>
             <template v-else>
               <li>수정 내용은 즉시 시설 정보에 반영됩니다.</li>
               <li>운영 시간 변경 시 예약 가능 시간에 영향을 줄 수 있습니다.</li>
-              <li>정원 변경 시 이후 예약 가능 인원에 반영됩니다.</li>
+              <li>요금, 정원, 예약 단위는 이 화면에서 수정하지 않습니다.</li>
               <li>이미 생성된 예약은 자동으로 취소되지 않습니다.</li>
             </template>
           </ul>
@@ -559,7 +645,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- ✅ 1단계: 삭제 확인 → ConfirmModal -->
+    <!-- 1단계: 삭제 확인 → ConfirmModal -->
     <ConfirmModal
       :visible="deleteModal.show && deleteModal.stage === 'confirm'"
       title="시설을 삭제하시겠습니까?"
@@ -567,10 +653,8 @@ onMounted(async () => {
       subtitle-color="#e53e3e"
       item-label="시설명"
       action-text="운영 시간"
-      extra-label="최대 인원"
       :item-name="state.name"
       :action-label="`${state.openTime} ~ ${state.closeTime}`"
-      :extra-value="`${state.maxCount}명`"
       confirm-text="삭제"
       confirm-type="danger"
       :loading="deleteModal.loading"
@@ -578,7 +662,7 @@ onMounted(async () => {
       @cancel="closeDeleteConfirm"
     />
 
-    <!-- ✅ 2단계: 삭제 결과 → ActionResultModal -->
+    <!-- 2단계: 삭제 결과 → ActionResultModal -->
     <ActionResultModal
       :visible="deleteModal.show && deleteModal.stage === 'result'"
       :type="deleteModal.resultType"
@@ -615,6 +699,15 @@ onMounted(async () => {
       confirm-text="확인"
       @close="closeActiveResult"
     />
+
+    <ActionResultModal
+      :visible="submitResultModal.show"
+      :type="submitResultModal.type"
+      :title="submitResultModal.title"
+      :subtitle="submitResultModal.subtitle"
+      confirm-text="확인"
+      @close="closeSubmitResult"
+    />
   </div>
 </template>
 
@@ -624,6 +717,63 @@ onMounted(async () => {
   margin: 0;
   padding: 0;
 }
+
+.info-note {
+  padding: 10px 14px;
+  background: #f0f4ff;
+  border: 1px solid #c3d0f0;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #2b3a55;
+}
+
+.bulk-seat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.bulk-seat-box__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bulk-seat-box__title {
+  margin: 0 0 4px;
+  color: #1a202c;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.bulk-seat-box__desc,
+.bulk-seat-box__guide {
+  margin: 0;
+  color: #687282;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bulk-seat-box__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #4a5568;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bulk-seat-box__row {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
 .facility-form-view {
   font-family: "Noto Sans KR", sans-serif;
   color: #333;
@@ -733,6 +883,12 @@ input[type="number"] {
   font-size: 11px;
   color: #e53e3e;
   margin-top: 2px;
+}
+.field-hint {
+  margin: 5px 0 0;
+  color: #7b8ea8;
+  font-size: 11px;
+  line-height: 1.5;
 }
 .input-error {
   border-color: #e53e3e !important;

@@ -55,15 +55,16 @@ export const getFacilityTypes = async (params) => {
 //   return unwrapApiData(res)
 // }
 
-// API-610 시설 예약 정책 설정
+// API-610 시설 예약 정책 설정 (facilityId 기준)
 export const saveFacilityPolicy = async (body) => {
   const res = await apiClient.put('/api/admin/facility-policies', body)
   return unwrapApiData(res)
 }
 
-// API-611 시설 예약 정책 조회
+// API-611 시설 예약 정책 조회 (facilityId 기준)
 export const getFacilityPolicies = async (params) => {
-  const res = await apiClient.get('/api/admin/facility-policies', { params })
+  const query = typeof params === 'string' || typeof params === 'number' ? { facilityId: params } : params
+  const res = await apiClient.get('/api/admin/facility-policies', { params: query })
   return unwrapApiData(res)
 }
 
@@ -82,6 +83,12 @@ export const getFacilityBlockTimes = async (facilityId, params) => {
 // 시설 좌석 등록
 export const createFacilitySeat = async (facilityId, body) => {
   const res = await apiClient.post(`/api/admin/facilities/${facilityId}/seats`, body)
+  return unwrapApiData(res)
+}
+
+// 시설 좌석 일괄 등록
+export const bulkCreateFacilitySeats = async (facilityId, body) => {
+  const res = await apiClient.post(`/api/admin/facilities/${facilityId}/seats/bulk`, body)
   return unwrapApiData(res)
 }
 
@@ -106,6 +113,12 @@ export const getFacilities = async (params) => {
 // 입주민 시설 상세 조회
 export const getFacilityDetail = async (facilityId) => {
   const res = await apiClient.get(`/api/facilities/${facilityId}`)
+  return unwrapApiData(res)
+}
+
+// 입주민 좌석 상태 조회
+export const getResidentSeatStatus = async (facilityId, params) => {
+  const res = await apiClient.get(`/api/facilities/${facilityId}/seat-status`, { params })
   return unwrapApiData(res)
 }
 
@@ -140,10 +153,12 @@ export default {
   createFacilityBlockTime,
   getFacilityBlockTimes,
   createFacilitySeat,
+  bulkCreateFacilitySeats,
   getFacilitySeats,
   updateFacilitySeat,
   getFacilities,
   getFacilityDetail,
+  getResidentSeatStatus,
   getFacilityUsageStatus,
   getFacilitySeatStatus,
   getFacilityCountStatus,

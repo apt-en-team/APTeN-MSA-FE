@@ -1,5 +1,5 @@
 // 예약 상태를 관리하는 store입니다.
-import { defineStore } from 'pinia'
+import { acceptHMRUpdate, defineStore } from 'pinia'
 import reservationApi from '@/api/reservationApi'
 
 export const useReservationStore = defineStore('reservation', {
@@ -23,9 +23,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.getAvailableTimes(params)
         this.availableTimes = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -38,9 +39,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.holdSeat(body)
         this.seatHold = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -53,9 +55,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.createReservation(body)
         this.reservationDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -68,9 +71,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.getMyReservations(params)
         this.myReservations = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -83,9 +87,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.getMyReservationDetail(id)
         this.reservationDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -98,9 +103,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.cancelMyReservation(id)
         this.reservationDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -113,9 +119,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.getAdminReservations(params)
         this.adminReservations = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -128,9 +135,10 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.getAdminReservationDetail(id)
         this.reservationDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -143,12 +151,17 @@ export const useReservationStore = defineStore('reservation', {
       try {
         const res = await reservationApi.cancelAdminReservation(id, body)
         this.reservationDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
     },
   },
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useReservationStore, import.meta.hot))
+}

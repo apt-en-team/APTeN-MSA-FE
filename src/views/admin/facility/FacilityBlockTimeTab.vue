@@ -1,25 +1,21 @@
 <script setup>
-import { computed, onMounted, reactive } from 'vue'
+import { inject, onMounted, onUnmounted, reactive } from 'vue'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import { toList } from '@/utils/apiResponse'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
+import FacilityBlockTimeForm from '@/components/admin/facility/FacilityBlockTimeForm.vue'
 
 const facilityStore = useFacilityStore()
+const registerOpenModal = inject('registerOpenModal', () => {})
 
-// 차단 시간 탭 상태
 const state = reactive({
   facilities: [],
   blockTimes: [],
   facilityId: '',
   fromDate: '',
   toDate: '',
-  blockDate: '',
-  fullDay: false,
-  startTime: '09:00',
-  endTime: '18:00',
-  reason: '',
+  mode: 'list',
   loading: false,
-  submitting: false,
   errorMessage: '',
 })
 
@@ -31,22 +27,12 @@ const resultModal = reactive({
   subtitle: '',
 })
 
-const selectedFacility = computed(() => {
-  return state.facilities.find((facility) => String(facility.facilityId) === String(state.facilityId)) || null
-})
-
 // 페이지 응답 시설 목록 정리
 const normalizeFacilities = (response) => {
   if (Array.isArray(response)) return response
   if (Array.isArray(response?.content)) return response.content
   if (Array.isArray(response?.data?.content)) return response.data.content
   return []
-}
-
-// 시간 포맷 정리
-const toSecondTime = (time) => {
-  if (!time) return null
-  return time.length === 5 ? `${time}:00` : time
 }
 
 // 결과 모달 표시
@@ -114,7 +100,6 @@ const fetchBlockTimes = async () => {
   }
 }
 
-// 시설 선택 변경
 const changeFacility = () => {
   fetchBlockTimes()
 }
@@ -126,77 +111,46 @@ const resetSearch = () => {
   fetchBlockTimes()
 }
 
-// 등록 폼 초기화
-const resetForm = () => {
-  state.blockDate = ''
-  state.fullDay = false
-  state.startTime = '09:00'
-  state.endTime = '18:00'
-  state.reason = ''
+const openCreateForm = () => {
+  state.mode = 'create'
 }
 
-// 차단 시간 등록
-const submitBlockTime = async () => {
-  if (!state.facilityId) {
-    state.errorMessage = '시설을 선택해주세요.'
-    return
-  }
+const closeCreateForm = () => {
+  state.mode = 'list'
+}
 
-  if (!state.blockDate) {
-    state.errorMessage = '차단일을 선택해주세요.'
-    return
-  }
-
-  state.submitting = true
-  state.errorMessage = ''
-
-  const payload = {
-    blockDate: state.blockDate,
-    startTime: state.fullDay ? null : toSecondTime(state.startTime),
-    endTime: state.fullDay ? null : toSecondTime(state.endTime),
-    reason: String(state.reason || '').trim(),
-  }
-
-  try {
-    await facilityStore.createFacilityBlockTime(state.facilityId, payload)
-    await fetchBlockTimes()
-    resetForm()
-    openResultModal('success', '차단 시간이 등록되었습니다.', `${selectedFacility.value?.name || '선택 시설'} 예약 차단 시간을 반영했습니다.`)
-  } catch (error) {
-    console.error('차단 시간 등록 실패:', error)
-    openResultModal(
-      'danger',
-      '차단 시간 등록에 실패했습니다.',
-      error.response?.data?.resultMessage ||
-        error.response?.data?.message ||
-        '잠시 후 다시 시도해주세요.',
-    )
-  } finally {
-    state.submitting = false
-  }
+const handleBlockTimeSaved = async (facilityName) => {
+  state.mode = 'list'
+  await fetchBlockTimes()
+  openResultModal('success', '차단 시간이 등록되었습니다.', `${facilityName} 예약 차단 시간을 반영했습니다.`)
 }
 
 onMounted(async () => {
+  registerOpenModal(openCreateForm)
   await fetchFacilities()
   await fetchBlockTimes()
+})
+
+onUnmounted(() => {
+  registerOpenModal(null)
 })
 </script>
 
 <template>
   <section class="block-time-tab">
-    <div class="tab-grid">
-      <article class="panel">
-        <div class="panel-header">
-          <div>
-            <h3>차단 시간 등록</h3>
-            <p>시설 점검, 행사, 대관 등 예약을 막아야 하는 시간을 등록합니다.</p>
-          </div>
-          <button class="btn-secondary" type="button" @click="fetchBlockTimes">목록 조회</button>
-        </div>
+    <FacilityBlockTimeForm
+      v-if="state.mode === 'create'"
+      :facilities="state.facilities"
+      :initial-facility-id="state.facilityId"
+      @saved="handleBlockTimeSaved"
+      @cancel="closeCreateForm"
+    />
 
+    <div v-else class="tab-grid">
+      <article class="panel">
         <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
 
-        <div class="form-grid">
+        <div class="search-row">
           <label class="form-field form-field--wide">
             <span>시설 선택</span>
             <select v-model="state.facilityId" @change="changeFacility">
@@ -207,49 +161,6 @@ onMounted(async () => {
             </select>
           </label>
 
-          <label class="form-field">
-            <span>차단일</span>
-            <input v-model="state.blockDate" type="date" />
-          </label>
-
-          <label class="check-row">
-            <input v-model="state.fullDay" type="checkbox" />
-            <span>전체 차단</span>
-          </label>
-
-          <label class="form-field">
-            <span>시작 시간</span>
-            <input v-model="state.startTime" type="time" :disabled="state.fullDay" />
-          </label>
-
-          <label class="form-field">
-            <span>종료 시간</span>
-            <input v-model="state.endTime" type="time" :disabled="state.fullDay" />
-          </label>
-
-          <label class="form-field form-field--wide">
-            <span>차단 사유</span>
-            <input v-model="state.reason" type="text" placeholder="예: 정기 점검" />
-          </label>
-        </div>
-
-        <div class="button-row">
-          <button class="btn-secondary" type="button" @click="resetForm">초기화</button>
-          <button class="btn-primary" type="button" :disabled="state.submitting" @click="submitBlockTime">
-            {{ state.submitting ? '등록 중' : '차단 시간 등록' }}
-          </button>
-        </div>
-      </article>
-
-      <article class="panel">
-        <div class="panel-header">
-          <div>
-            <h3>차단 시간 목록</h3>
-            <p>선택한 시설의 차단 시간을 기간 조건으로 조회합니다.</p>
-          </div>
-        </div>
-
-        <div class="search-row">
           <label class="form-field">
             <span>시작일</span>
             <input v-model="state.fromDate" type="date" />
@@ -270,9 +181,14 @@ onMounted(async () => {
               <strong>{{ item.blockDate }}</strong>
               <p>{{ item.reason || '차단 사유 없음' }}</p>
             </div>
-            <span>
-              {{ item.startTime && item.endTime ? `${item.startTime} ~ ${item.endTime}` : '전체 차단' }}
-            </span>
+            <div class="block-card-meta">
+              <span class="block-scope">
+                {{ item.seatId ? `좌석 ${item.seatNo || item.seatId}번 차단` : '전체 차단' }}
+              </span>
+              <span>
+                {{ item.startTime && item.endTime ? `${item.startTime} ~ ${item.endTime}` : '종일' }}
+              </span>
+            </div>
           </div>
           <div v-if="state.blockTimes.length === 0" class="empty-box">
             조회된 차단 시간이 없습니다.
@@ -297,11 +213,6 @@ onMounted(async () => {
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-.tab-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 18px;
-}
 
 .panel {
   border: 1px solid #e2e8f0;
@@ -330,10 +241,9 @@ onMounted(async () => {
   color: #687282;
 }
 
-.form-grid,
 .search-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(220px, 1.3fr) repeat(2, minmax(160px, 1fr)) auto;
   gap: 14px;
 }
 
@@ -364,25 +274,10 @@ onMounted(async () => {
   color: #a0aec0;
 }
 
-.check-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  color: #2b3a55;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.button-row,
 .search-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.button-row {
-  margin-top: 20px;
 }
 
 .search-actions {
@@ -444,11 +339,23 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-.block-card span {
+.block-card-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+.block-card-meta span {
   color: #2b3a55;
   font-size: 12px;
   font-weight: 800;
+}
+
+.block-scope {
+  color: #7b8ea8 !important;
+  font-weight: 600 !important;
 }
 
 .empty-box,
@@ -471,8 +378,6 @@ onMounted(async () => {
 }
 
 @media (max-width: 960px) {
-  .tab-grid,
-  .form-grid,
   .search-row {
     grid-template-columns: 1fr;
   }

@@ -1,32 +1,58 @@
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, computed, inject } from "vue";
+import { onMounted, reactive, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useFacilityStore } from "@/stores/useFacilityStore.js";
 
-import StatsCards from "@/components/admin/StatsCards.vue";
-import FilterBar from "@/components/admin/AdminFilterBar.vue";
 import BaseModal from "@/components/common/BaseModal.vue";
-import Pagination from "@/components/common/AppPagination.vue";
-import ConfirmModal from "@/components/common/ConfirmModal.vue";
 import ActionResultModal from "@/components/common/ActionResultModal.vue";
+import Pagination from "@/components/common/AppPagination.vue";
+import { toList } from "@/utils/apiResponse";
+
+const props = defineProps({
+  facilities: {
+    type: Array,
+    default: null,
+  },
+});
 
 const router = useRouter();
 const facilityStore = useFacilityStore();
-const registerOpenModal = inject("registerOpenModal", null);
 
-// 시설 목록 화면 상태
+// 목록 및 페이지 상태
 const state = reactive({
   list: [],
-  filterStatus: "",
-  filterSlot: "",
-  searchQuery: "",
   currentPage: 1,
   pageSize: 8,
-  submitting: false,
+  errorMessage: "",
 });
 
-// 상세 모달 상태
+// 상세 모달 상태 — visible prop 방식으로 관리
 const detailModal = reactive({ show: false, facility: null });
+
+// 좌석 관리는 SEAT 시설 상세 모달 안에서만 노출
+const seatState = reactive({
+  list: [],
+  loading: false,
+  errorMessage: "",
+});
+
+const seatFormModal = reactive({
+  show: false,
+  mode: "create",
+  loading: false,
+  errorMessage: "",
+  seatId: "",
+  seatNo: "",
+  seatName: "",
+  isActive: true,
+});
+
+const resultModal = reactive({
+  show: false,
+  type: "success",
+  title: "",
+  subtitle: "",
+});
 
 // API 응답 데이터 정규화
 const normalizeFacilities = (response) => {
@@ -37,104 +63,48 @@ const normalizeFacilities = (response) => {
 };
 
 // 시설 카드 데이터 구성
+const sourceList = computed(() => props.facilities ?? state.list);
+
 const facilityList = computed(() =>
-  state.list.map((f) => ({
+  sourceList.value.map((f) => ({
     ...f,
     facilityId: f.facilityId ?? f.facilityUid ?? f.id,
     typeId: f.typeId ?? f.facilityTypeId ?? f.type?.id,
     typeName: f.typeName ?? f.type?.name ?? "-",
-    maxCount: f.maxCount ?? f.maxCapacity ?? 0,
-    slotMin: f.slotMin ?? f.slotDuration ?? 0,
-    todayReserved: f.todayReserved ?? 0,
+    reservationType: normalizeReservationType(f.reservationType),
   }))
 );
 
-// 통계 카드 데이터
-const activeCount = computed(() => facilityList.value.filter((f) => f.isActive).length);
-const inactiveCount = computed(() => facilityList.value.filter((f) => f.isActive === false).length);
-
-const statsCards = computed(() => [
-  {
-    label: "전체 시설",
-    value: facilityList.value.length,
-    unit: "개",
-    desc: `운영 중 ${activeCount.value}개`,
-  },
-  {
-    label: "운영 중",
-    value: activeCount.value,
-    unit: "개",
-    desc: "예약 가능",
-    descClass: "success",
-  },
-  {
-    label: "운영 중단",
-    value: inactiveCount.value,
-    unit: "개",
-    desc: "비활성 상태",
-    descClass: "warning",
-  },
-  {
-    label: "좌석형",
-    value: facilityList.value.filter((f) => f.reservationType === "SEAT").length,
-    unit: "개",
-    desc: "좌석 단위 예약",
-  },
-]);
-
 // 운영 상태 표시
-const statusLabel = (f) => (f?.isActive ? "운영 중" : "중단");
+const statusLabel = (f) => (f?.isActive ? "운영 중" : "운영 중단");
 const statusClass = (f) => (f?.isActive ? "active" : "inactive");
 
 // 시간 표시
 const formatTime = (t) => (t ? t.slice(0, 5) : "-");
 
-// 예약 방식 표시
+const normalizeReservationType = (type) => {
+  const value = String(type || "").trim();
+  if (value === "좌석형") return "SEAT";
+  if (value === "정원형") return "COUNT";
+  if (value === "승인형") return "APPROVAL";
+  return value;
+};
+
+const isSeatFacility = (facility) =>
+  normalizeReservationType(facility?.reservationType) === "SEAT";
+
+// 예약 방식 한글 표시
 const reservationTypeLabel = (type) => {
-  return {
-    SEAT: "좌석형",
-    COUNT: "정원형",
-    APPROVAL: "승인형",
-  }[type] || type || "-";
+  return { SEAT: "좌석형", COUNT: "정원형", APPROVAL: "승인형" }[type] || type || "-";
 };
 
-// 예약 비율 계산
-const getReservedRatio = (f) => {
-  if (!f.isActive || !f.maxCount) return 0;
-  return Math.min(Math.round(((f.todayReserved ?? 0) / f.maxCount) * 100), 100);
-};
+const seatStatusLabel = (isActive) => (isActive ? "활성" : "비활성");
+const seatStatusClass = (isActive) => (isActive ? "active" : "inactive");
 
-// 예약 비율 색상
-const getBarColor = (ratio) => {
-  if (ratio >= 80) return "#E53E3E";
-  if (ratio >= 40) return "#ED8936";
-  return "#48BB78";
-};
+// 필터 없이 전체 목록 반환 (추후 필터 추가 가능)
+const filteredList = computed(() => facilityList.value);
 
-// 잔여 비율 색상
-const getRemainingColor = (ratio) => {
-  if (ratio >= 80) return "#FED7D7";
-  if (ratio >= 50) return "#FEEBC8";
-  return "#C6F6D5";
-};
-
-// 필터 조건 적용
-const filteredList = computed(() =>
-  facilityList.value.filter((f) => {
-    const matchStatus =
-      !state.filterStatus ||
-      (state.filterStatus === "active" && f.isActive) ||
-      (state.filterStatus === "inactive" && !f.isActive);
-    const matchSlot = !state.filterSlot || String(f.slotMin) === state.filterSlot;
-    const matchSearch =
-      !state.searchQuery ||
-      f.name?.includes(state.searchQuery) ||
-      f.typeName?.includes(state.searchQuery);
-    return matchStatus && matchSlot && matchSearch;
-  })
-);
-
-// 페이지 목록 계산
+// 현재 페이지에 표시할 슬라이스
 const pagedList = computed(() => {
   const start = (state.currentPage - 1) * state.pageSize;
   return filteredList.value.slice(start, start + state.pageSize);
@@ -144,129 +114,167 @@ const maxPage = computed(
   () => Math.ceil(filteredList.value.length / state.pageSize) || 1
 );
 
-// 시설 목록 조회
+// 시설 목록 API 조회 후 정규화하여 state에 저장
 const fetchAll = async () => {
-  const result = await facilityStore.fetchAdminFacilities();
-  state.list = normalizeFacilities(result);
-};
-
-// 상세 모달 열기
-const openDetail = async (f) => {
+  if (props.facilities !== null) return;
+  state.errorMessage = "";
   try {
-    const detail = await facilityStore.fetchAdminFacilityDetail(f.facilityId)
-
-    detailModal.facility = detail
-    detailModal.show = true
+    const result = await facilityStore.fetchAdminFacilities();
+    state.list = normalizeFacilities(result);
   } catch (error) {
-    console.error('시설 상세 조회 실패:', error)
+    console.error("시설 목록 조회 실패:", error);
+    state.errorMessage =
+      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
+      "시설 목록을 불러오지 못했습니다.";
   }
 };
 
-// 상세 모달 닫기
+// 카드 클릭 시 상세 API 조회 후 모달 표시
+const openDetail = async (f) => {
+  try {
+    const detail = await facilityStore.fetchAdminFacilityDetail(f.facilityId);
+    detailModal.facility = detail;
+    seatState.list = [];
+    seatState.errorMessage = "";
+    detailModal.show = true;
+    // SEAT 타입이면 좌석 목록 함께 조회
+    if (isSeatFacility(detail)) {
+      await fetchSeats(detail.facilityId);
+    }
+  } catch (error) {
+    console.error("시설 상세 조회 실패:", error);
+  }
+};
+
 const closeDetail = () => {
   detailModal.show = false;
   detailModal.facility = null;
+  seatState.list = [];
+  seatState.errorMessage = "";
 };
 
-// 수정 화면 이동
+// 상세 모달 닫고 수정 화면으로 이동
 const goEdit = (id) => {
   closeDetail();
   router.push(`/admin/facilities/${id}/edit`);
 };
 
-// 등록 화면 이동
-const goCreate = () => {
-  router.push("/admin/facilities/create");
-};
-
-// 필터 조건 초기화
-const resetFilters = () => {
-  state.filterStatus = "";
-  state.filterSlot = "";
-  state.searchQuery = "";
-  state.currentPage = 1;
-};
-
-// 페이지 이동
 const goToPage = (page) => {
   state.currentPage = page;
 };
 
-let searchTimer = null;
+const normalizeSeats = (response) =>
+  toList(response).map((seat) => ({
+    ...seat,
+    id: seat.seatId ?? seat.id,
+    seatId: seat.seatId ?? seat.id,
+    seatNo: seat.seatNo ?? "",
+    seatName: seat.seatName ?? "",
+    isActive: seat.isActive !== false,
+  }));
 
-// 검색어 입력 처리
-const onSearch = () => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    state.currentPage = 1;
-  }, 300);
+const fetchSeats = async (facilityId = detailModal.facility?.facilityId) => {
+  if (!facilityId) return;
+  seatState.loading = true;
+  seatState.errorMessage = "";
+  try {
+    const result = await facilityStore.fetchFacilitySeats(facilityId);
+    seatState.list = normalizeSeats(result);
+  } catch (error) {
+    console.error("시설 좌석 목록 조회 실패:", error);
+    seatState.errorMessage =
+      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
+      "좌석 목록을 불러오지 못했습니다.";
+  } finally {
+    seatState.loading = false;
+  }
 };
 
-// 초기 데이터 조회
+const openCreateSeatModal = () => {
+  seatFormModal.mode = "create";
+  seatFormModal.seatId = "";
+  seatFormModal.seatNo = "";
+  seatFormModal.seatName = "";
+  seatFormModal.isActive = true;
+  seatFormModal.errorMessage = "";
+  seatFormModal.show = true;
+};
+
+const openEditSeatModal = (seat) => {
+  seatFormModal.mode = "edit";
+  seatFormModal.seatId = seat.seatId;
+  seatFormModal.seatNo = seat.seatNo;
+  seatFormModal.seatName = seat.seatName || "";
+  seatFormModal.isActive = seat.isActive !== false;
+  seatFormModal.errorMessage = "";
+  seatFormModal.show = true;
+};
+
+const closeSeatFormModal = () => {
+  seatFormModal.show = false;
+  seatFormModal.errorMessage = "";
+};
+
+const openResultModal = (type, title, subtitle) => {
+  resultModal.type = type;
+  resultModal.title = title;
+  resultModal.subtitle = subtitle;
+  resultModal.show = true;
+};
+
+const closeResultModal = () => {
+  resultModal.show = false;
+};
+
+const submitSeatForm = async () => {
+  seatFormModal.errorMessage = "";
+
+  if (seatFormModal.mode === "create" && !seatFormModal.seatNo) {
+    seatFormModal.errorMessage = "좌석 번호를 입력해주세요.";
+    return;
+  }
+
+  seatFormModal.loading = true;
+  try {
+    if (seatFormModal.mode === "create") {
+      await facilityStore.createFacilitySeat(detailModal.facility.facilityId, {
+        seatNo: Number(seatFormModal.seatNo),
+        seatName: String(seatFormModal.seatName || "").trim(),
+        isActive: !!seatFormModal.isActive,
+      });
+      openResultModal("success", "좌석이 등록되었습니다.", "입주민 좌석 예약에 사용할 수 있습니다.");
+    } else {
+      // 백엔드 수정 DTO는 좌석 번호 변경을 지원하지 않으므로 이름과 활성 여부만 전송
+      await facilityStore.updateFacilitySeat(seatFormModal.seatId, {
+        seatName: String(seatFormModal.seatName || "").trim(),
+        isActive: !!seatFormModal.isActive,
+      });
+      openResultModal("success", "좌석이 수정되었습니다.", "좌석 정보가 목록에 반영되었습니다.");
+    }
+    closeSeatFormModal();
+    await fetchSeats();
+  } catch (error) {
+    seatFormModal.errorMessage =
+      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
+      "좌석 저장에 실패했습니다.";
+    openResultModal("danger", "좌석 저장에 실패했습니다.", seatFormModal.errorMessage);
+  } finally {
+    seatFormModal.loading = false;
+  }
+};
+
 onMounted(() => {
-  if (typeof registerOpenModal === "function") {
-    registerOpenModal(goCreate);
-  }
-
   fetchAll();
-});
-
-// 상단 액션 등록 해제
-onBeforeUnmount(() => {
-  if (typeof registerOpenModal === "function") {
-    registerOpenModal(null);
-  }
 });
 </script>
 
 <template>
   <div class="facility-manage-view">
-
-    <StatsCards :stats="statsCards" />
-
     <div class="table-section">
-      <FilterBar @reset="resetFilters">
-        <div class="search-wrap">
-          <svg
-            class="search-icon"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            v-model="state.searchQuery"
-            class="search-input"
-            placeholder="시설명 검색"
-            @input="onSearch"
-          />
-        </div>
-        <select
-          v-model="state.filterStatus"
-          class="filter-select"
-          @change="state.currentPage = 1"
-        >
-          <option value="">운영 상태</option>
-          <option value="active">운영 중</option>
-          <option value="inactive">중단</option>
-        </select>
-        <select
-          v-model="state.filterSlot"
-          class="filter-select"
-          @change="state.currentPage = 1"
-        >
-          <option value="">예약 단위</option>
-          <option value="30">30분</option>
-          <option value="60">60분</option>
-          <option value="90">90분</option>
-          <option value="120">120분</option>
-        </select>
-      </FilterBar>
+      <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
 
       <div class="facility-grid">
         <div
@@ -279,14 +287,7 @@ onBeforeUnmount(() => {
           <div class="card-header">
             <div class="card-title-wrap">
               <div class="card-icon">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="3" y="3" width="7" height="7" />
                   <rect x="14" y="3" width="7" height="7" />
                   <rect x="3" y="14" width="7" height="7" />
@@ -303,71 +304,15 @@ onBeforeUnmount(() => {
 
           <div class="card-body">
             <div class="card-info-row">
-              <!-- <div class="card-info">
-                <span class="info-label">시설 타입</span>
-                <span class="info-value">{{ f.typeName }}</span>
-              </div> -->
               <div class="card-info">
                 <span class="info-label">예약 방식</span>
                 <span class="info-value">{{ reservationTypeLabel(f.reservationType) }}</span>
               </div>
             </div>
             <div class="card-info-row">
-              <!-- <div class="card-info">
-                <span class="info-label">최대 인원</span>
-                <span class="info-value">{{ f.maxCount }}명</span>
-              </div> -->
-              <!-- <div class="card-info">
-                <span class="info-label">예약 단위</span>
-                <span class="info-value">{{ f.slotMin }}분</span>
-              </div> -->
-            </div>
-            <div class="card-info-row">
               <div class="card-info">
                 <span class="info-label">운영 시간</span>
-                <span class="info-value"
-                  >{{ formatTime(f.openTime) }} ~ {{ formatTime(f.closeTime) }}</span
-                >
-              </div>
-              <div class="card-info">
-                <span class="info-label">오늘 예약</span>
-                <span class="info-value">
-                  {{ f.isActive ? (f.todayReserved ?? 0) + " / " + f.maxCount + "명" : "운영 중단" }}
-                </span>
-              </div>
-            </div>
-            <div class="stacked-bar-wrap">
-              <div class="stacked-bar">
-                <div
-                  class="bar-segment bar-reserved"
-                  :style="{
-                    width: f.isActive ? getReservedRatio(f) + '%' : '0%',
-                    background: getBarColor(getReservedRatio(f)),
-                  }"
-                ></div>
-                <div
-                  class="bar-segment bar-remaining"
-                  :style="{
-                    width: f.isActive ? 100 - getReservedRatio(f) + '%' : '100%',
-                    background: f.isActive ? getRemainingColor(getReservedRatio(f)) : '#E2E8F0',
-                  }"
-                ></div>
-              </div>
-              <div class="stacked-bar-legend">
-                <span class="legend-item">
-                  <span
-                    class="legend-dot"
-                    :style="{ background: f.isActive ? getBarColor(getReservedRatio(f)) : '#A0AEC0' }"
-                  ></span>
-                  예약 완료 {{ f.isActive ? getReservedRatio(f) : 0 }}%
-                </span>
-                <span class="legend-item">
-                  <span
-                    class="legend-dot"
-                    :style="{ background: f.isActive ? getRemainingColor(getReservedRatio(f)) : '#E2E8F0' }"
-                  ></span>
-                  잔여 {{ f.isActive ? 100 - getReservedRatio(f) : 0 }}%
-                </span>
+                <span class="info-value">{{ formatTime(f.openTime) }} ~ {{ formatTime(f.closeTime) }}</span>
               </div>
             </div>
           </div>
@@ -390,79 +335,183 @@ onBeforeUnmount(() => {
       />
     </div>
 
+    <!-- ✅ 핵심 수정: v-if 제거하고 :visible prop 방식으로 변경 -->
     <BaseModal
-      v-if="detailModal.show"
+      class="facility-detail-modal"
+      :visible="detailModal.show"
       title="시설 상세 정보"
-      :subtitle="'ID #' + detailModal.facility?.facilityId"
+      :subtitle="detailModal.facility ? 'ID #' + detailModal.facility.facilityId : ''"
       @close="closeDetail"
     >
-      <div class="detail-hero">
-        <span :class="['detail-status-badge', statusClass(detailModal.facility)]">
-          {{ statusLabel(detailModal.facility) }}
-        </span>
-        <h2 class="detail-title">{{ detailModal.facility?.name }}</h2>
-        <p class="detail-sub">{{ detailModal.facility?.description ?? "-" }}</p>
-      </div>
-      <div class="detail-divider"></div>
-      <div class="detail-grid">
-        <div class="detail-cell">
-          <span class="detail-label">시설 ID</span>
-          <span class="detail-value">#{{ detailModal.facility?.facilityId }}</span>
+      <div class="detail-modal-content">
+
+        <!-- 히어로: 상태 배지 + 시설명 + 소제목 -->
+        <div class="detail-hero">
+          <span :class="['detail-status-badge', statusClass(detailModal.facility)]">
+            {{ statusLabel(detailModal.facility) }}
+          </span>
+          <h2 class="detail-title">{{ detailModal.facility?.name }}</h2>
+          <p class="detail-sub">시설 정보</p>
         </div>
-        <div class="detail-cell">
-          <span class="detail-label">시설명</span>
-          <span class="detail-value">{{ detailModal.facility?.name }}</span>
-        </div>
-        <div class="detail-cell">
-          <span class="detail-label">최대 인원</span>
-          <span class="detail-value">{{ detailModal.facility?.maxCount }}명</span>
-        </div>
-        <div class="detail-cell">
-          <span class="detail-label">예약 단위</span>
-          <span class="detail-value">{{ detailModal.facility?.slotMin }}분</span>
-        </div>
-        <div class="detail-cell">
-          <span class="detail-label">시설 타입</span>
-          <span class="detail-value">{{ detailModal.facility?.typeName || "-" }}</span>
-        </div>
-        <div class="detail-cell">
-          <span class="detail-label">예약 방식</span>
-          <span class="detail-value">{{
-            reservationTypeLabel(detailModal.facility?.reservationType)
-          }}</span>
-        </div>
-        <div class="detail-cell">
-          <span class="detail-label">운영 시작</span>
-          <span class="detail-value">{{
-            formatTime(detailModal.facility?.openTime)
-          }}</span>
-        </div>
-        <div class="detail-cell">
-          <span class="detail-label">운영 종료</span>
-          <span class="detail-value">{{
-            formatTime(detailModal.facility?.closeTime)
-          }}</span>
-        </div>
+
+        <div class="detail-divider"></div>
+
+        <!-- 기본 정보 그리드 -->
+        <div class="detail-grid">
           <div class="detail-cell">
-            <span class="detail-label">기본 이용료</span>
-            <span class="detail-value">
-              {{ detailModal.facility?.baseFee > 0 ? Number(detailModal.facility.baseFee).toLocaleString() + '원' : '무료' }}
+            <span class="detail-cell-label">시설 ID</span>
+            <span class="detail-cell-value">#{{ detailModal.facility?.facilityId }}</span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">등록일</span>
+            <span class="detail-cell-value">{{ detailModal.facility?.createdAt?.slice(0, 10) ?? "-" }}</span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">시설 타입</span>
+            <span class="detail-cell-value">{{ detailModal.facility?.typeName || "-" }}</span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">예약 방식</span>
+            <span class="detail-cell-value">{{ reservationTypeLabel(detailModal.facility?.reservationType) }}</span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">운영 시간</span>
+            <span class="detail-cell-value">
+              {{ formatTime(detailModal.facility?.openTime) }} ~ {{ formatTime(detailModal.facility?.closeTime) }}
             </span>
           </div>
-        <div class="detail-cell">
-          <span class="detail-label">등록일</span>
-          <span class="detail-value">{{
-            detailModal.facility?.createdAt?.slice(0, 10) ?? "-"
-          }}</span>
+          <div class="detail-cell">
+            <span class="detail-cell-label">최대 인원</span>
+            <span class="detail-cell-value">
+              {{ detailModal.facility?.maxCount ? detailModal.facility.maxCount + '명' : '-' }}
+            </span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">예약 단위</span>
+            <span class="detail-cell-value">
+              {{ detailModal.facility?.slotMin ? detailModal.facility.slotMin + '분' : '-' }}
+            </span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">기본 요금</span>
+            <span class="detail-cell-value">
+              {{ detailModal.facility?.baseFee != null ? Number(detailModal.facility.baseFee).toLocaleString() + '원' : '-' }}
+            </span>
+          </div>
         </div>
+
+        <!-- 시설 설명 (있을 때만 노출) -->
+        <template v-if="detailModal.facility?.description">
+          <div class="detail-divider"></div>
+          <div class="detail-desc-section">
+            <span class="detail-cell-label">시설 설명</span>
+            <p class="detail-desc-text">{{ detailModal.facility.description }}</p>
+          </div>
+        </template>
+
+        <!-- 좌석 관리 (SEAT 타입만 노출) -->
+        <template v-if="isSeatFacility(detailModal.facility)">
+          <div class="detail-divider"></div>
+
+          <section class="seat-section">
+            <div class="seat-section__header">
+              <div class="detail-section-title">좌석 관리</div>
+              <button class="btn-submit" type="button" @click="openCreateSeatModal">
+                + 좌석 추가
+              </button>
+            </div>
+
+            <div v-if="seatState.errorMessage" class="error-box seat-section__error">
+              {{ seatState.errorMessage }}
+            </div>
+            <div v-if="seatState.loading" class="seat-section__loading">좌석 조회 중...</div>
+            <div v-else-if="seatState.list.length === 0" class="detail-empty">
+              등록된 좌석이 없습니다.
+            </div>
+            <div v-else class="seat-list-scroll">
+              <div v-for="seat in seatState.list" :key="seat.seatId" class="seat-row">
+                <div class="seat-avatar">{{ seat.seatNo }}</div>
+                <div class="seat-info">
+                  <span class="seat-name">{{ seat.seatName || `${seat.seatNo}번 좌석` }}</span>
+                  <span class="seat-contact">좌석 번호 #{{ seat.seatNo }}</span>
+                </div>
+                <span :class="['seat-tag', seatStatusClass(seat.isActive)]">
+                  {{ seatStatusLabel(seat.isActive) }}
+                </span>
+                <button class="btn-card-action" type="button" @click.stop="openEditSeatModal(seat)">
+                  수정
+                </button>
+              </div>
+            </div>
+          </section>
+        </template>
+      </div>
+
+      <template #footer>
+        <button class="btn-cancel" type="button" @click="closeDetail">닫기</button>
+        <button class="btn-submit" @click="goEdit(detailModal.facility?.facilityId)">수정하기</button>
+      </template>
+    </BaseModal>
+
+    <!-- 좌석 등록/수정 모달 -->
+    <BaseModal
+      :visible="seatFormModal.show"
+      :title="seatFormModal.mode === 'create' ? '좌석 등록' : '좌석 수정'"
+      :subtitle="detailModal.facility?.name || ''"
+      @close="closeSeatFormModal"
+    >
+      <div class="seat-form">
+        <label class="seat-form__field">
+          <span class="seat-form__label">좌석 번호</span>
+          <input
+            v-model="seatFormModal.seatNo"
+            class="seat-form__input"
+            type="number"
+            min="1"
+            :disabled="seatFormModal.mode === 'edit'"
+            placeholder="예: 1"
+          />
+          <small v-if="seatFormModal.mode === 'edit'" class="seat-form__help">
+            좌석 번호 변경은 수정 API에서 지원하지 않아 읽기 전용입니다.
+          </small>
+        </label>
+        <label class="seat-form__field">
+          <span class="seat-form__label">좌석명</span>
+          <input
+            v-model="seatFormModal.seatName"
+            class="seat-form__input"
+            type="text"
+            placeholder="예: 창가 1번 좌석"
+          />
+        </label>
+        <label class="seat-form__toggle">
+          <input v-model="seatFormModal.isActive" type="checkbox" />
+          <span>활성 좌석으로 운영</span>
+        </label>
+        <p v-if="seatFormModal.errorMessage" class="seat-form__error">
+          {{ seatFormModal.errorMessage }}
+        </p>
       </div>
       <template #footer>
-        <button class="btn-submit" @click="goEdit(detailModal.facility?.facilityId)">
-          수정하기
+        <button class="btn-cancel" type="button" @click="closeSeatFormModal">취소</button>
+        <button
+          class="btn-submit"
+          type="button"
+          :disabled="seatFormModal.loading"
+          @click="submitSeatForm"
+        >
+          {{ seatFormModal.loading ? "저장 중..." : "저장" }}
         </button>
       </template>
     </BaseModal>
 
+    <ActionResultModal
+      :visible="resultModal.show"
+      :type="resultModal.type"
+      :title="resultModal.title"
+      :subtitle="resultModal.subtitle"
+      @close="closeResultModal"
+    />
   </div>
 </template>
 
@@ -485,47 +534,14 @@ onBeforeUnmount(() => {
   border: 1px solid #e2e8f0;
   overflow: hidden;
 }
-
-.search-wrap {
-  display: flex;
-  align-items: center;
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
-  padding: 7px 12px;
-  gap: 6px;
-  background: #f5f6f8;
-}
-.search-icon {
-  color: #a0aec0;
-  flex-shrink: 0;
-}
-.search-input {
-  border: none;
-  background: transparent;
+.error-box {
+  margin: 20px 20px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #e53e3e;
   font-size: 13px;
-  outline: none;
-  color: #333;
-  width: 150px;
-  font-family: "Noto Sans KR", sans-serif;
 }
-.search-input::placeholder {
-  color: #cbd5e0;
-}
-.filter-select {
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
-  padding: 7px 28px 7px 12px;
-  font-size: 13px;
-  color: #333;
-  background: #fff
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23A0AEC0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
-    no-repeat right 10px center;
-  appearance: none;
-  cursor: pointer;
-  outline: none;
-  font-family: "Noto Sans KR", sans-serif;
-}
-
 .facility-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -558,7 +574,6 @@ onBeforeUnmount(() => {
   color: #a0aec0;
   font-size: 13px;
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -605,7 +620,6 @@ onBeforeUnmount(() => {
   background: #e0e0e0;
   color: #4a5568;
 }
-
 .card-body {
   display: flex;
   flex-direction: column;
@@ -629,52 +643,6 @@ onBeforeUnmount(() => {
   font-weight: 600;
   color: #1a202c;
 }
-
-.stacked-bar-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.stacked-bar {
-  display: flex;
-  height: 8px;
-  border-radius: 4px;
-  overflow: hidden;
-  background: #e2e8f0;
-}
-.bar-segment {
-  transition: width 0.4s ease, background 0.4s ease;
-}
-.bar-reserved {
-  border-radius: 4px;
-}
-.bar-remaining {
-  border-radius: 0 4px 4px 0;
-}
-.bar-reserved:only-child {
-  border-radius: 4px;
-}
-.bar-remaining:first-child {
-  border-radius: 4px;
-}
-.stacked-bar-legend {
-  display: flex;
-  gap: 12px;
-}
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  color: #718096;
-}
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  flex-shrink: 0;
-  transition: background 0.4s ease;
-}
 .card-actions {
   display: flex;
   flex-wrap: wrap;
@@ -697,10 +665,81 @@ onBeforeUnmount(() => {
 .btn-card-action:hover {
   background: #f5f6f8;
 }
-.btn-card-action.danger {
-  color: #e53e3e;
+
+/* ─── 시설 상세 모달 ─────────────────────────────── */
+.facility-detail-modal :deep(.base-modal__content) {
+  display: flex;
+  flex-direction: column;
+  width: min(860px, calc(100vw - 40px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border-radius: 22px;
+}
+.facility-detail-modal :deep(.base-modal__header) {
+  flex-shrink: 0;
+  padding: 34px 36px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.facility-detail-modal :deep(.base-modal__title) {
+  color: #2d3748;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.facility-detail-modal :deep(.base-modal__subtitle) {
+  margin-top: 6px;
+  color: #6b7a90;
+  font-size: 13px;
+  font-weight: 600;
+}
+.facility-detail-modal :deep(.base-modal__close) {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #f3f6fa;
+  color: transparent;
+  font-size: 0;
+  position: relative;
+}
+.facility-detail-modal :deep(.base-modal__close::before),
+.facility-detail-modal :deep(.base-modal__close::after) {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: #64748b;
+}
+.facility-detail-modal :deep(.base-modal__close::before) {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.facility-detail-modal :deep(.base-modal__close::after) {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+.facility-detail-modal :deep(.base-modal__body) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 36px 26px;
+}
+.facility-detail-modal :deep(.base-modal__footer) {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px 28px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
 }
 
+/* ─── 모달 내부 콘텐츠 ───────────────────────────── */
+.detail-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
 .detail-hero {
   margin-bottom: 14px;
 }
@@ -710,52 +749,209 @@ onBeforeUnmount(() => {
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
-  margin-bottom: 8px;
-  width: fit-content;
+  margin-bottom: 10px;
 }
 .detail-status-badge.active {
-  background: #ebf5ee;
-  color: #4d8b5a;
+  background: #c6f6d5;
+  color: #276749;
 }
 .detail-status-badge.inactive {
-  background: #f5f5f5;
+  background: #e5e7eb;
   color: #718096;
 }
 .detail-title {
   font-size: 26px;
   font-weight: 700;
   color: #1a202c;
-  margin-bottom: 2px;
-  margin-top: 8px;
+  margin-bottom: 4px;
 }
 .detail-sub {
   font-size: 13px;
-  color: #a0aec0;
+  color: #687282;
 }
 .detail-divider {
   height: 1px;
   background: #e2e8f0;
-  margin: 14px 0;
+  margin: 16px 0;
 }
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 16px 24px;
 }
 .detail-cell {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-.detail-label {
+.detail-cell-label {
   font-size: 12px;
-  color: #a0aec0;
+  color: #687282;
 }
-.detail-value {
+.detail-cell-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a202c;
+}
+
+/* ─── 시설 설명 ────────────────────────────────── */
+.detail-desc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.detail-desc-text {
+  font-size: 13px;
+  color: #4a5568;
+  line-height: 1.7;
+}
+
+/* ─── 좌석 섹션 ────────────────────────────────── */
+.seat-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.seat-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.detail-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #687282;
+}
+.seat-section__error {
+  margin: 0;
+}
+.seat-section__loading {
+  padding: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #687282;
+  font-size: 13px;
+  text-align: center;
+}
+.detail-empty {
+  font-size: 13px;
+  color: #687282;
+  text-align: center;
+  padding: 16px 0;
+}
+.seat-list-scroll {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0 12px;
+}
+.seat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f5f6f8;
+}
+.seat-row:last-child {
+  border-bottom: none;
+}
+.seat-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #2b3a55;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.seat-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.seat-name {
   font-size: 14px;
   font-weight: 600;
   color: #1a202c;
 }
+.seat-contact {
+  font-size: 12px;
+  color: #687282;
+}
+.seat-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.seat-tag.active {
+  color: #276749;
+  background: #c6f6d5;
+}
+.seat-tag.inactive {
+  color: #4a5568;
+  background: #e2e8f0;
+}
+
+/* ─── 좌석 폼 ───────────────────────────────────── */
+.seat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.seat-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.seat-form__label {
+  color: #4a5568;
+  font-size: 12px;
+  font-weight: 700;
+}
+.seat-form__input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  color: #1a202c;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 13px;
+}
+.seat-form__input:disabled {
+  background: #f5f6f8;
+  color: #718096;
+}
+.seat-form__help {
+  color: #a0aec0;
+  font-size: 11px;
+}
+.seat-form__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4a5568;
+  font-size: 13px;
+  font-weight: 600;
+}
+.seat-form__error {
+  margin: 0;
+  color: #e53e3e;
+  font-size: 12px;
+}
+
+/* ─── 공통 버튼 ────────────────────────────────── */
 .btn-cancel {
   padding: 9px 20px;
   border: 1px solid #e2e8f0;
@@ -782,5 +978,26 @@ onBeforeUnmount(() => {
 }
 .btn-submit:hover {
   background: #1e2a3e;
+}
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .facility-detail-modal :deep(.base-modal__content) {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+  }
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .seat-section__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .facility-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>
