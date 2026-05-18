@@ -30,7 +30,7 @@ const emit = defineEmits(['row-click'])
       <tr
         v-else
         v-for="row in rows"
-        :key="row.id ?? row.userId ?? row.code ?? row.householdId ?? row.reservationId"
+        :key="row.id ?? row.userId ?? row.code ?? row.householdId ?? row.reservationId ?? row.sensorId"
         :class="rowClass ? rowClass(row) : null"
         @click="emit('row-click', row)"
       >

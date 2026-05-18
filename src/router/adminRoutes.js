@@ -14,6 +14,7 @@ import AdminParkingDashboard from '@/views/admin/parking/AdminParkingDashboard.v
 import AdminParkingLogList from '@/views/admin/parking/AdminParkingLogList.vue'
 import AdminParkingStatistics from '@/views/admin/parking/AdminParkingStatistics.vue'
 import AdminParkingZoneList from '@/views/admin/parking/AdminParkingZoneList.vue'
+import AdminSensorList from '@/views/admin/parking/AdminSensorList.vue'
 import AdminVehicleList from '@/views/admin/vehicle/AdminVehicleList.vue'
 import AdminVisitorVehicleList from '@/views/admin/vehicle/AdminVisitorVehicleList.vue'
 
@@ -50,6 +51,7 @@ const adminRoutes = [
       { path: 'parking/dashboard', component: AdminParkingDashboard, meta: { ...adminRouteMeta, title: '주차 현황' } },
       { path: 'parking/statistics', component: AdminParkingStatistics, meta: { ...adminRouteMeta, title: '주차 통계' } },
       { path: 'parking/zones', component: AdminParkingZoneList, meta: { ...adminRouteMeta, title: '주차 구역 관리' } },
+      { path: 'parking/sensors', component: AdminSensorList, meta: { ...adminRouteMeta, title: '센서 관리' } },
 
       // 커뮤니티 관리
       { path: 'notices', component: AdminNoticeList, meta: { ...adminRouteMeta, title: '공지사항 관리' } },
