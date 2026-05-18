@@ -78,13 +78,13 @@ const statusClass = (status) => {
   return { OPEN: 'status--open', CLOSED: 'status--closed', CANCELLED: 'status--cancelled' }[status] || ''
 }
 
-// daysOfWeek 문자열 → 한글 레이블 변환
+// daysOfWeek 값(배열 또는 쉼표 문자열) → 한글 레이블 변환
 const dayLabel = (daysOfWeek) => {
-  if (!daysOfWeek) return '-'
-  return daysOfWeek
-    .split(',')
-    .map((d) => DAY_OPTIONS.find((opt) => opt.value === d.trim())?.label || d.trim())
-    .join(' ')
+  if (!daysOfWeek || (Array.isArray(daysOfWeek) && daysOfWeek.length === 0)) return '-'
+  const arr = Array.isArray(daysOfWeek)
+    ? daysOfWeek
+    : String(daysOfWeek).split(',').map((d) => d.trim()).filter(Boolean)
+  return arr.map((d) => DAY_OPTIONS.find((opt) => opt.value === d)?.label || d).join(' ') || '-'
 }
 
 // facilityId → 시설명

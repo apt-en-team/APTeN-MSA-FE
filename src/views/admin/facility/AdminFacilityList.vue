@@ -386,10 +386,14 @@ onMounted(() => {
               {{ detailModal.facility?.maxCount ? detailModal.facility.maxCount + '명' : '-' }}
             </span>
           </div>
+          <div v-if="detailModal.facility?.maxReservationCount != null" class="detail-cell">
+            <span class="detail-cell-label">예약 제한</span>
+            <span class="detail-cell-value">{{ detailModal.facility.maxReservationCount }}명</span>
+          </div>
           <div class="detail-cell">
             <span class="detail-cell-label">예약 단위</span>
             <span class="detail-cell-value">
-              {{ detailModal.facility?.slotMin ? detailModal.facility.slotMin + '분' : '-' }}
+              {{ detailModal.facility?.reservationUnitLabel || (detailModal.facility?.slotMin ? detailModal.facility.slotMin + '분' : null) || detailModal.facility?.usageUnitTypeName || '-' }}
             </span>
           </div>
           <div class="detail-cell">

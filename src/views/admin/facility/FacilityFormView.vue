@@ -47,6 +47,7 @@ const state = reactive({
   name: "",
   description: "",
   reservationType: "COUNT",
+  maxCount: "",
   openTime: "09:00",
   closeTime: "22:00",
   isActive: true,
@@ -116,6 +117,7 @@ const syncForm = (data) => {
   state.name = data.name ?? "";
   state.description = data.description ?? "";
   state.reservationType = normalizeReservationType(data.reservationType);
+  state.maxCount = data.maxCount != null ? data.maxCount : "";
   state.openTime = data.openTime?.slice(0, 5) ?? "09:00";
   state.closeTime = data.closeTime?.slice(0, 5) ?? "22:00";
   state.isActive = data.isActive ?? data.active ?? true;
@@ -231,6 +233,7 @@ const handleSubmit = async () => {
       description: String(state.description || "").trim(),
       // GX는 APPROVAL 고정, SEAT/COUNT/APPROVAL 그대로 전송
       reservationType: isGxType.value ? "APPROVAL" : state.reservationType,
+      maxCount: state.maxCount !== "" && state.maxCount != null ? Number(state.maxCount) : null,
       openTime: state.openTime,
       closeTime: state.closeTime,
       isActive: !!state.isActive,
@@ -455,6 +458,23 @@ onMounted(async () => {
           <template v-else>
             <div class="info-note">GX 시설은 승인형(APPROVAL)으로 고정됩니다.</div>
           </template>
+        </div>
+
+        <div v-if="!isGxType" class="form-group">
+          <label class="form-label">최대 인원</label>
+          <input
+            v-model="state.maxCount"
+            class="form-input"
+            type="number"
+            min="1"
+            placeholder="예: 30"
+          />
+          <p v-if="normalizeReservationType(state.reservationType) === 'COUNT'" class="field-hint">
+            정원형 시설은 동시 이용 가능한 최대 인원을 입력해주세요.
+          </p>
+          <p v-else-if="isSeatReservationType" class="field-hint">
+            좌석형 시설은 좌석 설정 기준으로 예약 가능 여부가 계산됩니다.
+          </p>
         </div>
 
         <div v-if="!isEdit && isSeatReservationType" class="bulk-seat-box">
