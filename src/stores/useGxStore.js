@@ -9,6 +9,7 @@ export const useGxStore = defineStore('gx', {
     gxPrograms: [],
     gxProgramDetail: null,
     gxReservation: null,
+    gxReservationDetail: null,
     gxStatus: null,
     gxWaitingStatus: null,
   }),
@@ -196,16 +197,47 @@ export const useGxStore = defineStore('gx', {
       }
     },
 
+    // 관리자 GX 예약 단건 상세 조회
+    async fetchAdminGxReservationDetail(id) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await gxApi.getAdminGxReservationDetail(id)
+        this.gxReservationDetail = res
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 GX 예약 강제 취소
+    async cancelAdminGxReservation(id) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await gxApi.cancelAdminGxReservation(id)
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
     // 관리자 GX 단건 승인
     async approveGxReservation(id) {
       this.loading = true
       this.error = null
       try {
         const res = await gxApi.approveGxReservation(id)
-        this.gxProgramDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -217,10 +249,10 @@ export const useGxStore = defineStore('gx', {
       this.error = null
       try {
         const res = await gxApi.rejectGxReservation(id, body)
-        this.gxProgramDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }

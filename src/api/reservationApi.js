@@ -55,6 +55,12 @@ export const cancelAdminReservation = async (reservationId, body) => {
   return unwrapApiData(res)
 }
 
+// 관리자 통합 예약현황 조회 (FACILITY + GX)
+export const getAdminReservationOverview = async (params) => {
+  const res = await apiClient.get('/api/admin/reservations/overview', { params })
+  return unwrapApiData(res)
+}
+
 export default {
   getAvailableTimes,
   holdSeat,
@@ -65,4 +71,5 @@ export default {
   getAdminReservations,
   getAdminReservationDetail,
   cancelAdminReservation,
+  getAdminReservationOverview,
 }
