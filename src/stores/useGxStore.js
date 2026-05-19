@@ -12,6 +12,7 @@ export const useGxStore = defineStore('gx', {
     gxReservationDetail: null,
     gxStatus: null,
     gxWaitingStatus: null,
+    adminGxProgramReservations: null,
   }),
   getters: {
     hasGxProgramDetail: (state) => !!state.gxProgramDetail,
@@ -298,6 +299,22 @@ export const useGxStore = defineStore('gx', {
       } catch (e) {
         console.error(e)
         this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 GX 신청자 목록 조회
+    async fetchAdminGxProgramReservations(programId, params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await gxApi.getAdminGxProgramReservations(programId, params)
+        this.adminGxProgramReservations = res
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
       } finally {
         this.loading = false
       }

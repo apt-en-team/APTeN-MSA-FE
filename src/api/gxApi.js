@@ -109,6 +109,12 @@ export const getGxProgramStatus = async (programId) => {
   return unwrapApiData(res)
 }
 
+// 관리자 GX 신청자 목록 조회
+export const getAdminGxProgramReservations = async (programId, params) => {
+  const res = await apiClient.get(`/api/admin/gx-programs/${programId}/reservations`, { params })
+  return unwrapApiData(res)
+}
+
 export default {
   createGxProgram,
   getAdminGxPrograms,
@@ -128,4 +134,5 @@ export default {
   bulkApproveGxProgram,
   checkGxMinimum,
   getGxProgramStatus,
+  getAdminGxProgramReservations,
 }
