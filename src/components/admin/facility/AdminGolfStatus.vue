@@ -11,6 +11,14 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  openTime: {
+    type: String,
+    default: '',
+  },
+  closeTime: {
+    type: String,
+    default: '',
+  },
 })
 
 const state = reactive({
@@ -33,17 +41,18 @@ const selectedDateLabel = computed(() => {
 const isOccupied = (seat) => seat.status !== 'AVAILABLE'
 
 const fetchSeatStatus = async () => {
-  if (!props.facilityId || !props.selectedDate) return
+  if (!props.facilityId || !props.selectedDate || !props.openTime || !props.closeTime) return
 
   state.loading = true
 
   try {
     const res = await facilityApi.getFacilitySeatStatus(props.facilityId, {
       targetDate: props.selectedDate,
+      startTime: props.openTime,
+      endTime: props.closeTime,
     })
     state.seats = Array.isArray(res) ? res : []
-  } catch (e) {
-    console.error('골프 좌석 상태 조회 실패:', e)
+  } catch {
     state.seats = []
   } finally {
     state.loading = false
@@ -51,7 +60,7 @@ const fetchSeatStatus = async () => {
 }
 
 watch(
-  [() => props.facilityId, () => props.selectedDate],
+  [() => props.facilityId, () => props.selectedDate, () => props.openTime, () => props.closeTime],
   () => {
     fetchSeatStatus()
   },

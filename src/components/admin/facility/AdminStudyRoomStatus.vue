@@ -11,25 +11,37 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  openTime: {
+    type: String,
+    default: '',
+  },
+  closeTime: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits(['update-summary'])
 
 const state = reactive({
   loading: false,
+  error: false,
   seats: [],
 })
 
 const isOccupied = (seat) => seat.status !== 'AVAILABLE'
 
 const fetchSeatStatus = async () => {
-  if (!props.facilityId || !props.selectedDate) return
+  if (!props.facilityId || !props.selectedDate || !props.openTime || !props.closeTime) return
 
   state.loading = true
+  state.error = false
 
   try {
     const res = await facilityApi.getFacilitySeatStatus(props.facilityId, {
       targetDate: props.selectedDate,
+      startTime: props.openTime,
+      endTime: props.closeTime,
     })
 
     state.seats = Array.isArray(res) ? res : []
@@ -38,9 +50,9 @@ const fetchSeatStatus = async () => {
       reservedCount: state.seats.filter((s) => isOccupied(s)).length,
       totalCount: state.seats.length,
     })
-  } catch (e) {
-    console.error('좌석 상태 조회 실패:', e)
+  } catch {
     state.seats = []
+    state.error = true
     emit('update-summary', { reservedCount: 0, totalCount: 0 })
   } finally {
     state.loading = false
@@ -48,7 +60,7 @@ const fetchSeatStatus = async () => {
 }
 
 watch(
-  [() => props.facilityId, () => props.selectedDate],
+  [() => props.facilityId, () => props.selectedDate, () => props.openTime, () => props.closeTime],
   () => {
     fetchSeatStatus()
   },
@@ -60,7 +72,9 @@ watch(
   <div class="study-page">
     <div v-if="state.loading" class="empty-text">좌석 현황을 불러오는 중입니다.</div>
 
-    <div v-else-if="!state.loading && state.seats.length === 0" class="empty-text">
+    <div v-else-if="state.error" class="empty-text error-text">현황 데이터를 불러오지 못했습니다.</div>
+
+    <div v-else-if="state.seats.length === 0" class="empty-text">
       좌석 데이터가 없습니다.
     </div>
 
@@ -179,5 +193,9 @@ watch(
   font-size: 13px;
   color: #718096;
   font-family: 'Noto Sans KR', sans-serif;
+}
+
+.error-text {
+  color: #e53e3e;
 }
 </style>

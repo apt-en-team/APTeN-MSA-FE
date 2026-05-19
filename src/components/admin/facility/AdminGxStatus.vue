@@ -1,257 +1,198 @@
 <script setup>
 import { reactive, computed, watch } from 'vue'
 import gxApi from '@/api/gxApi'
-import { toList } from '@/utils/apiResponse'
+import ConfirmModal from '@/components/common/ConfirmModal.vue'
+import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const props = defineProps({
-  facilityId: {
+  programId: {
     type: [Number, String],
     required: true,
   },
-  selectedMonth: {
-    type: String,
-    default: '',
+  program: {
+    type: Object,
+    required: true,
   },
 })
 
+const emit = defineEmits(['refresh'])
+
 const state = reactive({
-  loadingPrograms: false,
-  selectedProgramId: null,
-  programList: [],
+  loading: false,
+  status: null,
+  bulkModal: {
+    show: false,
+    loading: false,
+  },
+  resultModal: {
+    show: false,
+    type: 'success',
+    title: '',
+    subtitle: '',
+  },
 })
-
-const displayMonth = computed(() => {
-  if (!props.selectedMonth) return ''
-  return Number(props.selectedMonth.split('-')[1]) + '월'
-})
-
-const selectedProgram = computed(() =>
-  state.programList.find((item) => item.programId === state.selectedProgramId) || null,
-)
-
-const fetchGxPrograms = async () => {
-  if (!props.facilityId) return
-
-  state.loadingPrograms = true
-
-  try {
-    const res = await gxApi.getAdminGxPrograms({ facilityId: props.facilityId })
-    state.programList = toList(res)
-
-    if (state.programList.length > 0) {
-      state.selectedProgramId = state.programList[0].programId
-    } else {
-      state.selectedProgramId = null
-    }
-  } catch (e) {
-    console.error('GX 프로그램 목록 조회 실패:', e)
-    state.programList = []
-    state.selectedProgramId = null
-  } finally {
-    state.loadingPrograms = false
-  }
-}
-
-const selectProgram = (programId) => {
-  state.selectedProgramId = programId
-}
 
 const statusLabel = (status) => {
   return { OPEN: '모집중', CLOSED: '종료', CANCELLED: '취소됨' }[status] || status || '-'
 }
 
 const statusClass = (status) => {
-  return { OPEN: 'confirmed', CLOSED: 'completed', CANCELLED: 'cancelled' }[status] || ''
+  return { OPEN: 'open', CLOSED: 'closed', CANCELLED: 'cancelled' }[status] || ''
+}
+
+const waitingCount = computed(
+  () => state.status?.waitingCount ?? props.program?.waitingCount ?? 0,
+)
+
+const fetchStatus = async () => {
+  if (!props.programId) return
+  state.loading = true
+  try {
+    state.status = await gxApi.getGxProgramStatus(props.programId)
+  } catch (e) {
+    state.status = null
+  } finally {
+    state.loading = false
+  }
+}
+
+const openBulkApprove = () => {
+  state.bulkModal.show = true
+}
+
+const closeBulkApprove = () => {
+  state.bulkModal.show = false
+  state.bulkModal.loading = false
+}
+
+const confirmBulkApprove = async () => {
+  state.bulkModal.loading = true
+  try {
+    await gxApi.bulkApproveGxProgram(props.programId, { approveCount: waitingCount.value })
+    state.bulkModal.show = false
+    state.bulkModal.loading = false
+    state.resultModal = {
+      show: true,
+      type: 'success',
+      title: '일괄 승인 완료',
+      subtitle: `${waitingCount.value}명이 승인 처리되었습니다.`,
+    }
+    await fetchStatus()
+    emit('refresh')
+  } catch (e) {
+    state.bulkModal.loading = false
+    state.resultModal = {
+      show: true,
+      type: 'error',
+      title: '일괄 승인 실패',
+      subtitle: '처리 중 오류가 발생했습니다.',
+    }
+  }
 }
 
 watch(
-  [() => props.facilityId, () => props.selectedMonth],
-  async () => {
-    await fetchGxPrograms()
+  () => props.programId,
+  () => {
+    fetchStatus()
   },
   { immediate: true },
 )
 </script>
 
 <template>
-  <div class="gx-page">
-    <div v-if="state.loadingPrograms" class="empty-text">GX 프로그램 데이터를 불러오는 중입니다.</div>
-
-    <div class="gx-layout">
-      <!-- 좌측: 프로그램 목록 -->
-      <div class="program-panel">
-        <div class="program-list">
-          <div
-            v-for="program in state.programList"
-            :key="program.programId"
-            class="program-item"
-            :class="{ active: state.selectedProgramId === program.programId }"
-            @click="selectProgram(program.programId)"
-          >
-            <div class="program-top">
-              <p class="program-name">{{ displayMonth }} {{ program.name }}</p>
-            </div>
-
-            <div class="program-bottom">
-              <div class="program-capacity">
-                신청 {{ (program.confirmedCount ?? 0) + (program.waitingCount ?? 0) }} / 정원 {{ program.maxCount ?? '-' }}명
-              </div>
-
-              <div class="program-counts-right">
-                <span class="count-chip confirmed-chip">확정 {{ program.confirmedCount ?? 0 }}</span>
-                <span class="count-chip waiting-chip">대기 {{ program.waitingCount ?? 0 }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="!state.loadingPrograms && state.programList.length === 0" class="empty-text">
-            등록된 GX 프로그램이 없습니다.
-          </div>
-        </div>
+  <div class="gx-detail-panel">
+    <!-- 프로그램 헤더 -->
+    <div class="detail-head">
+      <div>
+        <h3 class="detail-title">{{ program.name }}</h3>
+        <p class="detail-desc">
+          {{ program.startDate ?? '-' }} ~ {{ program.endDate ?? '-' }}
+          &nbsp;·&nbsp;
+          {{ program.startTime ?? '-' }} ~ {{ program.endTime ?? '-' }}
+        </p>
       </div>
+      <span class="status-badge" :class="statusClass(program.status)">
+        {{ statusLabel(program.status) }}
+      </span>
+    </div>
 
-      <!-- 우측: 선택 프로그램 상세 -->
-      <div v-if="selectedProgram" class="detail-panel">
-        <div class="detail-head">
-          <div>
-            <h3 class="detail-title">{{ selectedProgram.name }}</h3>
-            <p class="detail-desc">
-              {{ selectedProgram.startDate ?? '-' }} ~ {{ selectedProgram.endDate ?? '-' }}
-              &nbsp;·&nbsp;
-              {{ selectedProgram.startTime ?? '-' }} ~ {{ selectedProgram.endTime ?? '-' }}
-            </p>
-          </div>
-          <span class="status-badge" :class="statusClass(selectedProgram.status)">
-            {{ statusLabel(selectedProgram.status) }}
-          </span>
-        </div>
-
-        <div class="summary-row">
-          <div class="summary-card">
-            <p class="summary-label">최대 정원</p>
-            <p class="summary-value">{{ selectedProgram.maxCount ?? '-' }}명</p>
-          </div>
-          <div class="summary-card confirmed-card">
-            <p class="summary-label">확정 인원</p>
-            <p class="summary-value">{{ selectedProgram.confirmedCount ?? '-' }}명</p>
-          </div>
-          <div class="summary-card waiting-card">
-            <p class="summary-label">대기 인원</p>
-            <p class="summary-value">{{ selectedProgram.waitingCount ?? '-' }}명</p>
-          </div>
-        </div>
-
-        <p class="guide-text">예약자 관리는 GX 프로그램 관리 메뉴에서 확인하세요.</p>
+    <!-- 현황 카드 -->
+    <div v-if="state.loading" class="loading-text">현황을 불러오는 중입니다.</div>
+    <div v-else class="summary-row">
+      <div class="summary-card">
+        <p class="summary-label">최대 정원</p>
+        <p class="summary-value">{{ program.maxCount ?? '-' }}명</p>
+      </div>
+      <div class="summary-card confirmed-card">
+        <p class="summary-label">확정 인원</p>
+        <p class="summary-value">{{ state.status?.confirmedCount ?? '-' }}명</p>
+      </div>
+      <div class="summary-card waiting-card">
+        <p class="summary-label">대기 인원</p>
+        <p class="summary-value">{{ state.status?.waitingCount ?? '-' }}명</p>
+      </div>
+      <div class="summary-card rejected-card">
+        <p class="summary-label">거절 인원</p>
+        <p class="summary-value">{{ state.status?.rejectedCount ?? '-' }}명</p>
+      </div>
+      <div class="summary-card cancelled-card">
+        <p class="summary-label">취소 인원</p>
+        <p class="summary-value">{{ state.status?.cancelledCount ?? '-' }}명</p>
       </div>
     </div>
+
+    <!-- 일괄 승인 -->
+    <div class="bulk-area">
+      <button
+        class="btn-bulk-approve"
+        :disabled="waitingCount === 0 || state.bulkModal.loading"
+        @click="openBulkApprove"
+      >
+        일괄 승인 ({{ waitingCount }}명)
+      </button>
+    </div>
+
+    <!-- 신청자 목록 안내 -->
+    <div class="api-notice">
+      <span class="notice-icon">ℹ</span>
+      GX 신청자 목록 API 필요 — 개별 신청자 목록 조회 기능은 추후 연결 예정입니다.
+    </div>
   </div>
+
+  <!-- 일괄 승인 확인 모달 -->
+  <ConfirmModal
+    :visible="state.bulkModal.show"
+    title="일괄 승인"
+    :subtitle="`대기 중인 ${waitingCount}명을 일괄 승인하시겠습니까?`"
+    confirm-type="success"
+    confirm-text="승인"
+    :loading="state.bulkModal.loading"
+    @confirm="confirmBulkApprove"
+    @cancel="closeBulkApprove"
+  />
+
+  <!-- 결과 모달 -->
+  <ActionResultModal
+    :visible="state.resultModal.show"
+    :type="state.resultModal.type"
+    :title="state.resultModal.title"
+    :subtitle="state.resultModal.subtitle"
+    @close="state.resultModal.show = false"
+  />
 </template>
 
 <style scoped>
-.gx-page {
+.gx-detail-panel {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-.gx-layout {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 20px;
-}
-
-.program-panel,
-.detail-panel {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #ffffff;
-  padding: 16px;
-}
-
-.program-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.program-item {
-  padding: 20px 24px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #f8fafc;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.program-item:hover {
-  background: #f1f5f9;
-}
-
-.program-item.active {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-}
-
-.program-top {
-  margin-bottom: 28px;
-}
-
-.program-name {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 800;
-  color: #1a202c;
-  line-height: 1.4;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.program-bottom {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-}
-
-.program-capacity {
-  font-size: 14px;
-  font-weight: 600;
-  color: #757575;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.program-counts-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.count-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.confirmed-chip {
-  background: #d9f0dc;
-  color: #2e7d32;
-}
-
-.waiting-chip {
-  background: #fff3e0;
-  color: #e65100;
-}
-
-/* 우측 상세 */
 .detail-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 20px;
 }
 
 .detail-title {
@@ -265,6 +206,12 @@ watch(
 .detail-desc {
   margin: 6px 0 0;
   font-size: 12px;
+  color: #718096;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.loading-text {
+  font-size: 13px;
   color: #718096;
   font-family: 'Noto Sans KR', sans-serif;
 }
@@ -294,6 +241,16 @@ watch(
   border-color: #ffcc80;
 }
 
+.summary-card.rejected-card {
+  background: #fce4ec;
+  border-color: #f48fb1;
+}
+
+.summary-card.cancelled-card {
+  background: #f5f5f5;
+  border-color: #e0e0e0;
+}
+
 .summary-label {
   margin: 0 0 8px;
   font-size: 12px;
@@ -309,14 +266,53 @@ watch(
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-.guide-text {
-  margin: 20px 0 0;
-  font-size: 12px;
+.bulk-area {
+  display: flex;
+  align-items: center;
+}
+
+.btn-bulk-approve {
+  padding: 10px 20px;
+  background: #4f46e5;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-bulk-approve:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.btn-bulk-approve:disabled {
+  background: #e2e8f0;
   color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.api-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0369a1;
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-/* 상태 배지 */
+.notice-icon {
+  font-style: normal;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 .status-badge {
   display: inline-block;
   font-size: 11px;
@@ -327,12 +323,12 @@ watch(
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-.status-badge.confirmed {
+.status-badge.open {
   background: #e6f4ea;
   color: #4d8b5a;
 }
 
-.status-badge.completed {
+.status-badge.closed {
   background: #e2e8f0;
   color: #475569;
 }
@@ -340,17 +336,5 @@ watch(
 .status-badge.cancelled {
   background: #fce4ec;
   color: #e53e3e;
-}
-
-.empty-text {
-  font-size: 13px;
-  color: #718096;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-@media (max-width: 1200px) {
-  .gx-layout {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

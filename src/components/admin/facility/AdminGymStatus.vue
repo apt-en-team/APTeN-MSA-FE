@@ -12,12 +12,21 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  openTime: {
+    type: String,
+    default: '',
+  },
+  closeTime: {
+    type: String,
+    default: '',
+  },
 })
 
 const emit = defineEmits(['update-summary'])
 
 const state = reactive({
   loading: false,
+  error: false,
   data: null,
   detailModal: {
     show: false,
@@ -26,13 +35,16 @@ const state = reactive({
 })
 
 const fetchCountStatus = async () => {
-  if (!props.facilityId || !props.selectedDate) return
+  if (!props.facilityId || !props.selectedDate || !props.openTime || !props.closeTime) return
 
   state.loading = true
+  state.error = false
 
   try {
     const res = await facilityApi.getFacilityCountStatus(props.facilityId, {
       targetDate: props.selectedDate,
+      startTime: props.openTime,
+      endTime: props.closeTime,
     })
 
     state.data = res || null
@@ -42,9 +54,9 @@ const fetchCountStatus = async () => {
       reservedCount: res?.reservedCount || 0,
       availableCount: res?.availableCount || 0,
     })
-  } catch (e) {
-    console.error('정원형 현황 조회 실패:', e)
+  } catch {
     state.data = null
+    state.error = true
     emit('update-summary', { maxCount: 0, reservedCount: 0, availableCount: 0 })
   } finally {
     state.loading = false
@@ -52,7 +64,7 @@ const fetchCountStatus = async () => {
 }
 
 watch(
-  [() => props.facilityId, () => props.selectedDate],
+  [() => props.facilityId, () => props.selectedDate, () => props.openTime, () => props.closeTime],
   () => {
     fetchCountStatus()
   },
@@ -75,7 +87,9 @@ const closeDetailModal = () => {
   <div class="gym-page">
     <div v-if="state.loading" class="empty-text">헬스장 데이터를 불러오는 중입니다.</div>
 
-    <div class="table-wrap">
+    <div v-else-if="state.error" class="empty-text error-text">현황 데이터를 불러오지 못했습니다.</div>
+
+    <div v-else class="table-wrap">
       <table class="custom-table">
         <thead>
           <tr>
@@ -84,7 +98,7 @@ const closeDetailModal = () => {
           </tr>
         </thead>
         <tbody>
-          <tr v-if="!state.loading && (!state.data?.users || state.data.users.length === 0)">
+          <tr v-if="!state.data?.users || state.data.users.length === 0">
             <td colspan="2" class="empty-row">예약 데이터가 없습니다.</td>
           </tr>
 
@@ -156,6 +170,10 @@ const closeDetailModal = () => {
   font-size: 13px;
   color: #718096;
   font-family: 'Noto Sans KR', sans-serif;
+}
+
+.error-text {
+  color: #e53e3e;
 }
 
 .empty-row {
