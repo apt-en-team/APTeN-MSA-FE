@@ -621,15 +621,6 @@ watch(
           </button>
 
           <button
-            v-if="headerActions.showSensorCreate"
-            type="button"
-            class="admin-layout__action-button"
-            @click="handleActionClick"
-          >
-            + 센서 등록
-          </button>
-
-          <button
             v-if="route.path === '/admin/notices'"
             type="button"
             class="admin-layout__action-button"
