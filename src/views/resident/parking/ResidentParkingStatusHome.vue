@@ -3,37 +3,22 @@
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
 
 import { useParkingStore } from '@/stores/useParkingStore'
+import { codeToParkingTypeName } from '@/constants/parkingTypes'
 
 const parkingStore = useParkingStore()
 
 const isFirstLoad = ref(true)
 const selectedZoneIndex = ref(0)
-let refreshTimer = null
 
 // 입주민 주차 현황 조회
 const loadStatus = () => {
   return parkingStore.fetchResidentParkingStatus()
 }
 
-// 자동 갱신 시작
-const startAutoRefresh = () => {
-  if (refreshTimer) return
-  refreshTimer = setInterval(loadStatus, 30000)
-}
-
-// 자동 갱신 정리
-const stopAutoRefresh = () => {
-  if (refreshTimer) clearInterval(refreshTimer)
-  refreshTimer = null
-}
-
-// 탭 활성화 상태 처리
+// 포그라운드 복귀 시 스냅샷 재동기화
 const handleVisibilityChange = () => {
-  if (document.hidden) {
-    stopAutoRefresh()
-  } else {
+  if (!document.hidden) {
     loadStatus()
-    startAutoRefresh()
   }
 }
 
@@ -100,12 +85,16 @@ watch(zoneList, () => {
 onMounted(async () => {
   await loadStatus()
   isFirstLoad.value = false
-  startAutoRefresh()
+  // SENSOR 단지에서만 spot-changed SSE 구독
+  const code = parkingStore.residentParkingStatus?.parkingTypeCode
+  if (codeToParkingTypeName(code) === 'SENSOR') {
+    parkingStore.connectSpotSse()
+  }
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
-  stopAutoRefresh()
+  parkingStore.disconnectSpotSse()
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>

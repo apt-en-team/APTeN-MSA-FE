@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import parkingApi from '@/api/parkingApi'
+import { connectParkingSse } from '@/utils/parkingSseClient'
 
 // 빈 페이지 응답 기본값
 const createEmptyPage = () => ({
@@ -60,6 +61,8 @@ export const useParkingStore = defineStore('parking', {
     parkingStatistics: createEmptyParkingStatistics(),
     residentParkingStatus: createEmptyResidentParkingStatus(),
     parkingZones: [],
+    sseConnected: false,
+    sseClose: null,
   }),
 
   actions: {
@@ -216,6 +219,56 @@ export const useParkingStore = defineStore('parking', {
       } finally {
         this.loading = false
       }
+    },
+
+    // 입주민 주차 SSE 구독 시작
+    connectSpotSse() {
+      if (this.sseClose) return
+      const close = connectParkingSse({
+        onSpotChanged: (payload) => this.applySpotChanged(payload),
+        onError: () => {
+          this.sseConnected = false
+          this.sseClose = null
+        },
+      })
+      this.sseClose = close
+      this.sseConnected = true
+    },
+
+    // 입주민 주차 SSE 구독 종료
+    disconnectSpotSse() {
+      if (this.sseClose) {
+        this.sseClose()
+        this.sseClose = null
+      }
+      this.sseConnected = false
+    },
+
+    // spot-changed 이벤트 반영
+    applySpotChanged(payload) {
+      if (!payload || payload.zoneId == null) return
+      const zones = this.residentParkingStatus?.zones
+      if (!Array.isArray(zones) || zones.length === 0) return
+
+      const target = zones.find((zone) => zone.zoneId === payload.zoneId)
+      if (!target) return
+
+      target.currentParkedCount = payload.zoneOccupied
+      target.totalSlots = payload.zoneTotalSlots
+      target.remainingSlots = payload.zoneTotalSlots - payload.zoneOccupied
+
+      const totalSlots = zones.reduce((sum, zone) => sum + (zone.totalSlots || 0), 0)
+      const currentParkedCount = zones.reduce((sum, zone) => sum + (zone.currentParkedCount || 0), 0)
+      const remainingSlots = totalSlots - currentParkedCount
+      const occupancyRate = totalSlots > 0
+        ? Number(((currentParkedCount / totalSlots) * 100).toFixed(1))
+        : 0
+
+      this.residentParkingStatus.totalSlots = totalSlots
+      this.residentParkingStatus.currentParkedCount = currentParkedCount
+      this.residentParkingStatus.remainingSlots = remainingSlots
+      this.residentParkingStatus.occupancyRate = occupancyRate
+      this.residentParkingStatus.updatedAt = payload.changedAt
     },
   },
 })
