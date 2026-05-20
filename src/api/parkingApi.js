@@ -55,6 +55,12 @@ export const getResidentParkingStatus = async () => {
   return unwrapApiData(res)
 }
 
+// 입주민 zone별 자리 목록 조회
+export const getResidentZoneSpots = async (zoneId) => {
+  const res = await apiClient.get(`/api/parking/zones/${zoneId}/spots`)
+  return unwrapApiData(res)
+}
+
 // 입출차 기록 화면 상단 통계 카드 요약 조회
 export const getParkingLogSummary = async () => {
   const res = await apiClient.get('/admin/parking-logs/summary')
@@ -84,6 +90,7 @@ export default {
   getParkingStatistics,
   createParkingLog,
   getResidentParkingStatus,
+  getResidentZoneSpots,
   getParkingSetting,
   updateParkingSetting,
 }

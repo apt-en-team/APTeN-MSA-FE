@@ -32,7 +32,7 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to, from) => {
+router.beforeEach(async (to, from) => {
   const authStore = useAuthStore()
   const complexStore = useComplexStore()
   authStore.initializeAuth()
@@ -94,6 +94,15 @@ router.beforeEach((to, from) => {
     }
   }
 
+  // 입주민 진입 시 단지 정보를 보장. 캐시되어 있으면 API 스킵
+  if (to.path.startsWith('/resident/') && authStore.isAuthenticated && authStore.role === 'USER') {
+    try {
+      await complexStore.fetchResidentMyComplex()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   // TODO: 입주민용 단지 정보 API에 features가 연결되면 resident 메뉴와 가드도 features 기준으로 제어한다.
   if (to.path.startsWith('/resident/')) {
     const featureCode = getResidentFeatureByPath(to.path)
@@ -104,6 +113,17 @@ router.beforeEach((to, from) => {
       if (residentFeatures && !isFeatureEnabled(residentFeatures, featureCode)) {
         return `/resident/${authStore.complexId}/home`
       }
+    }
+  }
+
+  // 자리 맵 페이지는 SENSOR 단지만 접근 허용
+  if (
+    authStore.role === 'USER' &&
+    to.path.includes('/parking/zones/') &&
+    to.path.endsWith('/spots')
+  ) {
+    if (!complexStore.isSensorComplex) {
+      return `/resident/${authStore.complexId}/parking`
     }
   }
 

@@ -1,14 +1,28 @@
 <script setup>
 // 입주민 주차 현황 화면이다.
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { useParkingStore } from '@/stores/useParkingStore'
-import { codeToParkingTypeName } from '@/constants/parkingTypes'
+import { useComplexStore } from '@/stores/useComplexStore'
 
 const parkingStore = useParkingStore()
+const complexStore = useComplexStore()
+const route = useRoute()
+const router = useRouter()
 
 const isFirstLoad = ref(true)
 const selectedZoneIndex = ref(0)
+
+// 현재 단지가 SENSOR 운영 타입인지 판별
+const isSensorComplex = computed(() => complexStore.isSensorComplex)
+
+// 자동 갱신 안내 문구 산출
+const refreshNoteText = computed(() =>
+  isSensorComplex.value
+    ? '주차 현황은 실시간으로 갱신됩니다.'
+    : '주차 현황은 화면을 열 때 갱신됩니다.',
+)
 
 // 입주민 주차 현황 조회
 const loadStatus = () => {
@@ -73,6 +87,12 @@ const selectedStatusText = computed(() => {
 // 구역 선택 처리
 const handleZoneSelect = (index) => {
   selectedZoneIndex.value = index
+  if (isSensorComplex.value) {
+    const zone = zoneList.value[index]
+    if (zone?.zoneId != null) {
+      router.push(`/resident/${route.params.complexId}/parking/zones/${zone.zoneId}/spots`)
+    }
+  }
 }
 
 // 구역 목록 변동 시 선택 인덱스 보정
@@ -86,8 +106,7 @@ onMounted(async () => {
   await loadStatus()
   isFirstLoad.value = false
   // SENSOR 단지에서만 spot-changed SSE 구독
-  const code = parkingStore.residentParkingStatus?.parkingTypeCode
-  if (codeToParkingTypeName(code) === 'SENSOR') {
+  if (isSensorComplex.value) {
     parkingStore.connectSpotSse()
   }
   document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -124,6 +143,10 @@ onUnmounted(() => {
           <p class="parking-header-card__title">{{ selectedZone ? formatZoneLabel(selectedZone) : '' }}</p>
           <p class="parking-header-card__subtitle">실시간 주차 현황</p>
           <div class="parking-header-card__divider"></div>
+
+          <p v-if="isSensorComplex" class="zone-select-hint">
+            구역을 선택하면 자리 현황을 볼 수 있습니다
+          </p>
 
           <div class="zone-toggle">
             <button
@@ -207,7 +230,7 @@ onUnmounted(() => {
             <circle cx="12" cy="12" r="9"/>
             <polyline points="12 7 12 12 15 14"/>
           </svg>
-          <span>주차 현황은 30초마다 자동으로 갱신됩니다.</span>
+          <span>{{ refreshNoteText }}</span>
         </p>
       </template>
     </template>
@@ -263,6 +286,13 @@ onUnmounted(() => {
   height: 1px;
   margin-bottom: 14px;
   background: var(--color-border);
+}
+
+/* 구역 선택 안내 문구 */
+.zone-select-hint {
+  margin: 0 0 var(--space-8);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
 }
 
 /* zone 토글 */

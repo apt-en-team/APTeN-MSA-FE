@@ -136,6 +136,11 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'parking/zones/:zoneId/spots',
+        component: () => import('@/views/resident/parking/ResidentParkingSpotMap.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'vote',
         component: ResidentVoteHome,
         meta: { requiresAuth: true, roles: ['USER'] },

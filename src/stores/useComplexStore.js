@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia'
 import apartmentComplexApi from '@/api/apartmentComplexApi'
 import { normalizeFeatures } from '@/utils/featureGate'
+import { codeToParkingTypeName } from '@/constants/parkingTypes'
 
 const SELECTED_COMPLEX_STORAGE_KEY = 'apt_selected_complex'
 const LEGACY_SELECTED_COMPLEX_STORAGE_KEY = 'selectedComplex'
@@ -72,6 +73,9 @@ export const useComplexStore = defineStore('complex', {
   }),
   getters: {
     hasSelectedComplex: (state) => !!state.selectedComplex,
+    // 입주민 단지가 SENSOR 운영 타입인지 여부
+    isSensorComplex: (state) =>
+      codeToParkingTypeName(state.residentComplex?.parkingTypeCode) === 'SENSOR',
   },
   actions: {
     // MASTER 단지 목록 조회

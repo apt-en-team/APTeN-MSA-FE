@@ -63,6 +63,9 @@ export const useParkingStore = defineStore('parking', {
     parkingZones: [],
     sseConnected: false,
     sseClose: null,
+    currentZoneSpots: [],
+    currentZoneId: null,
+    spotsLoading: false,
   }),
 
   actions: {
@@ -269,6 +272,37 @@ export const useParkingStore = defineStore('parking', {
       this.residentParkingStatus.remainingSlots = remainingSlots
       this.residentParkingStatus.occupancyRate = occupancyRate
       this.residentParkingStatus.updatedAt = payload.changedAt
+
+      // 자리 맵에 표시 중인 자리도 함께 갱신
+      if (Array.isArray(this.currentZoneSpots) && this.currentZoneSpots.length > 0) {
+        const targetSpot = this.currentZoneSpots.find((spot) => spot.sensorCode === payload.sensorCode)
+        if (targetSpot) {
+          targetSpot.status = payload.status
+        }
+      }
+    },
+
+    // 입주민 zone별 자리 목록 조회
+    async fetchZoneSpots(zoneId) {
+      this.spotsLoading = true
+      this.error = null
+      try {
+        const res = await parkingApi.getResidentZoneSpots(zoneId)
+        this.currentZoneSpots = Array.isArray(res) ? res : []
+        this.currentZoneId = zoneId
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        this.currentZoneSpots = []
+      } finally {
+        this.spotsLoading = false
+      }
+    },
+
+    // 현재 자리 목록 비우기
+    clearZoneSpots() {
+      this.currentZoneSpots = []
+      this.currentZoneId = null
     },
   },
 })
