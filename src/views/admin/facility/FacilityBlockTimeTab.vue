@@ -1,8 +1,9 @@
 <script setup>
-import { inject, onMounted, onUnmounted, reactive } from 'vue'
+import { computed, inject, onMounted, onUnmounted, reactive } from 'vue'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import { toList } from '@/utils/apiResponse'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
+import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import FacilityBlockTimeForm from '@/components/admin/facility/FacilityBlockTimeForm.vue'
 
 const facilityStore = useFacilityStore()
@@ -14,12 +15,14 @@ const state = reactive({
   facilityId: '',
   fromDate: '',
   toDate: '',
+  // 'list' | 'create' | 'edit-single' | 'create-batch-prefill'
   mode: 'list',
   loading: false,
   errorMessage: '',
+  editItem: null,     // 단건 수정 시 전달
+  batchPrefill: null, // 배치 재등록 시 전달
 })
 
-// 결과 모달 상태
 const resultModal = reactive({
   show: false,
   type: 'success',
@@ -27,7 +30,74 @@ const resultModal = reactive({
   subtitle: '',
 })
 
-// 페이지 응답 시설 목록 정리
+// 상세 보기 모달
+const detailModal = reactive({
+  show: false,
+  item: null,
+})
+
+// 단건 삭제 확인
+const deleteSingleConfirm = reactive({
+  show: false,
+  loading: false,
+  item: null,
+})
+
+// 배치 삭제 확인 (기존 deactivateModal 역할 유지)
+const deactivateModal = reactive({
+  show: false,
+  loading: false,
+  batchId: null,
+  count: 0,
+})
+
+// 배치 수정 확인 (비활성화 후 재등록)
+const editBatchConfirm = reactive({
+  show: false,
+  loading: false,
+  item: null,
+})
+
+// 단일 + 반복(batchId 기준 그룹) 혼합 목록
+const displayList = computed(() => {
+  const singles = []
+  const batchMap = new Map()
+
+  for (const item of state.blockTimes) {
+    if (!item.batchId) {
+      singles.push({ ...item, _type: 'single' })
+    } else {
+      const key = String(item.batchId)
+      if (!batchMap.has(key)) {
+        batchMap.set(key, {
+          _type: 'batch',
+          batchId: item.batchId,
+          startTime: item.startTime,
+          endTime: item.endTime,
+          reason: item.reason,
+          seatId: item.seatId,
+          seatNo: item.seatNo,
+          minDate: item.blockDate,
+          maxDate: item.blockDate,
+          count: 1,
+          facilityId: state.facilityId,
+        })
+      } else {
+        const g = batchMap.get(key)
+        g.count++
+        if (item.blockDate < g.minDate) g.minDate = item.blockDate
+        if (item.blockDate > g.maxDate) g.maxDate = item.blockDate
+      }
+    }
+  }
+
+  return [...singles, ...batchMap.values()].sort((a, b) => {
+    const aDate = a.blockDate || a.minDate || ''
+    const bDate = b.blockDate || b.minDate || ''
+    return aDate < bDate ? -1 : aDate > bDate ? 1 : 0
+  })
+})
+
 const normalizeFacilities = (response) => {
   if (Array.isArray(response)) return response
   if (Array.isArray(response?.content)) return response.content
@@ -35,7 +105,6 @@ const normalizeFacilities = (response) => {
   return []
 }
 
-// 결과 모달 표시
 const openResultModal = (type, title, subtitle) => {
   resultModal.type = type
   resultModal.title = title
@@ -43,68 +112,51 @@ const openResultModal = (type, title, subtitle) => {
   resultModal.show = true
 }
 
-// 결과 모달 닫기
-const closeResultModal = () => {
-  resultModal.show = false
-}
-
-// 시설 목록 조회
 const fetchFacilities = async () => {
   state.loading = true
   state.errorMessage = ''
-
   try {
     const result = await facilityStore.fetchAdminFacilities({ page: 0, size: 100 })
-    state.facilities = normalizeFacilities(result).map((facility) => ({
-      ...facility,
-      facilityId: facility.facilityId ?? facility.facilityUid ?? facility.id,
+    state.facilities = normalizeFacilities(result).map((f) => ({
+      ...f,
+      facilityId: f.facilityId ?? f.facilityUid ?? f.id,
     }))
-
     if (!state.facilityId && state.facilities.length > 0) {
       state.facilityId = state.facilities[0].facilityId
     }
-  } catch (error) {
-    console.error('시설 목록 조회 실패:', error)
+  } catch (e) {
     state.errorMessage =
-      error.response?.data?.resultMessage ||
-      error.response?.data?.message ||
+      e?.response?.data?.resultMessage ||
+      e?.response?.data?.message ||
       '시설 목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }
 }
 
-// 차단 시간 목록 조회
 const fetchBlockTimes = async () => {
   if (!state.facilityId) return
-
   state.loading = true
   state.errorMessage = ''
-
   try {
     const params = {
       fromDate: state.fromDate || undefined,
       toDate: state.toDate || undefined,
     }
-
     const result = await facilityStore.fetchFacilityBlockTimes(state.facilityId, params)
     state.blockTimes = toList(result)
-  } catch (error) {
-    console.error('차단 시간 조회 실패:', error)
+  } catch (e) {
     state.errorMessage =
-      error.response?.data?.resultMessage ||
-      error.response?.data?.message ||
+      e?.response?.data?.resultMessage ||
+      e?.response?.data?.message ||
       '차단 시간 목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }
 }
 
-const changeFacility = () => {
-  fetchBlockTimes()
-}
+const changeFacility = () => fetchBlockTimes()
 
-// 조회 조건 초기화
 const resetSearch = () => {
   state.fromDate = ''
   state.toDate = ''
@@ -112,17 +164,159 @@ const resetSearch = () => {
 }
 
 const openCreateForm = () => {
+  state.editItem = null
+  state.batchPrefill = null
   state.mode = 'create'
 }
 
-const closeCreateForm = () => {
+const closeForm = () => {
+  state.editItem = null
+  state.batchPrefill = null
   state.mode = 'list'
 }
 
-const handleBlockTimeSaved = async (facilityName) => {
+const handleBlockTimeSaved = async (facilityName, subtitle) => {
   state.mode = 'list'
+  state.editItem = null
+  state.batchPrefill = null
   await fetchBlockTimes()
-  openResultModal('success', '차단 시간이 등록되었습니다.', `${facilityName} 예약 차단 시간을 반영했습니다.`)
+  openResultModal(
+    'success',
+    subtitle === '차단 시간이 수정되었습니다.' ? '수정 완료' : '차단 시간이 등록되었습니다.',
+    subtitle || `${facilityName} 예약 차단 시간을 반영했습니다.`,
+  )
+}
+
+// ── 상세 모달 ──────────────────────────────────────────
+const openDetail = (item) => {
+  detailModal.item = item
+  detailModal.show = true
+}
+
+const closeDetail = () => {
+  detailModal.show = false
+  detailModal.item = null
+}
+
+// ── 단건 수정 ──────────────────────────────────────────
+const startSingleEdit = () => {
+  state.editItem = { ...detailModal.item, facilityId: state.facilityId }
+  closeDetail()
+  state.mode = 'edit-single'
+}
+
+// ── 단건 삭제 ──────────────────────────────────────────
+const openDeleteSingle = () => {
+  deleteSingleConfirm.item = { ...detailModal.item }
+  closeDetail()
+  deleteSingleConfirm.show = true
+}
+
+const cancelDeleteSingle = () => {
+  deleteSingleConfirm.show = false
+  deleteSingleConfirm.loading = false
+  deleteSingleConfirm.item = null
+}
+
+const confirmDeleteSingle = async () => {
+  deleteSingleConfirm.loading = true
+  try {
+    await facilityStore.deactivateFacilityBlockTime(
+      state.facilityId,
+      deleteSingleConfirm.item.facilityBlockTimeId,
+    )
+    deleteSingleConfirm.show = false
+    deleteSingleConfirm.loading = false
+    deleteSingleConfirm.item = null
+    await fetchBlockTimes()
+    openResultModal('success', '삭제 완료', '차단 시간이 비활성화되었습니다.')
+  } catch (e) {
+    deleteSingleConfirm.loading = false
+    openResultModal(
+      'error',
+      '삭제 실패',
+      e?.response?.data?.resultMessage || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
+    )
+  }
+}
+
+// ── 배치 수정 ──────────────────────────────────────────
+const openEditBatch = () => {
+  editBatchConfirm.item = { ...detailModal.item }
+  closeDetail()
+  editBatchConfirm.show = true
+}
+
+const cancelEditBatch = () => {
+  editBatchConfirm.show = false
+  editBatchConfirm.loading = false
+  editBatchConfirm.item = null
+}
+
+const confirmEditBatch = async () => {
+  editBatchConfirm.loading = true
+  try {
+    await facilityStore.deactivateFacilityBlockTimeBatch(
+      state.facilityId,
+      editBatchConfirm.item.batchId,
+    )
+    state.batchPrefill = {
+      facilityId: state.facilityId,
+      startTime: editBatchConfirm.item.startTime,
+      endTime: editBatchConfirm.item.endTime,
+      reason: editBatchConfirm.item.reason,
+      seatId: editBatchConfirm.item.seatId,
+    }
+    editBatchConfirm.show = false
+    editBatchConfirm.loading = false
+    editBatchConfirm.item = null
+    state.editItem = null
+    state.mode = 'create-batch-prefill'
+    await fetchBlockTimes()
+  } catch (e) {
+    editBatchConfirm.loading = false
+    openResultModal(
+      'error',
+      '처리 실패',
+      e?.response?.data?.resultMessage || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
+    )
+  }
+}
+
+// ── 배치 삭제 ──────────────────────────────────────────
+const openDeactivate = () => {
+  deactivateModal.batchId = detailModal.item.batchId
+  deactivateModal.count = detailModal.item.count
+  closeDetail()
+  deactivateModal.show = true
+}
+
+const cancelDeactivate = () => {
+  deactivateModal.show = false
+  deactivateModal.loading = false
+  deactivateModal.batchId = null
+}
+
+const confirmDeactivate = async () => {
+  deactivateModal.loading = true
+  const count = deactivateModal.count
+  try {
+    await facilityStore.deactivateFacilityBlockTimeBatch(
+      state.facilityId,
+      deactivateModal.batchId,
+    )
+    deactivateModal.show = false
+    deactivateModal.loading = false
+    await fetchBlockTimes()
+    openResultModal('success', '비활성화 완료', `반복 차단 ${count}건이 비활성화되었습니다.`)
+  } catch (e) {
+    deactivateModal.loading = false
+    openResultModal(
+      'error',
+      '비활성화 실패',
+      e?.response?.data?.resultMessage || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
+    )
+  }
 }
 
 onMounted(async () => {
@@ -139,11 +333,13 @@ onUnmounted(() => {
 <template>
   <section class="block-time-tab">
     <FacilityBlockTimeForm
-      v-if="state.mode === 'create'"
+      v-if="state.mode !== 'list'"
       :facilities="state.facilities"
       :initial-facility-id="state.facilityId"
+      :edit-item="state.mode === 'edit-single' ? state.editItem : null"
+      :batch-prefill="state.mode === 'create-batch-prefill' ? state.batchPrefill : null"
       @saved="handleBlockTimeSaved"
-      @cancel="closeCreateForm"
+      @cancel="closeForm"
     />
 
     <div v-else class="tab-grid">
@@ -155,7 +351,11 @@ onUnmounted(() => {
             <span>시설 선택</span>
             <select v-model="state.facilityId" @change="changeFacility">
               <option value="" disabled>시설을 선택해주세요.</option>
-              <option v-for="facility in state.facilities" :key="facility.facilityId" :value="facility.facilityId">
+              <option
+                v-for="facility in state.facilities"
+                :key="facility.facilityId"
+                :value="facility.facilityId"
+              >
                 {{ facility.name }}
               </option>
             </select>
@@ -176,26 +376,210 @@ onUnmounted(() => {
         </div>
 
         <div class="block-list">
-          <div v-for="item in state.blockTimes" :key="item.facilityBlockTimeId" class="block-card">
-            <div>
-              <strong>{{ item.blockDate }}</strong>
-              <p>{{ item.reason || '차단 사유 없음' }}</p>
+          <template
+            v-for="item in displayList"
+            :key="item._type === 'batch' ? `batch-${item.batchId}` : item.facilityBlockTimeId"
+          >
+            <!-- 반복 차단 그룹 카드 -->
+            <div
+              v-if="item._type === 'batch'"
+              class="block-card block-card--batch block-card--clickable"
+              @click="openDetail(item)"
+            >
+              <div class="block-card-left">
+                <div class="block-card-top-row">
+                  <strong>{{ item.minDate }} ~ {{ item.maxDate }}</strong>
+                  <span class="batch-badge">반복 차단 {{ item.count }}건</span>
+                </div>
+                <p>{{ item.reason || '차단 사유 없음' }}</p>
+              </div>
+              <div class="block-card-meta">
+                <span class="block-scope">
+                  {{ item.seatId ? `좌석 ${item.seatNo || item.seatId}번 차단` : '전체 차단' }}
+                </span>
+                <span>
+                  {{ item.startTime && item.endTime ? `${item.startTime} ~ ${item.endTime}` : '종일' }}
+                </span>
+              </div>
             </div>
-            <div class="block-card-meta">
-              <span class="block-scope">
-                {{ item.seatId ? `좌석 ${item.seatNo || item.seatId}번 차단` : '전체 차단' }}
-              </span>
-              <span>
-                {{ item.startTime && item.endTime ? `${item.startTime} ~ ${item.endTime}` : '종일' }}
-              </span>
+
+            <!-- 단일 차단 카드 -->
+            <div
+              v-else
+              class="block-card block-card--clickable"
+              @click="openDetail(item)"
+            >
+              <div>
+                <strong>{{ item.blockDate }}</strong>
+                <p>{{ item.reason || '차단 사유 없음' }}</p>
+              </div>
+              <div class="block-card-meta">
+                <span class="block-scope">
+                  {{ item.seatId ? `좌석 ${item.seatNo || item.seatId}번 차단` : '전체 차단' }}
+                </span>
+                <span>
+                  {{ item.startTime && item.endTime ? `${item.startTime} ~ ${item.endTime}` : '종일' }}
+                </span>
+              </div>
             </div>
-          </div>
-          <div v-if="state.blockTimes.length === 0" class="empty-box">
+          </template>
+
+          <div v-if="displayList.length === 0" class="empty-box">
             조회된 차단 시간이 없습니다.
           </div>
         </div>
       </article>
     </div>
+
+    <!-- 상세 보기 모달 -->
+    <div v-if="detailModal.show" class="modal-overlay" @click.self="closeDetail">
+      <div class="detail-modal">
+        <div class="detail-modal-header">
+          <h4>{{ detailModal.item?._type === 'batch' ? '반복 차단 상세' : '차단 시간 상세' }}</h4>
+          <button class="btn-close-x" type="button" @click="closeDetail">✕</button>
+        </div>
+
+        <div class="detail-body">
+          <template v-if="detailModal.item?._type === 'batch'">
+            <div class="detail-row">
+              <span class="detail-label">기간</span>
+              <span>{{ detailModal.item.minDate }} ~ {{ detailModal.item.maxDate }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">건수</span>
+              <span>{{ detailModal.item.count }}건</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">시간</span>
+              <span>
+                {{
+                  detailModal.item.startTime && detailModal.item.endTime
+                    ? `${detailModal.item.startTime} ~ ${detailModal.item.endTime}`
+                    : '종일'
+                }}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">차단 대상</span>
+              <span>
+                {{
+                  detailModal.item.seatId
+                    ? `좌석 ${detailModal.item.seatNo || detailModal.item.seatId}번`
+                    : '시설 전체'
+                }}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">사유</span>
+              <span>{{ detailModal.item.reason || '없음' }}</span>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="detail-row">
+              <span class="detail-label">차단일</span>
+              <span>{{ detailModal.item?.blockDate }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">시간</span>
+              <span>
+                {{
+                  detailModal.item?.startTime && detailModal.item?.endTime
+                    ? `${detailModal.item.startTime} ~ ${detailModal.item.endTime}`
+                    : '종일'
+                }}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">차단 대상</span>
+              <span>
+                {{
+                  detailModal.item?.seatId
+                    ? `좌석 ${detailModal.item.seatNo || detailModal.item.seatId}번`
+                    : '시설 전체'
+                }}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">사유</span>
+              <span>{{ detailModal.item?.reason || '없음' }}</span>
+            </div>
+          </template>
+        </div>
+
+        <div class="detail-actions">
+          <button
+            v-if="detailModal.item?._type === 'batch'"
+            class="btn-action btn-action--edit"
+            type="button"
+            @click="openEditBatch"
+          >
+            수정
+          </button>
+          <button
+            v-else
+            class="btn-action btn-action--edit"
+            type="button"
+            @click="startSingleEdit"
+          >
+            수정
+          </button>
+
+          <button
+            v-if="detailModal.item?._type === 'batch'"
+            class="btn-action btn-action--delete"
+            type="button"
+            @click="openDeactivate"
+          >
+            삭제
+          </button>
+          <button
+            v-else
+            class="btn-action btn-action--delete"
+            type="button"
+            @click="openDeleteSingle"
+          >
+            삭제
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 단건 삭제 확인 -->
+    <ConfirmModal
+      :visible="deleteSingleConfirm.show"
+      title="차단 시간 삭제"
+      subtitle="해당 차단 시간을 비활성화합니다. 계속하시겠습니까?"
+      confirm-type="danger"
+      confirm-text="삭제"
+      :loading="deleteSingleConfirm.loading"
+      @confirm="confirmDeleteSingle"
+      @cancel="cancelDeleteSingle"
+    />
+
+    <!-- 배치 삭제 확인 -->
+    <ConfirmModal
+      :visible="deactivateModal.show"
+      title="반복 차단 삭제"
+      :subtitle="`반복 차단 ${deactivateModal.count}건을 모두 비활성화합니다. 계속하시겠습니까?`"
+      confirm-type="danger"
+      confirm-text="삭제"
+      :loading="deactivateModal.loading"
+      @confirm="confirmDeactivate"
+      @cancel="cancelDeactivate"
+    />
+
+    <!-- 배치 수정 확인 -->
+    <ConfirmModal
+      :visible="editBatchConfirm.show"
+      title="반복 차단 수정"
+      :subtitle="`기존 반복 차단 ${editBatchConfirm.item?.count ?? 0}건을 비활성화하고 새로 등록합니다. 계속하시겠습니까?`"
+      confirm-type="primary"
+      confirm-text="수정 진행"
+      :loading="editBatchConfirm.loading"
+      @confirm="confirmEditBatch"
+      @cancel="cancelEditBatch"
+    />
 
     <ActionResultModal
       :visible="resultModal.show"
@@ -203,7 +587,7 @@ onUnmounted(() => {
       :title="resultModal.title"
       :subtitle="resultModal.subtitle"
       confirm-text="확인"
-      @close="closeResultModal"
+      @close="resultModal.show = false"
     />
   </section>
 </template>
@@ -213,32 +597,11 @@ onUnmounted(() => {
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-
 .panel {
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   background: #ffffff;
   padding: 24px;
-}
-
-.panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.panel-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #1e2a3e;
-}
-
-.panel-header p {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: #687282;
 }
 
 .search-row {
@@ -269,19 +632,11 @@ onUnmounted(() => {
   color: #1e2a3e;
 }
 
-.form-field input:disabled {
-  background: #f5f6f8;
-  color: #a0aec0;
-}
-
 .search-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: flex-end;
   gap: 8px;
-}
-
-.search-actions {
-  align-items: end;
 }
 
 .btn-primary,
@@ -292,6 +647,7 @@ onUnmounted(() => {
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
 }
 
 .btn-primary {
@@ -311,6 +667,7 @@ onUnmounted(() => {
   color: #2b3a55;
 }
 
+/* ── 차단 목록 ───────────────────────────────── */
 .block-list {
   display: grid;
   gap: 10px;
@@ -328,6 +685,32 @@ onUnmounted(() => {
   background: #f8fafc;
 }
 
+.block-card--batch {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.block-card--clickable {
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+
+.block-card--clickable:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.block-card-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.block-card-top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .block-card strong {
   color: #1e2a3e;
   font-size: 14px;
@@ -339,11 +722,21 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
+.batch-badge {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
 .block-card-meta {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
@@ -358,6 +751,108 @@ onUnmounted(() => {
   font-weight: 600 !important;
 }
 
+/* ── 상세 모달 ───────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.detail-modal {
+  width: 360px;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.detail-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.detail-modal-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #1e2a3e;
+}
+
+.btn-close-x {
+  border: none;
+  background: none;
+  color: #718096;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.detail-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-row {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.detail-label {
+  min-width: 68px;
+  color: #718096;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px 18px;
+  justify-content: flex-end;
+  border-top: 1px solid #eef2f7;
+}
+
+.btn-action {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.btn-action--edit {
+  border: 1px solid #d7dee8;
+  background: #ffffff;
+  color: #2b3a55;
+}
+
+.btn-action--edit:hover {
+  background: #f8fafc;
+}
+
+.btn-action--delete {
+  border: 1.5px solid #fca5a5;
+  background: #ffffff;
+  color: #e53e3e;
+}
+
+.btn-action--delete:hover {
+  background: #fff5f5;
+  border-color: #e53e3e;
+}
+
+/* ── 빈 상태 / 에러 ──────────────────────────── */
 .empty-box,
 .error-box {
   padding: 14px;

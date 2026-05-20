@@ -80,6 +80,37 @@ export const getFacilityBlockTimes = async (facilityId, params) => {
   return unwrapApiData(res)
 }
 
+// 시설 반복 차단 시간 일괄 등록
+export const createFacilityBlockTimeBatch = async (facilityId, body) => {
+  const res = await apiClient.post(`/api/admin/facilities/${facilityId}/block-times/batch`, body)
+  return unwrapApiData(res)
+}
+
+// 시설 반복 차단 일괄 비활성화
+export const deactivateFacilityBlockTimeBatch = async (facilityId, batchId) => {
+  const res = await apiClient.patch(
+    `/api/admin/facilities/${facilityId}/block-times/batch/${batchId}/deactivate`,
+  )
+  return unwrapApiData(res)
+}
+
+// 시설 차단 시간 단건 비활성화
+export const deactivateFacilityBlockTime = async (facilityId, blockTimeId) => {
+  const res = await apiClient.patch(
+    `/api/admin/facilities/${facilityId}/block-times/${blockTimeId}/deactivate`,
+  )
+  return unwrapApiData(res)
+}
+
+// 시설 차단 시간 단건 수정
+export const updateFacilityBlockTime = async (facilityId, blockTimeId, body) => {
+  const res = await apiClient.patch(
+    `/api/admin/facilities/${facilityId}/block-times/${blockTimeId}`,
+    body,
+  )
+  return unwrapApiData(res)
+}
+
 // 시설 좌석 등록
 export const createFacilitySeat = async (facilityId, body) => {
   const res = await apiClient.post(`/api/admin/facilities/${facilityId}/seats`, body)
@@ -152,6 +183,10 @@ export default {
   getFacilityPolicies,
   createFacilityBlockTime,
   getFacilityBlockTimes,
+  createFacilityBlockTimeBatch,
+  deactivateFacilityBlockTimeBatch,
+  deactivateFacilityBlockTime,
+  updateFacilityBlockTime,
   createFacilitySeat,
   bulkCreateFacilitySeats,
   getFacilitySeats,
