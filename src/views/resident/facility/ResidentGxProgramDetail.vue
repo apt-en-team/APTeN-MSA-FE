@@ -175,11 +175,9 @@ const onApplyConfirm = async () => {
     state.gxReservationId = res?.gxReservationId
     state.myStatus = res?.status
 
-    const isWaiting = normalizeGxReservationStatus(res?.status) === 'WAITING'
     resultModal.success = true
-    resultModal.message = isWaiting
-      ? '대기 신청이 완료되었습니다.'
-      : '신청이 완료되었습니다.'
+    resultModal.message = '대기 신청이 완료되었습니다.'
+    const isWaiting = normalizeGxReservationStatus(res?.status) === 'WAITING'
 
     if (isWaiting && res?.gxReservationId) {
       fetchWaitingOrder(res.gxReservationId)
@@ -360,7 +358,7 @@ onMounted(() => {
         </svg>
         <div>
           <p class="notice-title">대기 신청 가능</p>
-          <p class="notice-desc">정원이 마감되었으나 대기 신청이 가능합니다. 취소 발생 시 자동 승격됩니다.</p>
+          <p class="notice-desc">정원이 마감되었으나 대기 신청이 가능합니다. 관리자 승인 후 확정됩니다.</p>
         </div>
       </div>
 
@@ -389,11 +387,7 @@ onMounted(() => {
         :disabled="state.submitting"
         @click="applyModal.show = true"
       >
-        {{
-          normalizedDetailStatus === 'CLOSED' && state.detail.waitingEnabled
-            ? '대기 신청하기'
-            : '신청하기'
-        }}
+        대기 신청하기
       </button>
       <button
         v-else-if="canCancel"
@@ -409,9 +403,9 @@ onMounted(() => {
     <ResidentModal
       :visible="applyModal.show"
       type="info"
-      title="신청하시겠어요?"
-      subtitle="아래 프로그램에 신청합니다."
-      confirmText="신청하기"
+      title="대기 신청하시겠어요?"
+      subtitle="신청 후 관리자 승인을 통해 확정됩니다."
+      confirmText="대기 신청"
       confirmType="primary"
       :infoRows="state.detail ? [
         { label: '프로그램', value: state.detail.programName || state.detail.name },

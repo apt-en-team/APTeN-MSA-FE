@@ -464,6 +464,10 @@ onUnmounted(() => {
             </div>
 
             <div class="program-card__body">
+              <div v-if="program.description" class="info-row info-row--full">
+                <span class="info-label">설명</span>
+                <span class="info-value">{{ program.description }}</span>
+              </div>
               <div class="info-row">
                 <span class="info-label">운영기간</span>
                 <span class="info-value">
@@ -832,6 +836,10 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   font-size: 13px;
+}
+
+.info-row--full {
+  grid-column: 1 / -1;
 }
 
 .info-label {

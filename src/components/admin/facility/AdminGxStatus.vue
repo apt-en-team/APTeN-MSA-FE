@@ -100,6 +100,13 @@ const waitingCount = computed(
   () => state.status?.waitingCount ?? props.program?.waitingCount ?? 0,
 )
 
+// 일괄 승인 가능 인원: 대기 인원과 (최대 정원 - 확정 인원) 중 작은 값
+const bulkApproveCount = computed(() => {
+  const confirmedCount = state.status?.confirmedCount ?? 0
+  const remaining = Math.max(0, (props.program?.maxCount ?? 0) - confirmedCount)
+  return Math.min(waitingCount.value, remaining)
+})
+
 const canApprove = (status) => {
   const s = (status || '').toUpperCase()
   return s === 'WAITING' || s === 'PENDING'
@@ -172,14 +179,14 @@ const closeBulkApprove = () => {
 const confirmBulkApprove = async () => {
   state.bulkModal.loading = true
   try {
-    await gxApi.bulkApproveGxProgram(props.programId, { approveCount: waitingCount.value })
+    await gxApi.bulkApproveGxProgram(props.programId, { approveCount: bulkApproveCount.value })
     state.bulkModal.show = false
     state.bulkModal.loading = false
     state.resultModal = {
       show: true,
       type: 'success',
       title: '일괄 승인 완료',
-      subtitle: `${waitingCount.value}명이 승인 처리되었습니다.`,
+      subtitle: `${bulkApproveCount.value}명이 승인 처리되었습니다.`,
     }
     await refreshAll()
     emit('refresh')
@@ -309,6 +316,10 @@ watch(
     <div v-if="state.loading" class="loading-text">현황을 불러오는 중입니다.</div>
     <div v-else class="summary-row">
       <div class="summary-card">
+        <p class="summary-label">최소 인원</p>
+        <p class="summary-value">{{ program.minCount ?? '-' }}명</p>
+      </div>
+      <div class="summary-card">
         <p class="summary-label">최대 정원</p>
         <p class="summary-value">{{ program.maxCount ?? '-' }}명</p>
       </div>
@@ -334,11 +345,12 @@ watch(
     <div class="bulk-area">
       <button
         class="btn-bulk-approve"
-        :disabled="waitingCount === 0 || state.bulkModal.loading"
+        :disabled="bulkApproveCount === 0 || state.bulkModal.loading"
         @click="openBulkApprove"
       >
-        일괄 승인 ({{ waitingCount }}명)
+        일괄 승인 ({{ bulkApproveCount }}명)
       </button>
+      <p class="bulk-info">최대 정원까지만 승인됩니다.</p>
     </div>
 
     <!-- 상태 필터 -->
@@ -422,7 +434,7 @@ watch(
   <ConfirmModal
     :visible="state.bulkModal.show"
     title="일괄 승인"
-    :subtitle="`대기 중인 ${waitingCount}명을 일괄 승인하시겠습니까?`"
+    :subtitle="`대기 중인 ${waitingCount}명 중 최대 정원 기준 ${bulkApproveCount}명을 승인합니다.`"
     confirm-type="success"
     confirm-text="승인"
     :loading="state.bulkModal.loading"
@@ -566,6 +578,14 @@ watch(
 .bulk-area {
   display: flex;
   align-items: center;
+  gap: 12px;
+}
+
+.bulk-info {
+  margin: 0;
+  font-size: 12px;
+  color: #718096;
+  font-family: 'Noto Sans KR', sans-serif;
 }
 
 .btn-bulk-approve {
