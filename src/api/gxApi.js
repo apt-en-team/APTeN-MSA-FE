@@ -31,6 +31,12 @@ export const cancelGxProgram = async (programId, body) => {
   return unwrapApiData(res)
 }
 
+// 관리자 GX 모집 마감 처리 (잔여 WAITING 일괄 거절 + 프로그램 CLOSED)
+export const closeWaiting = async (programId, body = {}) => {
+  const res = await apiClient.patch(`/api/admin/gx-programs/${programId}/close-waiting`, body)
+  return unwrapApiData(res)
+}
+
 // 입주민 GX 프로그램 목록 조회
 export const getGxPrograms = async (params) => {
   const res = await apiClient.get('/api/gx-programs', { params })
@@ -132,6 +138,7 @@ export default {
   approveGxReservation,
   rejectGxReservation,
   bulkApproveGxProgram,
+  closeWaiting,
   checkGxMinimum,
   getGxProgramStatus,
   getAdminGxProgramReservations,

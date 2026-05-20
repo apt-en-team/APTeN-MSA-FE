@@ -42,10 +42,8 @@ const activeMyStatus = computed(() =>
 )
 const normalizedDetailStatus = computed(() => normalizeGxProgramStatus(state.detail?.status))
 
-const isProgramApplicable = computed(() => {
-  const n = normalizedDetailStatus.value
-  return n === 'RECRUITING' || (n === 'CLOSED' && state.detail?.waitingEnabled)
-})
+// 전원 대기형: CLOSED는 관리자 모집 마감 상태 → 신청 불가
+const isProgramApplicable = computed(() => normalizedDetailStatus.value === 'RECRUITING')
 
 const canApply = computed(() => {
   if (!isProgramApplicable.value) return false
@@ -185,10 +183,15 @@ const onApplyConfirm = async () => {
     fetchDetail()
   } catch (e) {
     resultModal.success = false
-    resultModal.message =
-      e?.response?.data?.resultMessage ||
-      e?.response?.data?.message ||
-      '신청에 실패했습니다. 다시 시도해 주세요.'
+    const errCode = e?.response?.data?.resultCode || e?.response?.data?.errorCode || ''
+    if (errCode === 'FRS_400_11') {
+      resultModal.message = '모집이 마감된 프로그램입니다.'
+    } else {
+      resultModal.message =
+        e?.response?.data?.resultMessage ||
+        e?.response?.data?.message ||
+        '신청에 실패했습니다. 다시 시도해 주세요.'
+    }
   } finally {
     state.submitting = false
     resultModal.show = true
@@ -332,9 +335,9 @@ onMounted(() => {
         </template>
       </div>
 
-      <!-- 마감 안내 (대기 불가) -->
+      <!-- 마감 안내 -->
       <div
-        v-if="normalizedDetailStatus === 'CLOSED' && !state.detail.waitingEnabled && !isMyStatusActive"
+        v-if="normalizedDetailStatus === 'CLOSED' && !isMyStatusActive"
         class="notice-card is-warning"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -342,23 +345,8 @@ onMounted(() => {
           <path d="M12 8v4M12 16h.01" stroke-linecap="round" />
         </svg>
         <div>
-          <p class="notice-title">신청 마감</p>
-          <p class="notice-desc">정원이 마감되었습니다.</p>
-        </div>
-      </div>
-
-      <!-- 마감 안내 (대기 가능) -->
-      <div
-        v-else-if="normalizedDetailStatus === 'CLOSED' && state.detail.waitingEnabled && !isMyStatusActive"
-        class="notice-card is-info"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 8v4M12 16h.01" stroke-linecap="round" />
-        </svg>
-        <div>
-          <p class="notice-title">대기 신청 가능</p>
-          <p class="notice-desc">정원이 마감되었으나 대기 신청이 가능합니다. 관리자 승인 후 확정됩니다.</p>
+          <p class="notice-title">모집 마감</p>
+          <p class="notice-desc">모집이 마감된 프로그램입니다.</p>
         </div>
       </div>
 

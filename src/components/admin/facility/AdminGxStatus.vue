@@ -1,31 +1,10 @@
 <script setup>
-import { reactive, computed, watch } from 'vue'
+import { reactive, computed, watch, onMounted } from 'vue'
 import gxApi from '@/api/gxApi'
 import { toList } from '@/utils/apiResponse'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
-
-const props = defineProps({
-  programId: {
-    type: [Number, String],
-    required: true,
-  },
-  program: {
-    type: Object,
-    required: true,
-  },
-})
-
-const emit = defineEmits(['refresh'])
-
-const STATUS_FILTER_OPTIONS = [
-  { value: '', label: '전체' },
-  { value: 'WAITING', label: '대기' },
-  { value: 'CONFIRMED', label: '확정' },
-  { value: 'REJECTED', label: '거절' },
-  { value: 'CANCELLED', label: '취소' },
-]
 
 const RESERVATION_STATUS_LABEL = {
   WAITING: '대기',
@@ -37,117 +16,106 @@ const RESERVATION_STATUS_LABEL = {
 }
 
 const state = reactive({
-  loading: false,
+  programs: { loading: false, error: '', list: [] },
+  selectedProgramId: null,
+
+  statusLoading: false,
   status: null,
 
-  statusFilter: '',
-  reservations: {
-    loading: false,
-    error: false,
-    list: [],
-  },
+  reservations: { loading: false, error: false, list: [] },
 
-  approveModal: {
-    show: false,
-    loading: false,
-    reservationId: null,
-    residentName: '',
-  },
-
-  rejectModal: {
-    show: false,
-    loading: false,
-    reservationId: null,
-    residentName: '',
-    reason: '',
-  },
-
-  bulkModal: {
-    show: false,
-    loading: false,
-  },
-
-  resultModal: {
-    show: false,
-    type: 'success',
-    title: '',
-    subtitle: '',
-  },
+  bulkModal: { show: false, loading: false },
+  closeModal: { show: false, loading: false },
+  resultModal: { show: false, type: 'success', title: '', subtitle: '' },
 })
 
-const programStatusLabel = (status) => {
-  return { OPEN: '모집중', CLOSED: '종료', CANCELLED: '취소됨' }[status] || status || '-'
-}
-
-const programStatusClass = (status) => {
-  return { OPEN: 'open', CLOSED: 'closed', CANCELLED: 'cancelled' }[status] || ''
-}
-
-const resStatusClass = (status) => {
-  return (
-    {
-      WAITING: 'res-status--waiting',
-      PENDING: 'res-status--waiting',
-      CONFIRMED: 'res-status--confirmed',
-      REJECTED: 'res-status--rejected',
-      CANCELLED: 'res-status--cancelled',
-      COMPLETED: 'res-status--completed',
-    }[status] || ''
-  )
-}
-
-const waitingCount = computed(
-  () => state.status?.waitingCount ?? props.program?.waitingCount ?? 0,
+const selectedProgram = computed(() =>
+  state.programs.list.find((p) => String(p.programId) === String(state.selectedProgramId)) || null,
 )
 
-// 일괄 승인 가능 인원: 대기 인원과 (최대 정원 - 확정 인원) 중 작은 값
+const waitingCount = computed(() => state.status?.waitingCount ?? 0)
+const confirmedCount = computed(() => state.status?.confirmedCount ?? 0)
+
 const bulkApproveCount = computed(() => {
-  const confirmedCount = state.status?.confirmedCount ?? 0
-  const remaining = Math.max(0, (props.program?.maxCount ?? 0) - confirmedCount)
+  const remaining = Math.max(0, (selectedProgram.value?.maxCount ?? 0) - confirmedCount.value)
   return Math.min(waitingCount.value, remaining)
 })
 
-const canApprove = (status) => {
-  const s = (status || '').toUpperCase()
-  return s === 'WAITING' || s === 'PENDING'
-}
+const waitingList = computed(() =>
+  state.reservations.list
+    .filter((r) => r.status === 'WAITING' || r.status === 'PENDING')
+    .sort((a, b) => (a.waitNo ?? Infinity) - (b.waitNo ?? Infinity))
+    .map((r, i) => ({ ...r, willConfirm: i < bulkApproveCount.value })),
+)
 
-const canReject = (status) => {
-  const s = (status || '').toUpperCase()
-  return s === 'WAITING' || s === 'PENDING'
-}
+const overflowCount = computed(() => Math.max(0, waitingCount.value - bulkApproveCount.value))
 
+const programStatusLabel = (status) =>
+  ({ OPEN: '모집중', CLOSED: '종료', CANCELLED: '취소됨' }[status] || status || '-')
+
+const programStatusClass = (status) =>
+  ({ OPEN: 'open', CLOSED: 'closed', CANCELLED: 'cancelled' }[status] || '')
+
+const resStatusClass = (status) =>
+  ({
+    WAITING: 'res-status--waiting',
+    PENDING: 'res-status--waiting',
+    CONFIRMED: 'res-status--confirmed',
+    REJECTED: 'res-status--rejected',
+    CANCELLED: 'res-status--cancelled',
+    COMPLETED: 'res-status--completed',
+  }[status] || '')
+
+const formatDate = (d) => (d ? String(d).replace(/-/g, '.') : '-')
+const formatTime = (t) => (t ? String(t).slice(0, 5) : '-')
+const formatDateTime = (dt) => {
+  if (!dt) return '-'
+  return String(dt).slice(0, 16).replace('T', ' ')
+}
 const formatUnit = (row) => {
   if (row.unit) return row.unit
   const parts = [row.dong, row.ho].filter(Boolean)
   return parts.length > 0 ? parts.join(' ') : '-'
 }
 
-const formatDateTime = (dt) => {
-  if (!dt) return '-'
-  return String(dt).slice(0, 16).replace('T', ' ')
+const fetchPrograms = async () => {
+  state.programs.loading = true
+  state.programs.error = ''
+  try {
+    const res = await gxApi.getAdminGxPrograms({ page: 0, size: 100 })
+    state.programs.list = toList(res)
+    if (state.programs.list.length > 0 && !state.selectedProgramId) {
+      state.selectedProgramId = state.programs.list[0].programId
+    }
+  } catch {
+    state.programs.error = 'GX 프로그램 목록을 불러오지 못했습니다.'
+    state.programs.list = []
+  } finally {
+    state.programs.loading = false
+  }
 }
 
 const fetchStatus = async () => {
-  if (!props.programId) return
-  state.loading = true
+  if (!state.selectedProgramId) return
+  state.statusLoading = true
   try {
-    state.status = await gxApi.getGxProgramStatus(props.programId)
+    state.status = await gxApi.getGxProgramStatus(state.selectedProgramId)
   } catch {
     state.status = null
   } finally {
-    state.loading = false
+    state.statusLoading = false
   }
 }
 
 const fetchReservations = async () => {
-  if (!props.programId) return
+  if (!state.selectedProgramId) return
   state.reservations.loading = true
   state.reservations.error = false
   try {
-    const params = { page: 0, size: 100 }
-    if (state.statusFilter) params.status = state.statusFilter
-    const res = await gxApi.getAdminGxProgramReservations(props.programId, params)
+    const res = await gxApi.getAdminGxProgramReservations(state.selectedProgramId, {
+      page: 0,
+      size: 100,
+    })
     state.reservations.list = toList(res)
   } catch {
     state.reservations.list = []
@@ -157,16 +125,14 @@ const fetchReservations = async () => {
   }
 }
 
-const refreshAll = async () => {
+const refreshDetail = async () => {
   await Promise.all([fetchStatus(), fetchReservations()])
 }
 
-const changeFilter = (value) => {
-  state.statusFilter = value
-  fetchReservations()
+const selectProgram = (id) => {
+  state.selectedProgramId = id
 }
 
-// 일괄승인
 const openBulkApprove = () => {
   state.bulkModal.show = true
 }
@@ -179,7 +145,7 @@ const closeBulkApprove = () => {
 const confirmBulkApprove = async () => {
   state.bulkModal.loading = true
   try {
-    await gxApi.bulkApproveGxProgram(props.programId, { approveCount: bulkApproveCount.value })
+    await gxApi.bulkApproveGxProgram(state.selectedProgramId, { approveCount: bulkApproveCount.value })
     state.bulkModal.show = false
     state.bulkModal.loading = false
     state.resultModal = {
@@ -188,8 +154,7 @@ const confirmBulkApprove = async () => {
       title: '일괄 승인 완료',
       subtitle: `${bulkApproveCount.value}명이 승인 처리되었습니다.`,
     }
-    await refreshAll()
-    emit('refresh')
+    await Promise.all([fetchPrograms(), refreshDetail()])
   } catch {
     state.bulkModal.loading = false
     state.resultModal = {
@@ -201,281 +166,223 @@ const confirmBulkApprove = async () => {
   }
 }
 
-// 단건 승인
-const openApprove = (row) => {
-  state.approveModal = {
-    show: true,
-    loading: false,
-    reservationId: row.gxReservationId,
-    residentName: row.residentName || '-',
-  }
+const openClose = () => {
+  state.closeModal.show = true
 }
 
-const closeApprove = () => {
-  state.approveModal.show = false
-  state.approveModal.loading = false
+const cancelClose = () => {
+  state.closeModal.show = false
+  state.closeModal.loading = false
 }
 
-const confirmApprove = async () => {
-  state.approveModal.loading = true
-  const residentName = state.approveModal.residentName
+const confirmClose = async () => {
+  state.closeModal.loading = true
   try {
-    await gxApi.approveGxReservation(state.approveModal.reservationId)
-    closeApprove()
+    const res = await gxApi.closeWaiting(state.selectedProgramId)
+    state.closeModal.show = false
+    state.closeModal.loading = false
     state.resultModal = {
       show: true,
       type: 'success',
-      title: '승인 완료',
-      subtitle: `${residentName}님이 승인 처리되었습니다.`,
+      title: '모집 마감 완료',
+      subtitle: `${res?.rejectedCount ?? 0}명이 거절 처리되어 모집이 마감되었습니다.`,
     }
-    await refreshAll()
-    emit('refresh')
-  } catch {
-    state.approveModal.loading = false
+    await Promise.all([fetchPrograms(), refreshDetail()])
+  } catch (e) {
+    state.closeModal.loading = false
     state.resultModal = {
       show: true,
       type: 'error',
-      title: '승인 실패',
-      subtitle: '처리 중 오류가 발생했습니다.',
-    }
-  }
-}
-
-// 단건 거절
-const openReject = (row) => {
-  state.rejectModal = {
-    show: true,
-    loading: false,
-    reservationId: row.gxReservationId,
-    residentName: row.residentName || '-',
-    reason: '',
-  }
-}
-
-const closeReject = () => {
-  state.rejectModal.show = false
-  state.rejectModal.loading = false
-  state.rejectModal.reason = ''
-}
-
-const confirmReject = async () => {
-  state.rejectModal.loading = true
-  const residentName = state.rejectModal.residentName
-  try {
-    await gxApi.rejectGxReservation(state.rejectModal.reservationId, {
-      rejectReason: state.rejectModal.reason || null,
-    })
-    closeReject()
-    state.resultModal = {
-      show: true,
-      type: 'success',
-      title: '거절 완료',
-      subtitle: `${residentName}님이 거절 처리되었습니다.`,
-    }
-    await refreshAll()
-    emit('refresh')
-  } catch {
-    state.rejectModal.loading = false
-    state.resultModal = {
-      show: true,
-      type: 'error',
-      title: '거절 실패',
-      subtitle: '처리 중 오류가 발생했습니다.',
+      title: '마감 처리 실패',
+      subtitle:
+        e?.response?.data?.resultMessage || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
     }
   }
 }
 
 watch(
-  () => props.programId,
-  () => {
-    state.statusFilter = ''
-    refreshAll()
+  () => state.selectedProgramId,
+  (id) => {
+    if (id) refreshDetail()
   },
-  { immediate: true },
+  { immediate: false },
 )
+
+onMounted(fetchPrograms)
 </script>
 
 <template>
-  <div class="gx-detail-panel">
-    <!-- 프로그램 헤더 -->
-    <div class="detail-head">
-      <div>
-        <h3 class="detail-title">{{ program.name }}</h3>
-        <p class="detail-desc">
-          {{ program.startDate ?? '-' }} ~ {{ program.endDate ?? '-' }}
-          &nbsp;·&nbsp;
-          {{ program.startTime ?? '-' }} ~ {{ program.endTime ?? '-' }}
-        </p>
+  <div class="gx-layout">
+    <!-- 왼쪽: 프로그램 목록 -->
+    <div class="program-panel">
+      <div v-if="state.programs.loading" class="panel-state">GX 프로그램 조회 중...</div>
+      <div v-else-if="state.programs.error" class="panel-error">{{ state.programs.error }}</div>
+      <div v-else-if="state.programs.list.length === 0" class="panel-state">
+        등록된 GX 프로그램이 없습니다.
       </div>
-      <span class="status-badge" :class="programStatusClass(program.status)">
-        {{ programStatusLabel(program.status) }}
-      </span>
-    </div>
-
-    <!-- 현황 카드 -->
-    <div v-if="state.loading" class="loading-text">현황을 불러오는 중입니다.</div>
-    <div v-else class="summary-row">
-      <div class="summary-card">
-        <p class="summary-label">최소 인원</p>
-        <p class="summary-value">{{ program.minCount ?? '-' }}명</p>
-      </div>
-      <div class="summary-card">
-        <p class="summary-label">최대 정원</p>
-        <p class="summary-value">{{ program.maxCount ?? '-' }}명</p>
-      </div>
-      <div class="summary-card confirmed-card">
-        <p class="summary-label">확정 인원</p>
-        <p class="summary-value">{{ state.status?.confirmedCount ?? '-' }}명</p>
-      </div>
-      <div class="summary-card waiting-card">
-        <p class="summary-label">대기 인원</p>
-        <p class="summary-value">{{ state.status?.waitingCount ?? '-' }}명</p>
-      </div>
-      <div class="summary-card rejected-card">
-        <p class="summary-label">거절 인원</p>
-        <p class="summary-value">{{ state.status?.rejectedCount ?? '-' }}명</p>
-      </div>
-      <div class="summary-card cancelled-card">
-        <p class="summary-label">취소 인원</p>
-        <p class="summary-value">{{ state.status?.cancelledCount ?? '-' }}명</p>
+      <div v-else class="program-list">
+        <div
+          v-for="p in state.programs.list"
+          :key="p.programId"
+          :class="['program-item', { active: String(state.selectedProgramId) === String(p.programId) }]"
+          @click="selectProgram(p.programId)"
+        >
+          <div class="program-item-top">
+            <span class="program-name">{{ p.name }}</span>
+            <span v-if="(p.waitingCount ?? 0) > 0" class="pending-badge">대기 {{ p.waitingCount }}</span>
+          </div>
+          <div class="program-period">
+            {{ formatDate(p.startDate) }} ~ {{ formatDate(p.endDate) }}
+          </div>
+          <div class="program-capacity">
+            최대 {{ p.maxCount ?? '-' }}명 · 최소 {{ p.minCount ?? '-' }}명
+          </div>
+          <div class="program-chips">
+            <span class="chip chip-confirmed">확정 {{ p.confirmedCount ?? 0 }}</span>
+            <span class="chip chip-waiting">대기 {{ p.waitingCount ?? 0 }}</span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- 일괄승인 -->
-    <div class="bulk-area">
-      <button
-        class="btn-bulk-approve"
-        :disabled="bulkApproveCount === 0 || state.bulkModal.loading"
-        @click="openBulkApprove"
-      >
-        일괄 승인 ({{ bulkApproveCount }}명)
-      </button>
-      <p class="bulk-info">최대 정원까지만 승인됩니다.</p>
-    </div>
+    <!-- 오른쪽: 상세 패널 -->
+    <div class="detail-panel">
+      <div v-if="!selectedProgram" class="panel-state">왼쪽에서 GX 프로그램을 선택하세요.</div>
+      <template v-else>
+        <!-- 헤더 -->
+        <div class="detail-head">
+          <div class="detail-head-info">
+            <h3 class="detail-title">{{ selectedProgram.name }}</h3>
+            <p class="detail-desc">
+              {{ formatDate(selectedProgram.startDate) }} ~ {{ formatDate(selectedProgram.endDate) }}
+              &nbsp;·&nbsp;
+              {{ formatTime(selectedProgram.startTime) }} ~ {{ formatTime(selectedProgram.endTime) }}
+            </p>
+          </div>
+          <div class="detail-head-actions">
+            <span class="status-badge" :class="programStatusClass(selectedProgram.status)">
+              {{ programStatusLabel(selectedProgram.status) }}
+            </span>
+            <button
+              class="btn-approve"
+              :disabled="bulkApproveCount === 0"
+              @click="openBulkApprove"
+            >
+              일괄 승인 ({{ bulkApproveCount }}명)
+            </button>
+            <button
+              class="btn-close"
+              :disabled="selectedProgram.status !== 'OPEN' || state.closeModal.loading"
+              @click="openClose"
+            >
+              모집 마감
+            </button>
+          </div>
+        </div>
 
-    <!-- 상태 필터 -->
-    <div class="filter-tabs">
-      <button
-        v-for="opt in STATUS_FILTER_OPTIONS"
-        :key="opt.value"
-        :class="['filter-tab', { active: state.statusFilter === opt.value }]"
-        @click="changeFilter(opt.value)"
-      >
-        {{ opt.label }}
-      </button>
-    </div>
-
-    <!-- 신청자 목록 -->
-    <div class="reservations-section">
-      <div v-if="state.reservations.loading" class="state-text">신청자 목록을 불러오는 중입니다.</div>
-      <div v-else-if="state.reservations.error" class="state-text error-text">
-        신청자 목록을 불러오지 못했습니다.
-      </div>
-      <div v-else-if="state.reservations.list.length === 0" class="state-text">
-        신청자가 없습니다.
-      </div>
-      <div v-else class="table-wrap">
-        <table class="res-table">
-          <thead>
-            <tr>
-              <th>예약자명</th>
-              <th>세대</th>
-              <th>상태</th>
-              <th>대기순번</th>
-              <th>신청일</th>
-              <th>비고</th>
-              <th>처리</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in state.reservations.list" :key="row.gxReservationId">
-              <td>{{ row.residentName || '-' }}</td>
-              <td>{{ formatUnit(row) }}</td>
-              <td>
-                <span :class="['res-status', resStatusClass(row.status)]">
-                  {{ row.statusName || RESERVATION_STATUS_LABEL[row.status] || row.status || '-' }}
-                </span>
-              </td>
-              <td>{{ row.waitNo ?? '-' }}</td>
-              <td>{{ formatDateTime(row.createdAt) }}</td>
-              <td class="note-cell">
-                <span v-if="row.approvedAt">승인: {{ formatDateTime(row.approvedAt) }}</span>
-                <span v-else-if="row.rejectReason">사유: {{ row.rejectReason }}</span>
-                <span v-else-if="row.cancelReason">취소: {{ row.cancelReason }}</span>
-                <span v-else>-</span>
-              </td>
-              <td class="action-cell">
-                <template v-if="canApprove(row.status) || canReject(row.status)">
-                  <button
-                    v-if="canApprove(row.status)"
-                    class="btn-approve-sm"
-                    @click="openApprove(row)"
-                  >
-                    승인
-                  </button>
-                  <button
-                    v-if="canReject(row.status)"
-                    class="btn-reject-sm"
-                    @click="openReject(row)"
-                  >
-                    거절
-                  </button>
-                </template>
-                <span v-else>-</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <!-- 신청자 목록 -->
+        <div v-if="state.reservations.loading" class="panel-state">
+          신청자 목록을 불러오는 중입니다.
+        </div>
+        <div v-else-if="state.reservations.error" class="panel-state error-text">
+          신청자 목록을 불러오지 못했습니다.
+        </div>
+        <div v-else-if="state.reservations.list.length === 0" class="panel-state">
+          신청자가 없습니다.
+        </div>
+        <div v-else class="table-wrap">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>예약자명</th>
+                <th>세대</th>
+                <th>상태</th>
+                <th>대기순번</th>
+                <th>신청일</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in state.reservations.list" :key="row.gxReservationId">
+                <td>{{ row.residentName || '-' }}</td>
+                <td>{{ formatUnit(row) }}</td>
+                <td>
+                  <span :class="['res-status', resStatusClass(row.status)]">
+                    {{ row.statusName || RESERVATION_STATUS_LABEL[row.status] || row.status || '-' }}
+                  </span>
+                </td>
+                <td>{{ row.waitNo ?? '-' }}</td>
+                <td>{{ formatDateTime(row.createdAt) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </div>
   </div>
 
-  <!-- 일괄승인 확인 모달 -->
-  <ConfirmModal
+  <!-- 일괄 승인 모달 -->
+  <BaseModal
     :visible="state.bulkModal.show"
     title="일괄 승인"
-    :subtitle="`대기 중인 ${waitingCount}명 중 최대 정원 기준 ${bulkApproveCount}명을 승인합니다.`"
-    confirm-type="success"
-    confirm-text="승인"
-    :loading="state.bulkModal.loading"
-    @confirm="confirmBulkApprove"
-    @cancel="closeBulkApprove"
-  />
-
-  <!-- 단건 승인 확인 모달 -->
-  <ConfirmModal
-    :visible="state.approveModal.show"
-    title="승인"
-    :subtitle="`${state.approveModal.residentName}님을 승인 처리하시겠습니까?`"
-    confirm-type="success"
-    confirm-text="승인"
-    :loading="state.approveModal.loading"
-    @confirm="confirmApprove"
-    @cancel="closeApprove"
-  />
-
-  <!-- 단건 거절 모달 -->
-  <BaseModal :visible="state.rejectModal.show" title="거절" @close="closeReject">
-    <div class="reject-form">
-      <p class="reject-label">거절 사유 (선택)</p>
-      <textarea
-        v-model="state.rejectModal.reason"
-        class="reject-textarea"
-        placeholder="거절 사유를 입력하세요."
-        rows="3"
-      />
+    subtitle="대기 인원을 승인 순서대로 처리합니다."
+    @close="closeBulkApprove"
+  >
+    <div class="bulk-stat-cards">
+      <div class="bulk-stat-card">
+        <p class="bulk-stat-label">승인 대기</p>
+        <p class="bulk-stat-value">{{ waitingCount }}명</p>
+      </div>
+      <div class="bulk-stat-card">
+        <p class="bulk-stat-label">최대 정원</p>
+        <p class="bulk-stat-value">{{ selectedProgram?.maxCount ?? '-' }}명</p>
+      </div>
+      <div class="bulk-stat-card">
+        <p class="bulk-stat-label">확정 가능</p>
+        <p class="bulk-stat-value">{{ bulkApproveCount }}명</p>
+      </div>
+    </div>
+    <div v-if="bulkApproveCount > 0" class="bulk-notice">
+      신청 순서대로 <strong>{{ bulkApproveCount }}명</strong> 확정되며, 나머지
+      <strong>{{ overflowCount }}명</strong>은 대기 상태를 유지합니다.
+    </div>
+    <div v-else class="bulk-notice bulk-notice--warn">
+      확정 가능한 인원이 없습니다. (정원 초과 또는 대기자 없음)
+    </div>
+    <div v-if="waitingList.length > 0" class="bulk-pending-list">
+      <div
+        v-for="r in waitingList"
+        :key="r.gxReservationId"
+        :class="['bulk-pending-item', r.willConfirm ? 'will-confirm' : 'will-remain']"
+      >
+        <span class="bulk-pending-name">{{ r.residentName || '-' }}</span>
+        <span :class="['bulk-badge', r.willConfirm ? 'badge-confirm' : 'badge-remain']">
+          {{ r.willConfirm ? '확정 예정' : '대기 유지' }}
+        </span>
+      </div>
     </div>
     <template #footer>
-      <button class="btn-modal-cancel" @click="closeReject">취소</button>
+      <button class="btn-modal-secondary" @click="closeBulkApprove">닫기</button>
       <button
-        class="btn-modal-reject"
-        :disabled="state.rejectModal.loading"
-        @click="confirmReject"
+        class="btn-modal-primary"
+        :disabled="bulkApproveCount === 0 || state.bulkModal.loading"
+        @click="confirmBulkApprove"
       >
-        {{ state.rejectModal.loading ? '처리 중...' : '거절' }}
+        {{ state.bulkModal.loading ? '처리 중...' : '일괄 승인' }}
       </button>
     </template>
   </BaseModal>
+
+  <!-- 모집 마감 확인 모달 -->
+  <ConfirmModal
+    :visible="state.closeModal.show"
+    title="모집 마감 처리"
+    :subtitle="`잔여 대기자 ${waitingCount}명이 거절 처리되고 모집이 마감됩니다. 계속하시겠습니까?`"
+    confirm-type="danger"
+    confirm-text="마감 처리"
+    :loading="state.closeModal.loading"
+    @confirm="confirmClose"
+    @cancel="cancelClose"
+  />
 
   <!-- 결과 모달 -->
   <ActionResultModal
@@ -488,18 +395,136 @@ watch(
 </template>
 
 <style scoped>
-.gx-detail-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+/* ── 2컬럼 레이아웃 ───────────────────────────── */
+.gx-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 16px;
+  align-items: start;
 }
 
-/* 헤더 */
+.program-panel,
+.detail-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  min-height: 480px;
+}
+
+/* ── 상태 텍스트 ──────────────────────────────── */
+.panel-state {
+  font-size: 13px;
+  color: #718096;
+  font-family: 'Noto Sans KR', sans-serif;
+  padding: 20px 0;
+}
+
+.panel-error {
+  font-size: 13px;
+  color: #e53e3e;
+  font-family: 'Noto Sans KR', sans-serif;
+  padding: 10px 14px;
+  background: #fff5f5;
+  border-radius: 8px;
+}
+
+.error-text {
+  color: #e53e3e;
+}
+
+/* ── 프로그램 목록 ────────────────────────────── */
+.program-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.program-item {
+  padding: 20px 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.program-item:hover {
+  background: #f1f5f9;
+}
+
+.program-item.active {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.program-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.program-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a202c;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.pending-badge {
+  background: #f6e3bf;
+  color: #a35318;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.program-period,
+.program-capacity {
+  font-size: 12px;
+  color: #718096;
+  margin-bottom: 4px;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.program-chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.chip-confirmed {
+  background: #d9f0dc;
+  color: #2e7d32;
+}
+
+.chip-waiting {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+/* ── 상세 헤더 ───────────────────────────────── */
 .detail-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .detail-title {
@@ -517,185 +542,124 @@ watch(
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-.loading-text {
-  font-size: 13px;
-  color: #718096;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-/* 현황 카드 */
-.summary-row {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.summary-card {
-  flex: 1;
-  min-width: 110px;
-  padding: 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #f8fafc;
-}
-
-.summary-card.confirmed-card {
-  background: #e8f5e9;
-  border-color: #a5d6a7;
-}
-
-.summary-card.waiting-card {
-  background: #fff3e0;
-  border-color: #ffcc80;
-}
-
-.summary-card.rejected-card {
-  background: #fce4ec;
-  border-color: #f48fb1;
-}
-
-.summary-card.cancelled-card {
-  background: #f5f5f5;
-  border-color: #e0e0e0;
-}
-
-.summary-label {
-  margin: 0 0 8px;
-  font-size: 12px;
-  color: #718096;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.summary-value {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 900;
-  color: #1a202c;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-/* 일괄승인 */
-.bulk-area {
+.detail-head-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.bulk-info {
-  margin: 0;
-  font-size: 12px;
-  color: #718096;
+.status-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-.btn-bulk-approve {
-  padding: 10px 20px;
-  background: #4f46e5;
+.status-badge.open {
+  background: #e6f4ea;
+  color: #4d8b5a;
+}
+
+.status-badge.closed {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.status-badge.cancelled {
+  background: #fce4ec;
+  color: #e53e3e;
+}
+
+.btn-approve {
+  height: 36px;
+  padding: 0 14px;
+  background: #2b3a55;
   color: #ffffff;
   border: none;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   font-family: 'Noto Sans KR', sans-serif;
   cursor: pointer;
   transition: background 0.15s;
+  white-space: nowrap;
 }
 
-.btn-bulk-approve:hover:not(:disabled) {
-  background: #4338ca;
+.btn-approve:hover:not(:disabled) {
+  background: #1e2d44;
 }
 
-.btn-bulk-approve:disabled {
+.btn-approve:disabled {
   background: #e2e8f0;
   color: #94a3b8;
   cursor: not-allowed;
 }
 
-/* 상태 필터 */
-.filter-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.filter-tab {
-  padding: 6px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
+.btn-close {
+  height: 36px;
+  padding: 0 14px;
   background: #ffffff;
-  font-size: 12px;
+  color: #e53e3e;
+  border: 1.5px solid #fecaca;
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 600;
-  color: #718096;
   font-family: 'Noto Sans KR', sans-serif;
   cursor: pointer;
   transition: all 0.15s;
+  white-space: nowrap;
 }
 
-.filter-tab:hover {
-  background: #f1f5f9;
+.btn-close:hover:not(:disabled) {
+  background: #fff5f5;
+  border-color: #e53e3e;
 }
 
-.filter-tab.active {
-  background: #2b3a55;
-  border-color: #2b3a55;
-  color: #ffffff;
+.btn-close:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
-/* 신청자 목록 */
-.reservations-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.state-text {
-  font-size: 13px;
-  color: #718096;
-  font-family: 'Noto Sans KR', sans-serif;
-  padding: 8px 0;
-}
-
-.error-text {
-  color: #e53e3e;
-}
-
+/* ── 신청자 테이블 ────────────────────────────── */
 .table-wrap {
   overflow-x: auto;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
 }
 
-.res-table {
+.custom-table {
   width: 100%;
   border-collapse: collapse;
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-.res-table th,
-.res-table td {
-  padding: 12px 10px;
+.custom-table th,
+.custom-table td {
+  padding: 12px 14px;
   text-align: left;
   font-size: 13px;
   border-bottom: 1px solid #edf2f7;
   white-space: nowrap;
 }
 
-.res-table th {
+.custom-table th {
   background: #f8fafc;
   color: #718096;
   font-weight: 700;
   font-size: 12px;
 }
 
-.res-table td {
+.custom-table td {
   color: #2d3748;
 }
 
-.res-table tbody tr:last-child td {
+.custom-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-/* 예약 상태 배지 */
 .res-status {
   display: inline-block;
   padding: 2px 8px;
@@ -729,89 +693,105 @@ watch(
   color: #475569;
 }
 
-/* 비고 / 처리 컬럼 */
-.note-cell {
-  font-size: 12px;
-  color: #718096;
-  max-width: 160px;
-  white-space: normal;
-  word-break: break-all;
+/* ── 일괄 승인 모달 ──────────────────────────── */
+.bulk-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
-.action-cell {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.btn-approve-sm {
-  padding: 4px 10px;
-  border: none;
-  border-radius: 6px;
-  background: #e8f5e9;
-  color: #2e7d32;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: 'Noto Sans KR', sans-serif;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.btn-approve-sm:hover {
-  background: #c8e6c9;
-}
-
-.btn-reject-sm {
-  padding: 4px 10px;
-  border: none;
-  border-radius: 6px;
-  background: #fce4ec;
-  color: #c62828;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: 'Noto Sans KR', sans-serif;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.btn-reject-sm:hover {
-  background: #f8bbd9;
-}
-
-/* 거절 모달 */
-.reject-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.reject-label {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.reject-textarea {
-  width: 100%;
-  padding: 10px 12px;
+.bulk-stat-card {
+  padding: 14px;
   border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.bulk-stat-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  color: #718096;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.bulk-stat-value {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #1a202c;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.bulk-notice {
+  padding: 12px 16px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
   border-radius: 8px;
   font-size: 13px;
+  color: #92400e;
+  margin-bottom: 16px;
   font-family: 'Noto Sans KR', sans-serif;
-  color: #374151;
-  resize: vertical;
-  outline: none;
-  box-sizing: border-box;
 }
 
-.reject-textarea:focus {
-  border-color: #94a3b8;
+.bulk-notice--warn {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #c62828;
 }
 
-.btn-modal-cancel,
-.btn-modal-reject {
+.bulk-pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.bulk-pending-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.bulk-pending-item.will-confirm {
+  background: #e6f4ea;
+}
+
+.bulk-pending-item.will-remain {
+  background: #f5f5f5;
+}
+
+.bulk-pending-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.bulk-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.badge-confirm {
+  background: #d9f0dc;
+  color: #2e7d32;
+}
+
+.badge-remain {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+
+/* ── 모달 버튼 ───────────────────────────────── */
+.btn-modal-secondary,
+.btn-modal-primary {
   min-width: 80px;
   height: 40px;
   padding: 0 16px;
@@ -820,56 +800,38 @@ watch(
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
 }
 
-.btn-modal-cancel {
+.btn-modal-secondary {
   border: 1px solid #e2e8f0;
   background: #ffffff;
   color: #718096;
 }
 
-.btn-modal-cancel:hover {
+.btn-modal-secondary:hover {
   background: #f8fafc;
 }
 
-.btn-modal-reject {
+.btn-modal-primary {
   border: none;
-  background: #e53e3e;
+  background: #2b3a55;
   color: #ffffff;
 }
 
-.btn-modal-reject:hover:not(:disabled) {
-  background: #c53030;
+.btn-modal-primary:hover:not(:disabled) {
+  background: #1e2d44;
 }
 
-.btn-modal-reject:disabled {
-  opacity: 0.5;
+.btn-modal-primary:disabled {
+  background: #e2e8f0;
+  color: #94a3b8;
   cursor: not-allowed;
 }
 
-/* 프로그램 상태 배지 */
-.status-badge {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 999px;
-  flex-shrink: 0;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.status-badge.open {
-  background: #e6f4ea;
-  color: #4d8b5a;
-}
-
-.status-badge.closed {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.status-badge.cancelled {
-  background: #fce4ec;
-  color: #e53e3e;
+@media (max-width: 1100px) {
+  .gx-layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

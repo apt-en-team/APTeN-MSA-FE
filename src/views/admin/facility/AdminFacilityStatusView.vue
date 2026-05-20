@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive } from 'vue'
 import facilityApi from '@/api/facilityApi'
-import gxApi from '@/api/gxApi'
 import { toList } from '@/utils/apiResponse'
 import AdminStudyRoomStatus from '@/components/admin/facility/AdminStudyRoomStatus.vue'
 import AdminGymStatus from '@/components/admin/facility/AdminGymStatus.vue'
@@ -10,18 +9,6 @@ import AdminGxStatus from '@/components/admin/facility/AdminGxStatus.vue'
 const RESERVATION_TYPE_LABEL = {
   SEAT: '좌석형',
   COUNT: '정원형',
-}
-
-const GX_STATUS_LABEL = {
-  OPEN: '모집중',
-  CLOSED: '종료',
-  CANCELLED: '취소됨',
-}
-
-const GX_STATUS_CLASS = {
-  OPEN: 'gx-badge--open',
-  CLOSED: 'gx-badge--closed',
-  CANCELLED: 'gx-badge--cancelled',
 }
 
 const state = reactive({
@@ -33,12 +20,6 @@ const state = reactive({
   loadingFacilities: false,
   facilityError: '',
 
-  gxProgramList: [],
-  selectedProgramId: null,
-  loadingGx: false,
-  gxLoaded: false,
-  gxError: '',
-
   seatSummary: { reservedCount: 0, totalCount: 0 },
   countSummary: { maxCount: 0, reservedCount: 0, availableCount: 0 },
 })
@@ -49,15 +30,10 @@ const selectedFacility = computed(() =>
 
 const reservationType = computed(() => selectedFacility.value?.reservationType || null)
 
-const selectedProgram = computed(() =>
-  state.gxProgramList.find((p) => String(p.programId) === String(state.selectedProgramId)) || null,
-)
-
 const showSeatSummary = computed(() => state.activeTab === 'facility' && reservationType.value === 'SEAT')
 const showCountSummary = computed(() => state.activeTab === 'facility' && reservationType.value === 'COUNT')
 
 const formatTime = (t) => (t ? String(t).slice(0, 5) : '-')
-const formatDate = (d) => (d ? String(d).replace(/-/g, '.') : '-')
 
 const normalizeReservationType = (type) => {
   const v = String(type || '').trim()
@@ -87,38 +63,12 @@ const fetchFacilities = async () => {
   }
 }
 
-const fetchGxPrograms = async () => {
-  state.loadingGx = true
-  state.gxError = ''
-  try {
-    const res = await gxApi.getAdminGxPrograms({ page: 0, size: 100 })
-    state.gxProgramList = toList(res)
-    state.gxLoaded = true
-    if (state.gxProgramList.length > 0 && !state.selectedProgramId) {
-      state.selectedProgramId = state.gxProgramList[0].programId
-    }
-  } catch {
-    state.gxError = 'GX 프로그램 목록을 불러오지 못했습니다.'
-    state.gxProgramList = []
-    state.gxLoaded = true
-  } finally {
-    state.loadingGx = false
-  }
-}
-
 const switchTab = (tab) => {
   state.activeTab = tab
-  if (tab === 'gx' && !state.gxLoaded) {
-    fetchGxPrograms()
-  }
 }
 
 const selectFacility = (id) => {
   state.selectedFacilityId = id
-}
-
-const selectProgram = (id) => {
-  state.selectedProgramId = id
 }
 
 const updateSeatSummary = (summary) => {
@@ -134,10 +84,6 @@ const updateCountSummary = (summary) => {
     reservedCount: summary?.reservedCount || 0,
     availableCount: summary?.availableCount || 0,
   }
-}
-
-const onGxRefresh = () => {
-  fetchGxPrograms()
 }
 
 onMounted(fetchFacilities)
@@ -234,51 +180,8 @@ onMounted(fetchFacilities)
     </div>
 
     <!-- ── GX 프로그램 탭 ──────────────────────────────────────── -->
-    <div v-if="state.activeTab === 'gx'" class="split-layout">
-      <!-- 왼쪽: GX 프로그램 목록 -->
-      <div class="left-panel">
-        <div v-if="state.loadingGx" class="panel-empty">GX 프로그램 조회 중...</div>
-        <div v-else-if="state.gxError" class="panel-error">{{ state.gxError }}</div>
-        <div v-else-if="state.gxProgramList.length === 0" class="panel-empty">
-          등록된 GX 프로그램이 없습니다.
-        </div>
-        <div v-else class="item-list">
-          <div
-            v-for="program in state.gxProgramList"
-            :key="program.programId"
-            :class="['gx-card', { active: String(state.selectedProgramId) === String(program.programId) }]"
-            @click="selectProgram(program.programId)"
-          >
-            <div class="gx-card-top">
-              <span class="card-name">{{ program.name }}</span>
-              <span :class="['gx-status-badge', GX_STATUS_CLASS[program.status] || '']">
-                {{ GX_STATUS_LABEL[program.status] || program.status || '-' }}
-              </span>
-            </div>
-            <div class="card-period">
-              {{ formatDate(program.startDate) }} ~ {{ formatDate(program.endDate) }}
-            </div>
-            <div class="card-time-row">
-              {{ formatTime(program.startTime) }} ~ {{ formatTime(program.endTime) }}
-            </div>
-            <div class="card-counts">
-              <span class="count-badge count-confirmed">확정 {{ program.confirmedCount ?? 0 }}</span>
-              <span class="count-badge count-waiting">대기 {{ program.waitingCount ?? 0 }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 오른쪽: GX 현황 -->
-      <div class="right-panel">
-        <div v-if="!selectedProgram" class="panel-empty">왼쪽에서 GX 프로그램을 선택하세요.</div>
-        <AdminGxStatus
-          v-else
-          :program-id="selectedProgram.programId"
-          :program="selectedProgram"
-          @refresh="onGxRefresh"
-        />
-      </div>
+    <div v-if="state.activeTab === 'gx'">
+      <AdminGxStatus />
     </div>
   </div>
 </template>
@@ -459,89 +362,6 @@ onMounted(fetchFacilities)
   color: #94a3b8;
   margin-top: 6px;
   font-family: 'Noto Sans KR', sans-serif;
-}
-
-/* ── GX 카드 ────────────────────────────────────────────── */
-.gx-card {
-  padding: 14px 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #f8fafc;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.gx-card:hover {
-  background: #f1f5f9;
-}
-
-.gx-card.active {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-}
-
-.gx-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.card-period,
-.card-time-row {
-  font-size: 12px;
-  color: #718096;
-  margin-bottom: 4px;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.card-counts {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.count-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.count-confirmed {
-  background: #d9f0dc;
-  color: #2e7d32;
-}
-
-.count-waiting {
-  background: #fff3e0;
-  color: #e65100;
-}
-
-.gx-status-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 20px;
-  flex-shrink: 0;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.gx-badge--open {
-  background: #e6f4ea;
-  color: #4d8b5a;
-}
-
-.gx-badge--closed {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.gx-badge--cancelled {
-  background: #fce4ec;
-  color: #e53e3e;
 }
 
 /* ── 패널 공통 상태 ─────────────────────────────────────── */
