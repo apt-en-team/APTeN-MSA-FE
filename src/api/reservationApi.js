@@ -61,6 +61,12 @@ export const getAdminReservationOverview = async (params) => {
   return unwrapApiData(res)
 }
 
+// 관리자 예약 통계 조회
+export const getAdminReservationStats = async () => {
+  const res = await apiClient.get('/api/admin/reservations/stats')
+  return unwrapApiData(res)
+}
+
 export default {
   getAvailableTimes,
   holdSeat,
@@ -72,4 +78,5 @@ export default {
   getAdminReservationDetail,
   cancelAdminReservation,
   getAdminReservationOverview,
+  getAdminReservationStats,
 }

@@ -16,42 +16,40 @@ const gxStore = useGxStore()
 
 const RESERVATION_KIND_OPTIONS = [
   { value: '', label: '전체 구분' },
-  { value: 'FACILITY', label: '시설 예약' },
-  { value: 'GX', label: 'GX 예약' },
+  { value: 'FACILITY', label: '시설' },
+  { value: 'GX', label: 'GX' },
 ]
 
 const STATUS_OPTIONS = [
   { value: '', label: '전체 상태' },
-  { value: 'CONFIRMED', label: '예약완료' },
-  { value: 'PENDING', label: '대기' },
-  { value: 'WAITING', label: '대기(GX)' },
-  { value: 'COMPLETED', label: '이용완료' },
+  { value: 'CONFIRMED', label: '확정' },
   { value: 'CANCELLED', label: '취소' },
-  { value: 'REJECTED', label: '거절' },
+  { value: 'COMPLETED', label: '완료' },
+  { value: 'WAITING', label: '대기' },
 ]
 
 const STATUS_LABEL = {
-  CONFIRMED: '예약완료',
+  CONFIRMED: '확정',
   PENDING: '대기',
   WAITING: '대기',
-  COMPLETED: '이용완료',
+  COMPLETED: '완료',
   CANCELLED: '취소',
   REJECTED: '거절',
 }
 
 const STATUS_CLASS = {
   CONFIRMED: 'status--confirmed',
-  PENDING: 'status--pending',
-  WAITING: 'status--pending',
+  PENDING: 'status--waiting',
+  WAITING: 'status--waiting',
   COMPLETED: 'status--completed',
   CANCELLED: 'status--cancelled',
   REJECTED: 'status--cancelled',
 }
 
 const CANCEL_REASON_LABEL = {
-  USER: '사용자취소',
-  ADMIN: '관리자취소',
-  PROGRAM: '프로그램취소',
+  USER: '사용자 취소',
+  ADMIN: '관리자 취소',
+  PROGRAM: '프로그램 취소',
 }
 
 const columns = [
@@ -59,39 +57,47 @@ const columns = [
   { key: 'facilityName', label: '시설/프로그램' },
   { key: 'residentName', label: '예약자' },
   { key: 'unit', label: '세대' },
-  { key: 'reservationDate', label: '예약일' },
+  { key: 'reservationDate', label: '예약날짜' },
   { key: 'time', label: '시간' },
   { key: 'status', label: '상태' },
-  { key: 'createdAt', label: '등록일시' },
-  { key: 'actions', label: '' },
+  { key: 'createdAt', label: '등록일' },
 ]
 
 const state = reactive({
   list: [],
   reservationKind: '',
-  residentName: '',   // UI 보류 - overview API 미지원 (백엔드 지원 시 연결 예정)
-  facilityName: '',   // UI 보류 - overview API 미지원 (백엔드 지원 시 연결 예정)
+  residentName: '',
+  facilityName: '',
   status: '',
   reservationDate: '',
   currentPage: 1,
   size: 20,
   maxPage: 1,
   totalElements: 0,
+  totalAll: 0,
   loading: false,
   errorMessage: '',
+})
+
+const statsData = reactive({
+  todayTotal: 0,
+  activeCount: 0,
+  cancelledCount: 0,
+  monthlyTotal: 0,
 })
 
 const detailModal = reactive({
   show: false,
   loading: false,
   data: null,
+  kind: null,
   errorMessage: '',
 })
 
 const cancelModal = reactive({
   show: false,
   loading: false,
-  reason: '',
+  kind: null,
   targetId: null,
   targetName: '',
 })
@@ -103,56 +109,27 @@ const resultModal = reactive({
   subtitle: '',
 })
 
-const gxDetailModal = reactive({
-  show: false,
-  loading: false,
-  data: null,
-  errorMessage: '',
-})
+const stats = computed(() => [
+  { label: '오늘 전체 예약', value: statsData.todayTotal, unit: '건', desc: '오늘 날짜 기준' },
+  { label: '진행 중 예약', value: statsData.activeCount, unit: '건', desc: '확정·대기 합산' },
+  { label: '취소된 예약', value: statsData.cancelledCount, unit: '건', desc: '시설·GX 합산' },
+  { label: '이번달 누적', value: statsData.monthlyTotal, unit: '건', desc: '이번 달 신청 기준' },
+])
 
-const gxApproveModal = reactive({
-  show: false,
-  loading: false,
-  targetId: null,
-  targetName: '',
-})
-
-const gxRejectModal = reactive({
-  show: false,
-  loading: false,
-  targetId: null,
-  targetName: '',
-  reason: '',
-})
-
-const gxCancelModal = reactive({
-  show: false,
-  loading: false,
-  targetId: null,
-  targetName: '',
-})
-
-// TODO: 전체 통계 API 연동 전까지 전체 건수 + 현재 페이지 기준 상태별 카운트로 표시합니다.
-const stats = computed(() => {
-  const confirmed = state.list.filter((r) => r.status === 'CONFIRMED').length
-  const completed = state.list.filter((r) => r.status === 'COMPLETED').length
-  const cancelled = state.list.filter((r) => r.status === 'CANCELLED').length
-  return [
-    { label: '전체 예약', value: state.totalElements, unit: '건', desc: '전체 기준' },
-    { label: '예약완료', value: confirmed, unit: '건', desc: '현재 페이지 기준' },
-    { label: '이용완료', value: completed, unit: '건', desc: '현재 페이지 기준' },
-    { label: '취소', value: cancelled, unit: '건', desc: '현재 페이지 기준' },
-  ]
-})
-
-const gxCanApprove = (status) => {
-  const s = (status || '').toUpperCase()
-  return s === 'WAITING' || s === 'PENDING'
+const fetchStats = async () => {
+  try {
+    const res = await reservationStore.fetchAdminReservationStats()
+    statsData.todayTotal = res?.todayTotal ?? 0
+    statsData.activeCount = res?.activeCount ?? 0
+    statsData.cancelledCount = res?.cancelledCount ?? 0
+    statsData.monthlyTotal = res?.monthlyTotal ?? 0
+  } catch {
+    // 통계 조회 실패는 목록에 영향을 주지 않으므로 무시한다
+  }
 }
 
-const gxCanReject = (status) => {
-  const s = (status || '').toUpperCase()
-  return s === 'WAITING' || s === 'PENDING'
+const hasActiveFilter = () => {
+  return !!(state.reservationKind || state.residentName || state.facilityName || state.status || state.reservationDate)
 }
 
 const gxCanCancel = (status) => {
@@ -166,6 +143,8 @@ const fetchList = async () => {
 
   const params = {
     reservationKind: state.reservationKind || undefined,
+    residentName: state.residentName || undefined,
+    facilityName: state.facilityName || undefined,
     status: state.status || undefined,
     reservationDate: state.reservationDate || undefined,
     page: state.currentPage - 1,
@@ -177,6 +156,10 @@ const fetchList = async () => {
     state.list = toList(res)
     state.totalElements = res?.totalElements ?? 0
     state.maxPage = res?.totalPages ?? 1
+    // 필터 없을 때만 전체 건수 갱신
+    if (!hasActiveFilter()) {
+      state.totalAll = state.totalElements
+    }
   } catch (error) {
     state.errorMessage =
       error.response?.data?.resultMessage ||
@@ -185,6 +168,15 @@ const fetchList = async () => {
   } finally {
     state.loading = false
   }
+}
+
+let searchTimer = null
+const scheduleSearch = () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    state.currentPage = 1
+    fetchList()
+  }, 300)
 }
 
 const doSearch = () => {
@@ -207,19 +199,21 @@ const goToPage = (page) => {
   fetchList()
 }
 
-// ── FACILITY 상세/강제취소 ──────────────────────────────────────────
+// ── 통합 상세 모달 ─────────────────────────────────────────────────
 
-const openDetail = async (item) => {
-  if (item.reservationKind === 'GX') return
-
+const openRowDetail = async (row) => {
   detailModal.show = true
   detailModal.loading = true
   detailModal.data = null
+  detailModal.kind = row.reservationKind
   detailModal.errorMessage = ''
 
   try {
-    const res = await reservationStore.fetchAdminReservationDetail(item.reservationId)
-    detailModal.data = res
+    if (row.reservationKind === 'GX') {
+      detailModal.data = await gxStore.fetchAdminGxReservationDetail(row.gxReservationId)
+    } else {
+      detailModal.data = await reservationStore.fetchAdminReservationDetail(row.reservationId)
+    }
   } catch (error) {
     detailModal.errorMessage =
       error.response?.data?.resultMessage ||
@@ -233,41 +227,59 @@ const openDetail = async (item) => {
 const closeDetail = () => {
   detailModal.show = false
   detailModal.data = null
+  detailModal.kind = null
   detailModal.errorMessage = ''
 }
 
-const openCancelConfirm = () => {
+const detailCanCancel = computed(() => {
+  if (!detailModal.data) return false
+  const status = String(detailModal.data.status?.name ?? detailModal.data.status ?? '').toUpperCase()
+  if (detailModal.kind === 'GX') return gxCanCancel(status)
+  return status === 'CONFIRMED'
+})
+
+// ── 예약 취소 ──────────────────────────────────────────────────────
+
+const openCancelFromDetail = () => {
   if (!detailModal.data) return
-  cancelModal.targetId = detailModal.data.reservationId
-  cancelModal.targetName = detailModal.data.facilityName || ''
-  cancelModal.reason = ''
+  const data = detailModal.data
+  cancelModal.kind = detailModal.kind
+  cancelModal.targetId = detailModal.kind === 'GX'
+    ? data.gxReservationId
+    : data.reservationId
+  cancelModal.targetName = data.programName || data.facilityName || ''
   cancelModal.show = true
 }
 
-const closeCancelConfirm = () => {
+const closeCancelModal = () => {
   cancelModal.show = false
-  cancelModal.reason = ''
+  cancelModal.loading = false
+  cancelModal.kind = null
   cancelModal.targetId = null
+  cancelModal.targetName = ''
 }
 
 const handleCancel = async () => {
   cancelModal.loading = true
+  const targetName = cancelModal.targetName
 
   try {
-    await reservationStore.cancelAdminReservation(cancelModal.targetId, {
-      reason: cancelModal.reason || null,
-    })
+    if (cancelModal.kind === 'GX') {
+      await gxStore.cancelAdminGxReservation(cancelModal.targetId)
+    } else {
+      await reservationStore.cancelAdminReservation(cancelModal.targetId, { reason: null })
+    }
     cancelModal.show = false
     closeDetail()
     resultModal.type = 'success'
-    resultModal.title = '예약이 강제 취소되었습니다.'
-    resultModal.subtitle = `${cancelModal.targetName} 예약을 취소 처리했습니다.`
+    resultModal.title = '예약이 취소되었습니다.'
+    resultModal.subtitle = `${targetName} 예약을 취소 처리했습니다.`
     resultModal.show = true
     await fetchList()
   } catch (error) {
     cancelModal.show = false
     resultModal.type = 'danger'
-    resultModal.title = '강제 취소에 실패했습니다.'
+    resultModal.title = '취소 처리에 실패했습니다.'
     resultModal.subtitle =
       error.response?.data?.resultMessage ||
       error.response?.data?.message ||
@@ -282,180 +294,11 @@ const closeResultModal = () => {
   resultModal.show = false
 }
 
-// ── GX 상세 ────────────────────────────────────────────────────────
-
-const openGxDetail = async (item) => {
-  gxDetailModal.show = true
-  gxDetailModal.loading = true
-  gxDetailModal.data = null
-  gxDetailModal.errorMessage = ''
-
-  try {
-    const res = await gxStore.fetchAdminGxReservationDetail(item.gxReservationId)
-    gxDetailModal.data = res
-  } catch (error) {
-    gxDetailModal.errorMessage =
-      error.response?.data?.resultMessage ||
-      error.response?.data?.message ||
-      'GX 예약 상세 조회에 실패했습니다.'
-  } finally {
-    gxDetailModal.loading = false
-  }
-}
-
-const closeGxDetail = () => {
-  gxDetailModal.show = false
-  gxDetailModal.data = null
-  gxDetailModal.errorMessage = ''
-}
-
-// ── GX 승인 ────────────────────────────────────────────────────────
-
-const openGxApprove = (item) => {
-  gxApproveModal.targetId = item.gxReservationId
-  gxApproveModal.targetName = item.programName || item.facilityName || ''
-  gxApproveModal.show = true
-}
-
-const openGxApproveFromDetail = () => {
-  const data = gxDetailModal.data
-  closeGxDetail()
-  openGxApprove(data)
-}
-
-const closeGxApprove = () => {
-  gxApproveModal.show = false
-  gxApproveModal.loading = false
-  gxApproveModal.targetId = null
-  gxApproveModal.targetName = ''
-}
-
-const handleGxApprove = async () => {
-  gxApproveModal.loading = true
-
-  try {
-    await gxStore.approveGxReservation(gxApproveModal.targetId)
-    gxApproveModal.show = false
-    resultModal.type = 'success'
-    resultModal.title = 'GX 예약을 승인했습니다.'
-    resultModal.subtitle = `${gxApproveModal.targetName} 예약이 승인 처리되었습니다.`
-    resultModal.show = true
-    await fetchList()
-  } catch (error) {
-    gxApproveModal.show = false
-    resultModal.type = 'danger'
-    resultModal.title = '승인 처리에 실패했습니다.'
-    resultModal.subtitle =
-      error.response?.data?.resultMessage ||
-      error.response?.data?.message ||
-      '잠시 후 다시 시도해주세요.'
-    resultModal.show = true
-  } finally {
-    gxApproveModal.loading = false
-  }
-}
-
-// ── GX 거절 ────────────────────────────────────────────────────────
-
-const openGxReject = (item) => {
-  gxRejectModal.targetId = item.gxReservationId
-  gxRejectModal.targetName = item.programName || item.facilityName || ''
-  gxRejectModal.reason = ''
-  gxRejectModal.show = true
-}
-
-const openGxRejectFromDetail = () => {
-  const data = gxDetailModal.data
-  closeGxDetail()
-  openGxReject(data)
-}
-
-const closeGxReject = () => {
-  gxRejectModal.show = false
-  gxRejectModal.loading = false
-  gxRejectModal.targetId = null
-  gxRejectModal.targetName = ''
-  gxRejectModal.reason = ''
-}
-
-const handleGxReject = async () => {
-  gxRejectModal.loading = true
-
-  try {
-    await gxStore.rejectGxReservation(gxRejectModal.targetId, {
-      rejectReason: gxRejectModal.reason || null,
-    })
-    gxRejectModal.show = false
-    resultModal.type = 'success'
-    resultModal.title = 'GX 예약을 거절했습니다.'
-    resultModal.subtitle = `${gxRejectModal.targetName} 예약이 거절 처리되었습니다.`
-    resultModal.show = true
-    await fetchList()
-  } catch (error) {
-    gxRejectModal.show = false
-    resultModal.type = 'danger'
-    resultModal.title = '거절 처리에 실패했습니다.'
-    resultModal.subtitle =
-      error.response?.data?.resultMessage ||
-      error.response?.data?.message ||
-      '잠시 후 다시 시도해주세요.'
-    resultModal.show = true
-  } finally {
-    gxRejectModal.loading = false
-  }
-}
-
-// ── GX 취소 ────────────────────────────────────────────────────────
-
-const openGxCancel = (item) => {
-  gxCancelModal.targetId = item.gxReservationId
-  gxCancelModal.targetName = item.programName || item.facilityName || ''
-  gxCancelModal.show = true
-}
-
-const openGxCancelFromDetail = () => {
-  const data = gxDetailModal.data
-  closeGxDetail()
-  openGxCancel(data)
-}
-
-const closeGxCancel = () => {
-  gxCancelModal.show = false
-  gxCancelModal.loading = false
-  gxCancelModal.targetId = null
-  gxCancelModal.targetName = ''
-}
-
-const handleGxCancel = async () => {
-  gxCancelModal.loading = true
-
-  try {
-    await gxStore.cancelAdminGxReservation(gxCancelModal.targetId)
-    gxCancelModal.show = false
-    resultModal.type = 'success'
-    resultModal.title = 'GX 예약이 강제 취소되었습니다.'
-    resultModal.subtitle = `${gxCancelModal.targetName} 예약을 취소 처리했습니다.`
-    resultModal.show = true
-    await fetchList()
-  } catch (error) {
-    gxCancelModal.show = false
-    resultModal.type = 'danger'
-    resultModal.title = 'GX 강제 취소에 실패했습니다.'
-    resultModal.subtitle =
-      error.response?.data?.resultMessage ||
-      error.response?.data?.message ||
-      '잠시 후 다시 시도해주세요.'
-    resultModal.show = true
-  } finally {
-    gxCancelModal.loading = false
-  }
-}
-
 // ── 공통 포맷 ──────────────────────────────────────────────────────
 
 const formatTime = (t) => (t ? String(t).slice(0, 5) : '-')
 const formatDate = (d) => (d ? String(d).replace(/-/g, '.') : '-')
-const formatDateTime = (dt) => (dt ? String(dt).slice(0, 16).replace('T', ' ') : '-')
+const formatDateTime = (dt) => (dt ? String(dt).slice(0, 10).replace(/-/g, '.') : '-')
 
 const getUnitDisplay = (row) => {
   if (row.unit) return row.unit
@@ -472,7 +315,15 @@ const getDateDisplay = (row) => {
   return formatDate(row.reservationDate)
 }
 
-onMounted(fetchList)
+const getDetailStatus = (data) => {
+  if (!data) return ''
+  return String(data.status?.name ?? data.status ?? '').toUpperCase()
+}
+
+onMounted(() => {
+  fetchStats()
+  fetchList()
+})
 </script>
 
 <template>
@@ -482,7 +333,7 @@ onMounted(fetchList)
 
     <div class="table-section">
       <AdminFilterBar @reset="resetFilters">
-        <select v-model="state.reservationKind" class="filter-select">
+        <select v-model="state.reservationKind" class="filter-select" @change="doSearch">
           <option v-for="opt in RESERVATION_KIND_OPTIONS" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </option>
@@ -494,41 +345,46 @@ onMounted(fetchList)
           </svg>
           <input
             v-model="state.residentName"
-            class="search-input search-input--disabled"
+            class="search-input"
             type="text"
-            placeholder="예약자 검색 (미지원)"
+            placeholder="예약자 검색"
+            @input="scheduleSearch"
             @keyup.enter="doSearch"
           />
         </div>
-        <input
-          v-model="state.facilityName"
-          class="filter-text filter-text--disabled"
-          type="text"
-          placeholder="시설명 검색 (미지원)"
-          @keyup.enter="doSearch"
-        />
-        <select v-model="state.status" class="filter-select">
+        <div class="search-wrap">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            v-model="state.facilityName"
+            class="search-input"
+            type="text"
+            placeholder="시설/프로그램 검색"
+            @input="scheduleSearch"
+            @keyup.enter="doSearch"
+          />
+        </div>
+        <select v-model="state.status" class="filter-select" @change="doSearch">
           <option v-for="opt in STATUS_OPTIONS" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </option>
         </select>
-        <input v-model="state.reservationDate" class="filter-date" type="date" />
-        <button class="btn-search" type="button" @click="doSearch">조회</button>
+        <input v-model="state.reservationDate" class="filter-date" type="date" @change="doSearch" />
       </AdminFilterBar>
 
       <div v-if="state.errorMessage" class="error-message">{{ state.errorMessage }}</div>
 
       <div v-if="state.loading" class="loading-row">조회 중...</div>
-      <AdminTable v-else :columns="columns" :rows="state.list" @row-click="openDetail">
+      <AdminTable v-else :columns="columns" :rows="state.list" @row-click="openRowDetail">
         <template #cell-reservationKind="{ value }">
-          <span :class="['kind-badge', value === 'GX' ? 'kind--gx' : 'kind--facility']">
-            {{ value === 'GX' ? 'GX 예약' : '시설 예약' }}
+          <span :class="['kind-tag', value === 'GX' ? 'kind-tag--gx' : 'kind-tag--facility']">
+            {{ value === 'GX' ? 'GX' : '시설' }}
           </span>
         </template>
         <template #cell-facilityName="{ row }">
-          <span v-if="row.reservationKind === 'GX'">
-            {{ [row.facilityName, row.programName].filter(Boolean).join(' · ') || '-' }}
-          </span>
+          <span v-if="row.reservationKind === 'GX'">{{ row.programName || '-' }}</span>
           <span v-else>{{ row.facilityName || '-' }}</span>
         </template>
         <template #cell-residentName="{ value }">
@@ -551,34 +407,22 @@ onMounted(fetchList)
         <template #cell-createdAt="{ value }">
           <span class="td-date">{{ formatDateTime(value) }}</span>
         </template>
-        <template #cell-actions="{ row }">
-          <template v-if="row.reservationKind !== 'GX'">
-            <button class="btn-detail" @click.stop="openDetail(row)">상세</button>
-          </template>
-          <div v-else class="gx-actions">
-            <button class="btn-detail" @click.stop="openGxDetail(row)">상세</button>
-            <button v-if="gxCanApprove(row.status)" class="btn-approve-sm" @click.stop="openGxApprove(row)">승인</button>
-            <button v-if="gxCanReject(row.status)" class="btn-reject-sm" @click.stop="openGxReject(row)">거절</button>
-            <button v-if="gxCanCancel(row.status)" class="btn-cancel-sm" @click.stop="openGxCancel(row)">취소</button>
-          </div>
-        </template>
       </AdminTable>
 
       <AppPagination
         :currentPage="state.currentPage"
         :maxPage="state.maxPage"
-        :totalAll="state.totalElements"
+        :totalAll="state.totalAll"
         :totalFiltered="state.totalElements"
         unit="건"
         @change="goToPage"
       />
     </div>
 
-    <!-- ── FACILITY 상세 모달 ─────────────────────────────────── -->
+    <!-- ── 통합 상세 모달 ─────────────────────────────────────── -->
     <BaseModal
       v-if="detailModal.show"
-      title="예약 상세 정보"
-      :subtitle="detailModal.data ? '#' + detailModal.data.reservationId : ''"
+      :title="detailModal.kind === 'GX' ? 'GX 예약 상세' : '예약 상세'"
       @close="closeDetail"
     >
       <div v-if="detailModal.loading" class="modal-loading">조회 중...</div>
@@ -588,26 +432,52 @@ onMounted(fetchList)
       </div>
 
       <template v-else-if="detailModal.data">
-        <div class="detail-status-row">
-          <span :class="['status-badge', STATUS_CLASS[detailModal.data.status] || '']">
-            {{ STATUS_LABEL[detailModal.data.status] || detailModal.data.status || '-' }}
+        <!-- 요약 영역 -->
+        <div class="detail-summary">
+          <span :class="['status-badge', STATUS_CLASS[getDetailStatus(detailModal.data)] || '']">
+            {{ detailModal.data.statusName || STATUS_LABEL[getDetailStatus(detailModal.data)] || getDetailStatus(detailModal.data) || '-' }}
           </span>
+          <span v-if="detailModal.data.waitNo" class="wait-no-badge">
+            대기 {{ detailModal.data.waitNo }}번
+          </span>
+          <h3 class="detail-summary-title">
+            {{ detailModal.data.programName || detailModal.data.facilityName || '-' }}
+          </h3>
         </div>
 
         <div class="detail-divider"></div>
 
         <div class="detail-grid">
           <div class="detail-cell">
-            <span class="detail-label">시설명</span>
-            <span class="detail-value">{{ detailModal.data.facilityName || '-' }}</span>
+            <span class="detail-label">예약 ID</span>
+            <span class="detail-value">
+              {{ detailModal.data.gxReservationId || detailModal.data.reservationId || '-' }}
+            </span>
           </div>
           <div class="detail-cell">
             <span class="detail-label">예약자</span>
             <span class="detail-value">{{ detailModal.data.residentName || '-' }}</span>
           </div>
           <div class="detail-cell">
-            <span class="detail-label">예약일</span>
-            <span class="detail-value">{{ formatDate(detailModal.data.reservationDate) }}</span>
+            <span class="detail-label">{{ detailModal.kind === 'GX' ? '프로그램명' : '시설명' }}</span>
+            <span class="detail-value">
+              {{ detailModal.kind === 'GX' ? (detailModal.data.programName || '-') : (detailModal.data.facilityName || '-') }}
+            </span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-label">소속 세대</span>
+            <span class="detail-value">{{ getUnitDisplay(detailModal.data) }}</span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-label">예약 날짜</span>
+            <span class="detail-value">
+              <template v-if="detailModal.kind === 'GX'">
+                {{ formatDate(detailModal.data.startDate) }} ~ {{ formatDate(detailModal.data.endDate) }}
+              </template>
+              <template v-else>
+                {{ formatDate(detailModal.data.reservationDate) }}
+              </template>
+            </span>
           </div>
           <div class="detail-cell">
             <span class="detail-label">시간</span>
@@ -616,218 +486,82 @@ onMounted(fetchList)
             </span>
           </div>
           <div class="detail-cell">
-            <span class="detail-label">좌석 번호</span>
-            <span class="detail-value">
-              {{ detailModal.data.seatNo != null ? detailModal.data.seatNo + '번' : '-' }}
+            <span class="detail-label">예약 상태</span>
+            <span :class="['status-badge', STATUS_CLASS[getDetailStatus(detailModal.data)] || '']">
+              {{ detailModal.data.statusName || STATUS_LABEL[getDetailStatus(detailModal.data)] || '-' }}
             </span>
           </div>
           <div class="detail-cell">
-            <span class="detail-label">등록일시</span>
+            <span class="detail-label">예약일</span>
             <span class="detail-value">{{ formatDateTime(detailModal.data.createdAt) }}</span>
           </div>
 
-          <template v-if="detailModal.data.status === 'CANCELLED'">
+          <!-- 현재예약인원 -->
+          <div class="detail-cell">
+            <span class="detail-label">현재 예약 인원</span>
+            <span class="detail-value">
+              <template v-if="detailModal.kind === 'GX'">
+                {{ detailModal.data.confirmedCount ?? '-' }} / {{ detailModal.data.maxCount ?? '-' }}명
+              </template>
+              <template v-else>
+                {{ detailModal.data.currentCount ?? '-' }} / {{ detailModal.data.maxCount ?? '-' }}명
+              </template>
+            </span>
+          </div>
+
+          <!-- GX 승인일 -->
+          <template v-if="detailModal.kind === 'GX' && detailModal.data.approvedAt">
             <div class="detail-cell">
-              <span class="detail-label">취소 사유</span>
-              <span class="detail-value">
-                {{ CANCEL_REASON_LABEL[detailModal.data.cancelReason] || detailModal.data.cancelReason || '-' }}
-              </span>
-            </div>
-            <div class="detail-cell">
-              <span class="detail-label">취소 시각</span>
-              <span class="detail-value">{{ formatDateTime(detailModal.data.cancelledAt) }}</span>
+              <span class="detail-label">승인일</span>
+              <span class="detail-value">{{ formatDateTime(detailModal.data.approvedAt) }}</span>
             </div>
           </template>
 
-          <template v-if="detailModal.data.status === 'COMPLETED'">
+          <!-- FACILITY 좌석 번호 -->
+          <template v-if="detailModal.kind !== 'GX' && detailModal.data.seatNo != null">
             <div class="detail-cell">
-              <span class="detail-label">완료 시각</span>
-              <span class="detail-value">{{ formatDateTime(detailModal.data.completedAt) }}</span>
+              <span class="detail-label">좌석 번호</span>
+              <span class="detail-value">{{ detailModal.data.seatNo }}번</span>
+            </div>
+          </template>
+
+          <!-- 취소 정보 -->
+          <template v-if="getDetailStatus(detailModal.data) === 'CANCELLED'">
+            <div class="detail-cell">
+              <span class="detail-label">취소 사유</span>
+              <span class="detail-value">
+                {{ CANCEL_REASON_LABEL[detailModal.data.cancelReason] || detailModal.data.cancelReason || detailModal.data.rejectReason || '-' }}
+              </span>
             </div>
           </template>
         </div>
       </template>
 
       <template #footer>
+        <button class="btn-outline" @click="closeDetail">닫기</button>
         <button
-          v-if="detailModal.data?.status === 'CONFIRMED'"
+          v-if="detailCanCancel"
           class="btn-danger"
-          @click="openCancelConfirm"
+          @click="openCancelFromDetail"
         >
-          강제 취소
+          예약 취소
         </button>
       </template>
     </BaseModal>
 
-    <!-- ── GX 상세 모달 ───────────────────────────────────────── -->
-    <BaseModal
-      v-if="gxDetailModal.show"
-      title="GX 예약 상세"
-      @close="closeGxDetail"
-    >
-      <div v-if="gxDetailModal.loading" class="modal-loading">조회 중...</div>
-
-      <div v-else-if="gxDetailModal.errorMessage" class="error-message">
-        {{ gxDetailModal.errorMessage }}
-      </div>
-
-      <template v-else-if="gxDetailModal.data">
-        <div class="detail-status-row">
-          <span :class="['status-badge', STATUS_CLASS[gxDetailModal.data.status] || '']">
-            {{ gxDetailModal.data.statusName || STATUS_LABEL[gxDetailModal.data.status] || gxDetailModal.data.status || '-' }}
-          </span>
-          <span v-if="gxDetailModal.data.waitNo" class="wait-no-badge">
-            대기 {{ gxDetailModal.data.waitNo }}번
-          </span>
-        </div>
-
-        <div class="detail-divider"></div>
-
-        <div class="detail-grid">
-          <div class="detail-cell">
-            <span class="detail-label">프로그램명</span>
-            <span class="detail-value">{{ gxDetailModal.data.programName || '-' }}</span>
-          </div>
-          <div class="detail-cell">
-            <span class="detail-label">시설명</span>
-            <span class="detail-value">{{ gxDetailModal.data.facilityName || '-' }}</span>
-          </div>
-          <div class="detail-cell">
-            <span class="detail-label">예약자</span>
-            <span class="detail-value">{{ gxDetailModal.data.residentName || '-' }}</span>
-          </div>
-          <div class="detail-cell">
-            <span class="detail-label">세대</span>
-            <span class="detail-value">{{ getUnitDisplay(gxDetailModal.data) }}</span>
-          </div>
-          <div class="detail-cell">
-            <span class="detail-label">프로그램 기간</span>
-            <span class="detail-value">
-              {{ formatDate(gxDetailModal.data.startDate) }} ~ {{ formatDate(gxDetailModal.data.endDate) }}
-            </span>
-          </div>
-          <div class="detail-cell">
-            <span class="detail-label">운영 시간</span>
-            <span class="detail-value">
-              {{ formatTime(gxDetailModal.data.startTime) }} ~ {{ formatTime(gxDetailModal.data.endTime) }}
-            </span>
-          </div>
-          <div class="detail-cell">
-            <span class="detail-label">신청일시</span>
-            <span class="detail-value">{{ formatDateTime(gxDetailModal.data.createdAt) }}</span>
-          </div>
-          <div v-if="gxDetailModal.data.rejectReason" class="detail-cell">
-            <span class="detail-label">거절 사유</span>
-            <span class="detail-value">{{ gxDetailModal.data.rejectReason }}</span>
-          </div>
-          <template v-if="gxDetailModal.data.cancelReason">
-            <div class="detail-cell">
-              <span class="detail-label">취소 사유</span>
-              <span class="detail-value">
-                {{ CANCEL_REASON_LABEL[gxDetailModal.data.cancelReason] || gxDetailModal.data.cancelReason || '-' }}
-              </span>
-            </div>
-            <div class="detail-cell">
-              <span class="detail-label">취소 시각</span>
-              <span class="detail-value">{{ formatDateTime(gxDetailModal.data.cancelledAt) }}</span>
-            </div>
-          </template>
-        </div>
-      </template>
-
-      <template #footer>
-        <template v-if="gxDetailModal.data">
-          <button
-            v-if="gxCanApprove(gxDetailModal.data.status)"
-            class="btn-approve"
-            @click="openGxApproveFromDetail"
-          >
-            승인
-          </button>
-          <button
-            v-if="gxCanReject(gxDetailModal.data.status)"
-            class="btn-reject"
-            @click="openGxRejectFromDetail"
-          >
-            거절
-          </button>
-          <button
-            v-if="gxCanCancel(gxDetailModal.data.status)"
-            class="btn-danger"
-            @click="openGxCancelFromDetail"
-          >
-            강제 취소
-          </button>
-        </template>
-      </template>
-    </BaseModal>
-
-    <!-- ── GX 거절 사유 모달 ──────────────────────────────────── -->
-    <BaseModal
-      v-if="gxRejectModal.show"
-      title="GX 예약 거절"
-      :subtitle="gxRejectModal.targetName"
-      @close="closeGxReject"
-    >
-      <div class="reject-form">
-        <label class="reject-label">거절 사유 (선택)</label>
-        <textarea
-          v-model="gxRejectModal.reason"
-          class="reject-textarea"
-          placeholder="거절 사유를 입력하세요"
-          rows="3"
-        />
-      </div>
-
-      <template #footer>
-        <button class="btn-outline" @click="closeGxReject">닫기</button>
-        <button class="btn-danger" :disabled="gxRejectModal.loading" @click="handleGxReject">
-          {{ gxRejectModal.loading ? '처리 중...' : '거절 처리' }}
-        </button>
-      </template>
-    </BaseModal>
-
-    <!-- ── FACILITY 강제 취소 확인 모달 ──────────────────────── -->
+    <!-- ── 취소 확인 모달 ─────────────────────────────────────── -->
     <ConfirmModal
       :visible="cancelModal.show"
-      title="예약을 강제 취소하시겠습니까?"
+      title="예약을 취소하시겠습니까?"
       subtitle="취소된 예약은 되돌릴 수 없습니다."
       subtitle-color="#e53e3e"
-      item-label="시설명"
+      item-label="시설/프로그램"
       :item-name="cancelModal.targetName"
-      confirm-text="강제 취소"
+      confirm-text="예약 취소"
       confirm-type="danger"
       :loading="cancelModal.loading"
       @confirm="handleCancel"
-      @cancel="closeCancelConfirm"
-    />
-
-    <!-- ── GX 승인 확인 모달 ─────────────────────────────────── -->
-    <ConfirmModal
-      :visible="gxApproveModal.show"
-      title="GX 예약을 승인하시겠습니까?"
-      item-label="프로그램"
-      :item-name="gxApproveModal.targetName"
-      confirm-text="승인"
-      confirm-type="success"
-      :loading="gxApproveModal.loading"
-      @confirm="handleGxApprove"
-      @cancel="closeGxApprove"
-    />
-
-    <!-- ── GX 취소 확인 모달 ─────────────────────────────────── -->
-    <ConfirmModal
-      :visible="gxCancelModal.show"
-      title="GX 예약을 강제 취소하시겠습니까?"
-      subtitle="취소된 예약은 되돌릴 수 없습니다."
-      subtitle-color="#e53e3e"
-      item-label="프로그램"
-      :item-name="gxCancelModal.targetName"
-      confirm-text="강제 취소"
-      confirm-type="danger"
-      :loading="gxCancelModal.loading"
-      @confirm="handleGxCancel"
-      @cancel="closeGxCancel"
+      @cancel="closeCancelModal"
     />
 
     <!-- ── 결과 모달 ──────────────────────────────────────────── -->
@@ -846,6 +580,7 @@ onMounted(fetchList)
 .reservation-page {
   display: flex;
   flex-direction: column;
+  gap: 16px;
   font-family: 'Noto Sans KR', sans-serif;
 }
 
@@ -880,24 +615,11 @@ onMounted(fetchList)
   color: #333;
   outline: none;
   font-family: 'Noto Sans KR', sans-serif;
+  box-sizing: border-box;
 }
 
-.search-input--disabled,
-.filter-text--disabled {
-  background: #f8fafc;
-  color: #a0aec0;
-}
-
-.filter-text {
-  height: 34px;
-  width: 150px;
-  padding: 0 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
-  font-size: 13px;
-  color: #333;
-  outline: none;
-  font-family: 'Noto Sans KR', sans-serif;
+.search-input:focus {
+  border-color: #a0aec0;
 }
 
 .filter-select {
@@ -925,49 +647,7 @@ onMounted(fetchList)
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-.btn-search {
-  padding: 7px 16px;
-  border: 0;
-  border-radius: 7px;
-  background: #1e2a3e;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.btn-search:hover {
-  background: #121a27;
-}
-
 .btn-danger {
-  height: 38px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 8px;
-  background: #e53e3e;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.btn-approve {
-  height: 38px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 8px;
-  background: #38a169;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.btn-reject {
   height: 38px;
   padding: 0 16px;
   border: 0;
@@ -993,68 +673,6 @@ onMounted(fetchList)
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-.btn-detail {
-  padding: 4px 10px;
-  border: 1px solid #cbd5e0;
-  border-radius: 6px;
-  background: #fff;
-  color: #4a5568;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-  white-space: nowrap;
-}
-
-.btn-detail:hover {
-  background: #f7fafc;
-}
-
-.btn-approve-sm {
-  padding: 4px 8px;
-  border: 0;
-  border-radius: 6px;
-  background: #38a169;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-  white-space: nowrap;
-}
-
-.btn-reject-sm {
-  padding: 4px 8px;
-  border: 0;
-  border-radius: 6px;
-  background: #e53e3e;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-  white-space: nowrap;
-}
-
-.btn-cancel-sm {
-  padding: 4px 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: #fff;
-  color: #718096;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-  white-space: nowrap;
-}
-
-.gx-actions {
-  display: flex;
-  gap: 4px;
-  flex-wrap: nowrap;
-}
-
 .error-message {
   margin: 12px 20px 0;
   padding: 10px 14px;
@@ -1076,21 +694,18 @@ onMounted(fetchList)
   font-size: 12px;
 }
 
-.kind-badge {
+/* 구분 태그 — 색상 없이 텍스트만 */
+.kind-tag {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.kind--facility {
-  background: #ebf4ff;
-  color: #3a7bd5;
+.kind-tag--facility {
+  color: #4a5568;
 }
 
-.kind--gx {
-  background: #f3e8ff;
+.kind-tag--gx {
   color: #7c3aed;
 }
 
@@ -1102,24 +717,28 @@ onMounted(fetchList)
   font-weight: 700;
 }
 
+/* 확정 - 초록 */
 .status--confirmed {
-  background: #ebf5ee;
-  color: #4d8b5a;
+  background: #e6f4ea;
+  color: #2e7d32;
 }
 
-.status--pending {
+/* 대기 - 주황 */
+.status--waiting {
   background: #fff3e0;
   color: #e65100;
 }
 
+/* 완료 - 노랑 */
 .status--completed {
-  background: #ebf4ff;
-  color: #3a7bd5;
+  background: #fef9e7;
+  color: #b7950b;
 }
 
+/* 취소/거절 - 빨강 */
 .status--cancelled {
-  background: #f5f5f5;
-  color: #718096;
+  background: #fce4ec;
+  color: #c62828;
 }
 
 .modal-loading {
@@ -1129,11 +748,21 @@ onMounted(fetchList)
   font-size: 13px;
 }
 
-.detail-status-row {
+.detail-summary {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 4px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
-  margin-bottom: 12px;
+}
+
+.detail-summary-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a202c;
 }
 
 .wait-no-badge {
@@ -1144,6 +773,7 @@ onMounted(fetchList)
   font-weight: 700;
   background: #fef3c7;
   color: #92400e;
+  width: fit-content;
 }
 
 .detail-divider {
@@ -1155,10 +785,12 @@ onMounted(fetchList)
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  border-top: 1px solid #eee;
 }
 
 .detail-cell {
+  padding: 12px 4px;
+  border-bottom: 1px solid #eee;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1173,35 +805,6 @@ onMounted(fetchList)
   font-size: 14px;
   font-weight: 600;
   color: #1a202c;
-}
-
-.reject-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.reject-label {
-  font-size: 13px;
-  color: #4a5568;
-  font-weight: 600;
-}
-
-.reject-textarea {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #333;
-  resize: vertical;
-  outline: none;
-  font-family: 'Noto Sans KR', sans-serif;
-  box-sizing: border-box;
-}
-
-.reject-textarea:focus {
-  border-color: #a0aec0;
 }
 
 @media (max-width: 768px) {

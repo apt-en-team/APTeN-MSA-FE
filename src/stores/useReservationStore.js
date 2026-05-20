@@ -161,6 +161,15 @@ export const useReservationStore = defineStore('reservation', {
       }
     },
 
+    // 관리자 예약 통계 조회
+    async fetchAdminReservationStats() {
+      try {
+        return await reservationApi.getAdminReservationStats()
+      } catch (e) {
+        throw e
+      }
+    },
+
     // 관리자 예약 강제 취소
     async cancelAdminReservation(id, body) {
       this.loading = true
