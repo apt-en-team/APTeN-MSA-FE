@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive } from 'vue'
 import { useReservationStore } from '@/stores/useReservationStore.js'
 import { useGxStore } from '@/stores/useGxStore.js'
+import { useAuthStore } from '@/stores/useAuthStore.js'
 import { toList } from '@/utils/apiResponse'
 import StatsCards from '@/components/admin/StatsCards.vue'
 import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
@@ -13,6 +14,7 @@ import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const reservationStore = useReservationStore()
 const gxStore = useGxStore()
+const authStore = useAuthStore()
 
 const RESERVATION_KIND_OPTIONS = [
   { value: '', label: '전체 구분' },
@@ -100,6 +102,7 @@ const cancelModal = reactive({
   kind: null,
   targetId: null,
   targetName: '',
+  targetUnit: '',
 })
 
 const resultModal = reactive({
@@ -107,6 +110,12 @@ const resultModal = reactive({
   type: 'success',
   title: '',
   subtitle: '',
+  desc: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
 })
 
 const stats = computed(() => [
@@ -125,6 +134,40 @@ const fetchStats = async () => {
     statsData.monthlyTotal = res?.monthlyTotal ?? 0
   } catch {
     // 통계 조회 실패는 목록에 영향을 주지 않으므로 무시한다
+  }
+}
+
+const getCurrentTimeText = () =>
+  new Date().toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+const getCurrentActorName = () =>
+  authStore.userInfo?.name || authStore.user?.name || authStore.name || '관리자'
+
+const openResultModal = ({ type = 'success', title, subtitle = '', desc = '', itemName = '', time = '', actionLabel = '', actor = '', afterConfirm = null } = {}) => {
+  resultModal.show = true
+  resultModal.type = type
+  resultModal.title = title
+  resultModal.subtitle = subtitle
+  resultModal.desc = desc
+  resultModal.itemName = itemName
+  resultModal.time = time
+  resultModal.actionLabel = actionLabel
+  resultModal.actor = actor
+  resultModal.afterConfirm = afterConfirm
+}
+
+const handleResultConfirm = async () => {
+  const callback = resultModal.afterConfirm
+  resultModal.show = false
+  resultModal.afterConfirm = null
+  if (typeof callback === 'function') {
+    await callback()
   }
 }
 
@@ -244,10 +287,9 @@ const openCancelFromDetail = () => {
   if (!detailModal.data) return
   const data = detailModal.data
   cancelModal.kind = detailModal.kind
-  cancelModal.targetId = detailModal.kind === 'GX'
-    ? data.gxReservationId
-    : data.reservationId
+  cancelModal.targetId = detailModal.kind === 'GX' ? data.gxReservationId : data.reservationId
   cancelModal.targetName = data.programName || data.facilityName || ''
+  cancelModal.targetUnit = getUnitDisplay(data)
   cancelModal.show = true
 }
 
@@ -257,41 +299,48 @@ const closeCancelModal = () => {
   cancelModal.kind = null
   cancelModal.targetId = null
   cancelModal.targetName = ''
+  cancelModal.targetUnit = ''
 }
 
 const handleCancel = async () => {
   cancelModal.loading = true
-  const targetName = cancelModal.targetName
+  const { targetName, kind } = cancelModal
+  const actionLabel = kind === 'GX' ? 'GX 예약 강제 취소' : '시설 예약 강제 취소'
 
   try {
-    if (cancelModal.kind === 'GX') {
+    if (kind === 'GX') {
       await gxStore.cancelAdminGxReservation(cancelModal.targetId)
     } else {
       await reservationStore.cancelAdminReservation(cancelModal.targetId, { reason: null })
     }
     cancelModal.show = false
     closeDetail()
-    resultModal.type = 'success'
-    resultModal.title = '예약이 취소되었습니다.'
-    resultModal.subtitle = `${targetName} 예약을 취소 처리했습니다.`
-    resultModal.show = true
-    await fetchList()
+    openResultModal({
+      type: 'success',
+      title: '예약이 취소되었습니다.',
+      subtitle: '관리자 강제 취소 처리가 완료되었습니다.',
+      itemName: targetName,
+      time: getCurrentTimeText(),
+      actionLabel,
+      actor: getCurrentActorName(),
+      afterConfirm: async () => {
+        await fetchStats()
+        await fetchList()
+      },
+    })
   } catch (error) {
     cancelModal.show = false
-    resultModal.type = 'danger'
-    resultModal.title = '취소 처리에 실패했습니다.'
-    resultModal.subtitle =
-      error.response?.data?.resultMessage ||
-      error.response?.data?.message ||
-      '잠시 후 다시 시도해주세요.'
-    resultModal.show = true
+    openResultModal({
+      type: 'danger',
+      title: '취소 처리에 실패했습니다.',
+      subtitle:
+        error.response?.data?.resultMessage ||
+        error.response?.data?.message ||
+        '잠시 후 다시 시도해주세요.',
+    })
   } finally {
     cancelModal.loading = false
   }
-}
-
-const closeResultModal = () => {
-  resultModal.show = false
 }
 
 // ── 공통 포맷 ──────────────────────────────────────────────────────
@@ -401,7 +450,7 @@ onMounted(() => {
         </template>
         <template #cell-status="{ row }">
           <span :class="['status-badge', STATUS_CLASS[row.status] || '']">
-            {{ row.statusName || STATUS_LABEL[row.status] || row.status || '-' }}
+            {{ STATUS_LABEL[row.status] || row.statusName || row.status || '-' }}
           </span>
         </template>
         <template #cell-createdAt="{ value }">
@@ -434,11 +483,11 @@ onMounted(() => {
       <template v-else-if="detailModal.data">
         <!-- 요약 영역 -->
         <div class="detail-summary">
-          <span :class="['status-badge', STATUS_CLASS[getDetailStatus(detailModal.data)] || '']">
-            {{ detailModal.data.statusName || STATUS_LABEL[getDetailStatus(detailModal.data)] || getDetailStatus(detailModal.data) || '-' }}
-          </span>
           <span v-if="detailModal.data.waitNo" class="wait-no-badge">
             대기 {{ detailModal.data.waitNo }}번
+          </span>
+          <span v-else :class="['status-badge', STATUS_CLASS[getDetailStatus(detailModal.data)] || '']">
+            {{ STATUS_LABEL[getDetailStatus(detailModal.data)] || detailModal.data.statusName || getDetailStatus(detailModal.data) || '-' }}
           </span>
           <h3 class="detail-summary-title">
             {{ detailModal.data.programName || detailModal.data.facilityName || '-' }}
@@ -487,8 +536,11 @@ onMounted(() => {
           </div>
           <div class="detail-cell">
             <span class="detail-label">예약 상태</span>
-            <span :class="['status-badge', STATUS_CLASS[getDetailStatus(detailModal.data)] || '']">
-              {{ detailModal.data.statusName || STATUS_LABEL[getDetailStatus(detailModal.data)] || '-' }}
+            <span v-if="detailModal.data.waitNo" class="wait-no-badge">
+              대기 {{ detailModal.data.waitNo }}번
+            </span>
+            <span v-else :class="['status-badge', STATUS_CLASS[getDetailStatus(detailModal.data)] || '']">
+              {{ STATUS_LABEL[getDetailStatus(detailModal.data)] || detailModal.data.statusName || getDetailStatus(detailModal.data) || '-' }}
             </span>
           </div>
           <div class="detail-cell">
@@ -555,9 +607,14 @@ onMounted(() => {
       title="예약을 취소하시겠습니까?"
       subtitle="취소된 예약은 되돌릴 수 없습니다."
       subtitle-color="#e53e3e"
-      item-label="시설/프로그램"
+      item-label="예약"
       :item-name="cancelModal.targetName"
+      :action-label="cancelModal.kind === 'GX' ? 'GX 예약' : '시설 예약'"
+      action-text="관리자 강제 취소"
+      :extra-value="cancelModal.targetUnit"
+      extra-label="소속 세대"
       confirm-text="예약 취소"
+      cancel-text="닫기"
       confirm-type="danger"
       :loading="cancelModal.loading"
       @confirm="handleCancel"
@@ -570,8 +627,13 @@ onMounted(() => {
       :type="resultModal.type"
       :title="resultModal.title"
       :subtitle="resultModal.subtitle"
+      :desc="resultModal.desc"
+      :item-name="resultModal.itemName"
+      :time="resultModal.time"
+      :action-label="resultModal.actionLabel"
+      :actor="resultModal.actor"
       confirm-text="확인"
-      @close="closeResultModal"
+      @close="handleResultConfirm"
     />
   </div>
 </template>
@@ -711,6 +773,7 @@ onMounted(() => {
 
 .status-badge {
   display: inline-block;
+  width: fit-content;
   padding: 3px 10px;
   border-radius: 20px;
   font-size: 11px;
