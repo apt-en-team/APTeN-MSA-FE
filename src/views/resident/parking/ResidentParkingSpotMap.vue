@@ -34,12 +34,14 @@ const goBack = () => {
 }
 
 onMounted(async () => {
+  // SSE 먼저 동기 시작, await race 누수 방지
+  // (이 줄 아래에 SSE 새 연결을 여는 코드 추가 금지)
+  parkingStore.connectSpotSse()
   // 직접 진입 시 zone 이름 표시를 위해 단지 주차 현황 확보
   if (!parkingStore.residentParkingStatus?.zones?.length) {
     await parkingStore.fetchResidentParkingStatus()
   }
   parkingStore.fetchZoneSpots(route.params.zoneId)
-  parkingStore.connectSpotSse()
 })
 
 onUnmounted(() => {

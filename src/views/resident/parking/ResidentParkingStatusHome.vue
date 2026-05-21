@@ -103,12 +103,14 @@ watch(zoneList, () => {
 })
 
 onMounted(async () => {
-  await loadStatus()
-  isFirstLoad.value = false
+  // SSE 먼저 동기 시작, await race 누수 방지
+  // (이 줄 아래에 SSE 새 연결을 여는 코드 추가 금지)
   // SENSOR 단지에서만 spot-changed SSE 구독
   if (isSensorComplex.value) {
     parkingStore.connectSpotSse()
   }
+  await loadStatus()
+  isFirstLoad.value = false
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
