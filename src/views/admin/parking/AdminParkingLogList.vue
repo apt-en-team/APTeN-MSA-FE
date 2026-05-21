@@ -236,7 +236,7 @@ const submitCreate = async () => {
   createError.value = ''
   try {
     await parkingApi.createParkingLog({
-      zoneId: Number(createForm.zoneId),
+      zoneId: String(createForm.zoneId).trim(),
       licensePlate: createForm.licensePlate.trim(),
       entryType: createForm.entryType,
       loggedAt: new Date().toISOString(),
@@ -340,7 +340,8 @@ onMounted(() => {
           <label class="create-form__label">주차 구역 ID</label>
           <input
             v-model="createForm.zoneId"
-            type="number"
+            type="text"
+            inputmode="numeric"
             class="create-form__input"
             placeholder="주차 구역 ID 입력"
           />
