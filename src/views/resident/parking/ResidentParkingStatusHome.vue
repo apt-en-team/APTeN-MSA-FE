@@ -17,9 +17,14 @@ const selectedZoneIndex = ref(0)
 // 현재 단지가 SENSOR 운영 타입인지 판별
 const isSensorComplex = computed(() => complexStore.isSensorComplex)
 
+// 현재 단지의 주차 운영 타입이 NONE이 아닌지 판별
+const isParkingActiveComplex = computed(
+  () => complexStore.residentComplex?.parkingTypeCode !== '01',
+)
+
 // 자동 갱신 안내 문구 산출
 const refreshNoteText = computed(() =>
-  isSensorComplex.value
+  isParkingActiveComplex.value
     ? '주차 현황은 실시간으로 갱신됩니다.'
     : '주차 현황은 화면을 열 때 갱신됩니다.',
 )
@@ -105,8 +110,8 @@ watch(zoneList, () => {
 onMounted(async () => {
   // SSE 먼저 동기 시작, await race 누수 방지
   // (이 줄 아래에 SSE 새 연결을 여는 코드 추가 금지)
-  // SENSOR 단지에서만 spot-changed SSE 구독
-  if (isSensorComplex.value) {
+  // 주차 운영 단지(SENSOR/BASIC)에서 SSE 구독
+  if (isParkingActiveComplex.value) {
     parkingStore.connectSpotSse()
   }
   await loadStatus()

@@ -229,6 +229,7 @@ export const useParkingStore = defineStore('parking', {
       if (this.sseClose) return
       const close = connectParkingSse({
         onSpotChanged: (payload) => this.applySpotChanged(payload),
+        onZoneCounterChanged: (payload) => this.applyZoneCounterChanged(payload),
         onError: () => {
           this.sseConnected = false
           this.sseClose = null
@@ -247,8 +248,8 @@ export const useParkingStore = defineStore('parking', {
       this.sseConnected = false
     },
 
-    // spot-changed 이벤트 반영
-    applySpotChanged(payload) {
+    // zone 카운터 갱신 공통 로직
+    applyZoneCounter(payload) {
       if (!payload || payload.zoneId == null) return
       const zones = this.residentParkingStatus?.zones
       if (!Array.isArray(zones) || zones.length === 0) return
@@ -272,14 +273,27 @@ export const useParkingStore = defineStore('parking', {
       this.residentParkingStatus.remainingSlots = remainingSlots
       this.residentParkingStatus.occupancyRate = occupancyRate
       this.residentParkingStatus.updatedAt = payload.changedAt
+    },
+
+    // spot-changed 이벤트 반영
+    applySpotChanged(payload) {
+      this.applyZoneCounter(payload)
 
       // 자리 맵에 표시 중인 자리도 함께 갱신
       if (Array.isArray(this.currentZoneSpots) && this.currentZoneSpots.length > 0) {
         const targetSpot = this.currentZoneSpots.find((spot) => spot.sensorCode === payload.sensorCode)
         if (targetSpot) {
           targetSpot.status = payload.status
+          if (payload.isActive !== undefined && payload.isActive !== null) {
+            targetSpot.isActive = payload.isActive
+          }
         }
       }
+    },
+
+    // zone-counter-changed 이벤트 반영
+    applyZoneCounterChanged(payload) {
+      this.applyZoneCounter(payload)
     },
 
     // 입주민 zone별 자리 목록 조회
