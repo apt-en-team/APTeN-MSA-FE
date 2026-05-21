@@ -27,12 +27,18 @@ const statusKey = computed(() => {
 
 // 표시 라벨 산출, 비활성 시 우선 적용
 const labelText = computed(() => {
-  if (props.spot?.isActive === false) return '비활성'
+  if (props.spot?.isActive === false) return '사용불가'
   return STATUS_LABELS[props.spot?.status] || '확인불가'
 })
 
 // 비활성 여부 확인
 const isInactive = computed(() => props.spot?.isActive === false)
+
+// 상태 라벨 노출 여부, OCCUPIED는 배경색으로 구분 가능하므로 비활성 아닐 때 숨김
+const showStatusLabel = computed(() => {
+  if (props.spot?.isActive === false) return true
+  return props.spot?.status !== 'OCCUPIED'
+})
 </script>
 
 <template>
@@ -44,7 +50,7 @@ const isInactive = computed(() => props.spot?.isActive === false)
     ]"
   >
     <span class="spot-cell__number">{{ spot.spotNumber }}</span>
-    <span class="spot-cell__label">{{ labelText }}</span>
+    <span v-if="showStatusLabel" class="spot-cell__label">{{ labelText }}</span>
   </div>
 </template>
 
@@ -55,7 +61,7 @@ const isInactive = computed(() => props.spot?.isActive === false)
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-height: 56px;
+  min-height: 64px;
   padding: var(--space-8) 4px;
   border: 1px solid var(--gray-400);
   border-radius: 8px;
@@ -65,23 +71,36 @@ const isInactive = computed(() => props.spot?.isActive === false)
 }
 
 .spot-cell--vacant {
-  color: var(--color-success);
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #fff;
 }
 
 .spot-cell--occupied {
-  color: var(--color-danger);
+  background: #eee;
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
 }
 
 .spot-cell--unknown {
-  color: var(--color-neutral);
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--color-text-primary);
 }
 
 .spot-cell--inactive {
   opacity: 0.45;
+  border-style: dashed;
+  border-color: var(--gray-600);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 6px,
+    rgba(0, 0, 0, 0.12) 6px 8px
+  );
 }
 
 .spot-cell__number {
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
   letter-spacing: -0.2px;
