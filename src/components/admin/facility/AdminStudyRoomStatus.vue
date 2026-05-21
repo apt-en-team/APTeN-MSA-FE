@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, watch } from 'vue'
 import facilityApi from '@/api/facilityApi'
+import AdminReservationDetailModal from '@/components/admin/facility/Adminreservationdetailmodal.vue'
 
 const props = defineProps({
   facilityId: {
@@ -27,9 +28,24 @@ const state = reactive({
   loading: false,
   error: false,
   seats: [],
+  detailModal: {
+    show: false,
+    reservationId: null,
+  },
 })
 
 const isOccupied = (seat) => seat.status !== 'AVAILABLE'
+
+const openDetailModal = (seat) => {
+  if (!seat.reservationId) return
+  state.detailModal.reservationId = seat.reservationId
+  state.detailModal.show = true
+}
+
+const closeDetailModal = () => {
+  state.detailModal.show = false
+  state.detailModal.reservationId = null
+}
 
 const fetchSeatStatus = async () => {
   if (!props.facilityId || !props.selectedDate || !props.openTime || !props.closeTime) return
@@ -89,12 +105,14 @@ watch(
           v-for="seat in state.seats"
           :key="seat.seatId ?? seat.seatNo"
           class="seat-box"
-          :class="{ reserved: isOccupied(seat) }"
+          :class="{ reserved: isOccupied(seat), clickable: !!seat.reservationId }"
+          @click="openDetailModal(seat)"
         >
           <p class="seat-no">{{ seat.seatNo ?? '-' }}번</p>
           <p v-if="seat.seatName" class="seat-name">{{ seat.seatName }}</p>
           <template v-if="isOccupied(seat)">
             <p class="seat-user">{{ seat.residentName ?? '-' }}</p>
+            <p v-if="seat.unit" class="seat-unit">{{ seat.unit }}</p>
           </template>
           <template v-else>
             <p class="seat-empty">빈자리</p>
@@ -103,6 +121,13 @@ watch(
       </div>
     </div>
   </div>
+
+  <AdminReservationDetailModal
+    v-if="state.detailModal.show"
+    :reservation-id="state.detailModal.reservationId"
+    @close="closeDetailModal"
+    @cancelled="async () => { closeDetailModal(); await fetchSeatStatus() }"
+  />
 </template>
 
 <style scoped>
@@ -187,6 +212,22 @@ watch(
   font-size: 12px;
   color: #718096;
   font-family: 'Noto Sans KR', sans-serif;
+}
+
+.seat-unit {
+  margin: 0;
+  font-size: 11px;
+  color: #718096;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.seat-box.clickable {
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+
+.seat-box.clickable:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .empty-text {

@@ -197,8 +197,8 @@ const fetchList = async () => {
   try {
     const res = await reservationStore.fetchAdminReservationOverview(params)
     state.list = toList(res)
-    state.totalElements = res?.totalElements ?? 0
-    state.maxPage = res?.totalPages ?? 1
+    state.totalElements = Number(res?.totalElements ?? 0)
+    state.maxPage = Number(res?.totalPages ?? 1)
     // 필터 없을 때만 전체 건수 갱신
     if (!hasActiveFilter()) {
       state.totalAll = state.totalElements

@@ -6,7 +6,7 @@ import reservationApi from '@/api/reservationApi'
 
 const props = defineProps({
   reservationId: {
-    type: Number,
+    type: [Number, String],
     required: true,
   },
 })
@@ -81,7 +81,7 @@ const handleForceCancel = async () => {
   state.errorMsg = ''
 
   try {
-    await reservationApi.cancelAdminReservation(props.reservationId)
+    await reservationApi.cancelAdminReservation(props.reservationId, {})
 
     const itemName = state.reservation
       ? `${state.reservation.facilityName} · ${state.reservation.residentName}`

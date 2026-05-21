@@ -81,6 +81,17 @@ const closeDetailModal = () => {
   state.detailModal.show = false
   state.detailModal.reservationId = null
 }
+
+const statusLabel = (s) =>
+  ({ CONFIRMED: '확정', COMPLETED: '완료', CANCELLED: '취소', WAITING: '대기' }[s] || s || '-')
+
+const statusClass = (s) =>
+  ({
+    CONFIRMED: 'badge-confirmed',
+    COMPLETED: 'badge-completed',
+    CANCELLED: 'badge-cancelled',
+    WAITING: 'badge-waiting',
+  }[s] || '')
 </script>
 
 <template>
@@ -95,11 +106,13 @@ const closeDetailModal = () => {
           <tr>
             <th>ID</th>
             <th>예약자</th>
+            <th>세대</th>
+            <th>상태</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="!state.data?.users || state.data.users.length === 0">
-            <td colspan="2" class="empty-row">예약 데이터가 없습니다.</td>
+            <td colspan="4" class="empty-row">예약 데이터가 없습니다.</td>
           </tr>
 
           <tr
@@ -110,6 +123,12 @@ const closeDetailModal = () => {
           >
             <td>{{ user.reservationId }}</td>
             <td>{{ user.residentName ?? '-' }}</td>
+            <td>{{ user.unit ?? '-' }}</td>
+            <td>
+              <span :class="['status-badge', statusClass(user.status)]">
+                {{ statusLabel(user.status) }}
+              </span>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -188,5 +207,35 @@ const closeDetailModal = () => {
 
 .clickable-row:hover {
   background: #f8fafc;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.badge-confirmed {
+  background: #e6f4ea;
+  color: #2e7d32;
+}
+
+.badge-completed {
+  background: #e8eaf6;
+  color: #3949ab;
+}
+
+.badge-cancelled {
+  background: #fce4ec;
+  color: #c62828;
+}
+
+.badge-waiting {
+  background: #fff3e0;
+  color: #e65100;
 }
 </style>

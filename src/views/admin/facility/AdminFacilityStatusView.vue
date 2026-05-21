@@ -3,6 +3,7 @@ import { computed, onMounted, reactive } from 'vue'
 import facilityApi from '@/api/facilityApi'
 import { toList } from '@/utils/apiResponse'
 import AdminStudyRoomStatus from '@/components/admin/facility/AdminStudyRoomStatus.vue'
+import AdminGolfStatus from '@/components/admin/facility/AdminGolfStatus.vue'
 import AdminGymStatus from '@/components/admin/facility/AdminGymStatus.vue'
 import AdminGxStatus from '@/components/admin/facility/AdminGxStatus.vue'
 
@@ -30,7 +31,12 @@ const selectedFacility = computed(() =>
 
 const reservationType = computed(() => selectedFacility.value?.reservationType || null)
 
-const showSeatSummary = computed(() => state.activeTab === 'facility' && reservationType.value === 'SEAT')
+const showSeatSummary = computed(
+  () =>
+    state.activeTab === 'facility' &&
+    reservationType.value === 'SEAT' &&
+    selectedFacility.value?.usageUnitType !== 'MINUTE',
+)
 const showCountSummary = computed(() => state.activeTab === 'facility' && reservationType.value === 'COUNT')
 
 const formatTime = (t) => (t ? String(t).slice(0, 5) : '-')
@@ -156,8 +162,16 @@ onMounted(fetchFacilities)
       <div class="right-panel">
         <div v-if="!selectedFacility" class="panel-empty">왼쪽에서 시설을 선택하세요.</div>
         <template v-else>
+          <AdminGolfStatus
+            v-if="reservationType === 'SEAT' && selectedFacility.usageUnitType === 'MINUTE'"
+            :facility-id="selectedFacility.facilityId"
+            :selected-date="state.selectedDate"
+            :open-time="selectedFacility.openTime"
+            :close-time="selectedFacility.closeTime"
+            :slot-min="selectedFacility.slotMin"
+          />
           <AdminStudyRoomStatus
-            v-if="reservationType === 'SEAT'"
+            v-else-if="reservationType === 'SEAT'"
             :facility-id="selectedFacility.facilityId"
             :selected-date="state.selectedDate"
             :open-time="selectedFacility.openTime"
