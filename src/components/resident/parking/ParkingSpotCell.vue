@@ -44,10 +44,7 @@ const showStatusLabel = computed(() => {
 <template>
   <div
     class="spot-cell"
-    :class="[
-      `spot-cell--${statusKey}`,
-      { 'spot-cell--inactive': isInactive },
-    ]"
+    :class="isInactive ? 'spot-cell--inactive' : `spot-cell--${statusKey}`"
   >
     <span class="spot-cell__number">{{ spot.spotNumber }}</span>
     <span v-if="showStatusLabel" class="spot-cell__label">{{ labelText }}</span>
@@ -92,6 +89,8 @@ const showStatusLabel = computed(() => {
   opacity: 0.45;
   border-style: dashed;
   border-color: var(--gray-600);
+  background-color: var(--gray-200);
+  color: var(--color-text-primary);
   background-image: repeating-linear-gradient(
     45deg,
     transparent 0 6px,
