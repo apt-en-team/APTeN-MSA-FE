@@ -68,14 +68,47 @@ const resultModal = reactive({
   subtitle: '',
 })
 
-// 상태 표시 레이블
+// 상태 표시 레이블 (WAITING_CLOSED 포함)
 const statusLabel = (status) => {
-  return { OPEN: '모집중', CLOSED: '종료', CANCELLED: '취소됨' }[status] || status || '-'
+  return {
+    OPEN: '모집중',
+    WAITING_CLOSED: '모집마감',
+    CLOSED: '종료',
+    CANCELLED: '취소됨',
+  }[status] || status || '-'
 }
 
 // 상태 CSS 클래스
 const statusClass = (status) => {
-  return { OPEN: 'status--open', CLOSED: 'status--closed', CANCELLED: 'status--cancelled' }[status] || ''
+  return {
+    OPEN: 'status--open',
+    WAITING_CLOSED: 'status--waiting-closed',
+    CLOSED: 'status--closed',
+    CANCELLED: 'status--cancelled',
+  }[status] || ''
+}
+
+// ── stacked bar (GX 확정율 기준) ─────────────────────────────
+
+// 비율에 따른 bar 메인 색상
+const getBarColor = (ratio) => {
+  if (ratio >= 80) return '#E53E3E'
+  if (ratio >= 40) return '#ED8936'
+  return '#48BB78'
+}
+
+// 비율에 따른 잔여 배경색
+const getRemainingColor = (ratio) => {
+  if (ratio >= 80) return '#FED7D7'
+  if (ratio >= 50) return '#FEEBC8'
+  return '#C6F6D5'
+}
+
+// 확정 인원 비율 (0~100)
+const getGxConfirmedRatio = (program) => {
+  if (!program.maxCount) return 0
+  const confirmed = program.confirmedCount ?? 0
+  return Math.min(Math.round((confirmed / program.maxCount) * 100), 100)
 }
 
 // daysOfWeek 값(배열 또는 쉼표 문자열) → 한글 레이블 변환
@@ -446,84 +479,108 @@ onUnmounted(() => {
         <!-- 로딩 -->
         <div v-if="state.loading" class="empty-box">목록을 불러오는 중...</div>
 
-        <!-- 목록 -->
-        <div v-else class="program-list">
+        <!-- 카드 그리드 -->
+        <div v-else class="program-grid">
           <div
             v-for="program in state.list"
             :key="program.programId"
             class="program-card"
           >
-            <div class="program-card__head">
-              <div class="program-card__title-wrap">
-                <strong class="program-card__name">{{ program.name }}</strong>
-                <span class="program-card__facility">{{ facilityNameById(program.facilityId) }}</span>
+            <!-- 카드 헤더 -->
+            <div class="card-header">
+              <div class="card-title-wrap">
+                <div class="card-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z" />
+                  </svg>
+                </div>
+                <div>
+                  <div class="card-name">{{ program.name }}</div>
+                  <div class="card-id">{{ facilityNameById(program.facilityId) }}</div>
+                </div>
               </div>
               <span :class="['status-badge', statusClass(program.status)]">
                 {{ statusLabel(program.status) }}
               </span>
             </div>
 
-            <div class="program-card__body">
-              <div v-if="program.description" class="info-row info-row--full">
-                <span class="info-label">설명</span>
-                <span class="info-value">{{ program.description }}</span>
+            <!-- 카드 본문 -->
+            <div class="card-body">
+              <!-- 기간 + 운영 시간 -->
+              <div class="card-info-row">
+                <div class="card-info">
+                  <span class="info-label">기간</span>
+                  <span class="info-value">
+                    {{ program.startDate ? program.startDate.slice(5) : '-' }}
+                    ~ {{ program.endDate ? program.endDate.slice(5) : '-' }}
+                  </span>
+                </div>
+                <div class="card-info">
+                  <span class="info-label">시간</span>
+                  <span class="info-value">
+                    {{ program.startTime ? String(program.startTime).slice(0, 5) : '-' }}
+                    ~ {{ program.endTime ? String(program.endTime).slice(0, 5) : '-' }}
+                  </span>
+                </div>
               </div>
-              <div class="info-row">
-                <span class="info-label">운영기간</span>
-                <span class="info-value">
-                  {{ program.startDate || '-' }} ~ {{ program.endDate || '-' }}
-                </span>
+              <!-- 운영 요일 + 정원 -->
+              <div class="card-info-row">
+                <div class="card-info">
+                  <span class="info-label">요일</span>
+                  <span class="info-value">{{ dayLabel(program.daysOfWeek) }}</span>
+                </div>
+                <div class="card-info">
+                  <span class="info-label">정원</span>
+                  <span class="info-value">
+                    {{ program.maxCount ?? '-' }}명
+                    <span v-if="program.minCount" class="info-min">(최소 {{ program.minCount }}명)</span>
+                  </span>
+                </div>
               </div>
-              <div class="info-row">
-                <span class="info-label">운영요일</span>
-                <span class="info-value">{{ dayLabel(program.daysOfWeek) }}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">운영시간</span>
-                <span class="info-value">
-                  {{
-                    program.startTime && program.endTime
-                      ? String(program.startTime).slice(0, 5) + ' ~ ' + String(program.endTime).slice(0, 5)
-                      : '-'
-                  }}
-                </span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">정원</span>
-                <span class="info-value">
-                  최소 {{ program.minCount ?? '-' }}명 / 최대 {{ program.maxCount ?? '-' }}명
-                </span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">요금</span>
-                <span class="info-value">
-                  {{ program.baseFee > 0 ? Number(program.baseFee).toLocaleString() + '원' : '무료' }}
-                </span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">대기 허용</span>
-                <span class="info-value">{{ program.waitingEnabled ? '허용' : '미허용' }}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">확정 / 대기</span>
-                <!-- confirmedCount / waitingCount는 백엔드 임시 0 처리 -->
-                <span class="info-value info-value--muted">
-                  {{ program.confirmedCount ?? 0 }}명 / {{ program.waitingCount ?? 0 }}명
-                </span>
+
+              <!-- 확정율 stacked bar -->
+              <div class="stacked-bar-wrap">
+                <div class="stacked-bar">
+                  <div
+                    class="bar-segment bar-reserved"
+                    :style="{
+                      width: getGxConfirmedRatio(program) + '%',
+                      background: getBarColor(getGxConfirmedRatio(program)),
+                    }"
+                  ></div>
+                  <div
+                    class="bar-segment bar-remaining"
+                    :style="{
+                      width: (100 - getGxConfirmedRatio(program)) + '%',
+                      background: getRemainingColor(getGxConfirmedRatio(program)),
+                    }"
+                  ></div>
+                </div>
+                <div class="stacked-bar-legend">
+                  <span class="legend-item">
+                    <span class="legend-dot" :style="{ background: getBarColor(getGxConfirmedRatio(program)) }"></span>
+                    확정 {{ program.confirmedCount ?? 0 }} / {{ program.maxCount ?? '-' }}명 ({{ getGxConfirmedRatio(program) }}%)
+                  </span>
+                  <span class="legend-item">
+                    <span class="legend-dot" style="background: #F6E05E"></span>
+                    대기 {{ program.waitingCount ?? 0 }}명
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div class="program-card__actions">
+            <!-- 카드 액션 -->
+            <div class="card-actions">
               <button
-                class="btn-row-action"
+                class="btn-card-action"
                 type="button"
-                :disabled="program.status === 'CANCELLED'"
+                :disabled="program.status === 'CANCELLED' || program.status === 'CLOSED'"
                 @click="openEdit(program)"
               >
                 수정
               </button>
               <button
-                class="btn-row-action btn-row-action--danger"
+                class="btn-card-action btn-card-action--danger"
                 type="button"
                 :disabled="program.status === 'CANCELLED'"
                 @click="openCancelConfirm(program)"
@@ -760,43 +817,56 @@ onUnmounted(() => {
   border-top: 1px solid #e2e8f0;
 }
 
-/* 프로그램 목록 */
-.program-list {
+/* ── 카드 그리드 ── */
+.program-grid {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
 }
 
 .program-card {
-  border: 1px solid #eef2f7;
+  border: 1px solid #e0e0e0;
   border-radius: 10px;
-  padding: 16px;
-  background: #f8fafc;
-}
-
-.program-card__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.program-card__title-wrap {
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 14px;
+  background: #fff;
+  transition: box-shadow 0.15s;
 }
 
-.program-card__name {
-  font-size: 15px;
-  font-weight: 700;
-  color: #1e2a3e;
+.program-card:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border-color: #2b3a55;
 }
 
-.program-card__facility {
-  font-size: 12px;
-  color: #7b8ea8;
+/* 카드 헤더 */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
 }
+
+.card-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-icon {
+  width: 36px;
+  height: 36px;
+  background: #f0f4ff;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2b3a55;
+  flex-shrink: 0;
+}
+
+.card-name { font-size: 15px; font-weight: 700; color: #1e2a3e; }
+.card-id { font-size: 11px; color: #687282; margin-top: 2px; }
 
 /* 상태 배지 */
 .status-badge {
@@ -806,70 +876,78 @@ onUnmounted(() => {
   border-radius: 20px;
   font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
-.status--open {
-  background: #ebf5ee;
-  color: #4d8b5a;
+.status--open { background: #ebf5ee; color: #4d8b5a; }
+.status--waiting-closed { background: #fefcbf; color: #b7791f; }
+.status--closed { background: #e2e8f0; color: #4a5568; }
+.status--cancelled { background: #fff5f5; color: #e53e3e; }
+
+/* 카드 본문 */
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.status--closed {
+.card-info-row {
+  display: flex;
+  gap: 20px;
+}
+
+.card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.info-label { font-size: 11px; color: #687282; }
+.info-value { font-size: 13px; font-weight: 600; color: #1a202c; }
+.info-min { font-size: 11px; font-weight: 400; color: #a0aec0; }
+
+/* ── stacked bar ── */
+.stacked-bar-wrap { display: flex; flex-direction: column; gap: 6px; }
+.stacked-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
   background: #e2e8f0;
-  color: #4a5568;
 }
-
-.status--cancelled {
-  background: #fff5f5;
-  color: #e53e3e;
-}
-
-/* 카드 정보 그리드 */
-.program-card__body {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px 24px;
-  margin-bottom: 12px;
-}
-
-.info-row {
+.bar-segment { transition: width 0.4s ease, background 0.4s ease; }
+.bar-reserved { border-radius: 4px; }
+.bar-remaining { border-radius: 0 4px 4px 0; }
+.bar-reserved:only-child { border-radius: 4px; }
+.bar-remaining:first-child { border-radius: 4px; }
+.stacked-bar-legend { display: flex; gap: 10px; flex-wrap: wrap; }
+.legend-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 4px;
+  font-size: 10px;
+  color: #718096;
 }
-
-.info-row--full {
-  grid-column: 1 / -1;
-}
-
-.info-label {
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
   flex-shrink: 0;
-  min-width: 64px;
-  color: #7b8ea8;
-  font-size: 12px;
-}
-
-.info-value {
-  color: #1e2a3e;
-  font-weight: 600;
-}
-
-.info-value--muted {
-  color: #a0aec0;
-  font-weight: 400;
-  font-size: 12px;
+  transition: background 0.4s ease;
 }
 
 /* 카드 액션 */
-.program-card__actions {
+.card-actions {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
+  margin-top: auto;
 }
 
-.btn-row-action {
+.btn-card-action {
   height: 30px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 1px solid #e2e8f0;
   border-radius: 7px;
   background: #fff;
@@ -880,23 +958,10 @@ onUnmounted(() => {
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-.btn-row-action:hover:not(:disabled) {
-  background: #f5f6f8;
-}
-
-.btn-row-action--danger {
-  color: #e53e3e;
-  border-color: #fecaca;
-}
-
-.btn-row-action--danger:hover:not(:disabled) {
-  background: #fff5f5;
-}
-
-.btn-row-action:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+.btn-card-action:hover:not(:disabled) { background: #f5f6f8; }
+.btn-card-action--danger { color: #e53e3e; border-color: #fecaca; }
+.btn-card-action--danger:hover:not(:disabled) { background: #fff5f5; }
+.btn-card-action:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* 공통 */
 .error-box {
@@ -917,17 +982,29 @@ onUnmounted(() => {
   border-radius: 10px;
 }
 
+@media (max-width: 1100px) {
+  .program-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
-  .form-grid {
-    grid-template-columns: 1fr;
+  .program-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
-  .program-card__body {
+  .form-grid {
     grid-template-columns: 1fr;
   }
 
   .search-row {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .program-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
