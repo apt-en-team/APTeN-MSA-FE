@@ -1,14 +1,30 @@
 <script setup>
-import { inject, onMounted, onUnmounted, reactive } from 'vue'
+import { inject, onMounted, onUnmounted, reactive, computed } from 'vue'
 import { useGxStore } from '@/stores/useGxStore.js'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
+import { useAuthStore } from '@/stores/useAuthStore.js'
 import { toList } from '@/utils/apiResponse'
+import BaseModal from '@/components/common/BaseModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
+import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
 
 const gxStore = useGxStore()
 const facilityStore = useFacilityStore()
+const authStore = useAuthStore()
 const registerOpenModal = inject('registerOpenModal', () => {})
+
+// 처리 시각 텍스트
+const getCurrentTimeText = () =>
+  new Date().toLocaleString('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
+
+// 처리자명
+const getCurrentActorName = () =>
+  authStore.userInfo?.name || authStore.user?.name || authStore.name || '관리자'
 
 const DAY_OPTIONS = [
   { value: 'MONDAY', label: '월' },
@@ -32,10 +48,13 @@ const state = reactive({
   gxFacilities: [],
   selectedFacilityId: '',
   selectedStatus: '',
+  filterMonth: '',       // YYYY-MM 형식 월 필터
+  currentPage: 1,
+  pageSize: 8,
   loading: false,
   submitting: false,
   errorMessage: '',
-  mode: 'list', // 'list' | 'create' | 'edit'
+  mode: 'list',          // 'list' | 'create' | 'edit'
   editTarget: null,
 })
 
@@ -47,7 +66,7 @@ const form = reactive({
   endDate: '',
   startTime: '',
   endTime: '',
-  daysOfWeek: [],  // UI 체크박스용 배열 → API 전송 시 쉼표 구분 문자열
+  daysOfWeek: [],        // UI 체크박스용 배열 → API 전송 시 쉼표 구분 문자열
   maxCount: '',
   minCount: '',
   baseFee: 0,
@@ -55,20 +74,48 @@ const form = reactive({
   error: '',
 })
 
+// 상세 모달 상태
+const detailModal = reactive({
+  show: false,
+  program: null,
+})
+
+// 취소 확인 모달 상태
 const cancelModal = reactive({
   show: false,
   loading: false,
   target: null,
 })
 
+// 처리 결과 모달 (규칙 패턴 전체 필드)
 const resultModal = reactive({
   show: false,
   type: 'success',
   title: '',
   subtitle: '',
+  desc: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
 })
 
-// 상태 표시 레이블 (WAITING_CLOSED 포함)
+const openResultModal = ({
+  type = 'success', title, subtitle = '', desc = '',
+  itemName = '', time = '', actionLabel = '', actor = '', afterConfirm = null,
+} = {}) => {
+  Object.assign(resultModal, { show: true, type, title, subtitle, desc, itemName, time, actionLabel, actor, afterConfirm })
+}
+
+const handleResultConfirm = async () => {
+  const callback = resultModal.afterConfirm
+  resultModal.show = false
+  resultModal.afterConfirm = null
+  if (typeof callback === 'function') await callback()
+}
+
+// 상태 표시 레이블 — BE가 한글 enum으로 직렬화하므로 한글 키 우선, 영문도 fallback 지원
 const statusLabel = (status) => {
   return {
     OPEN: '모집중',
@@ -78,15 +125,47 @@ const statusLabel = (status) => {
   }[status] || status || '-'
 }
 
-// 상태 CSS 클래스
+// 상태 CSS 클래스 — BE 한글 직렬화 기준
 const statusClass = (status) => {
   return {
-    OPEN: 'status--open',
-    WAITING_CLOSED: 'status--waiting-closed',
-    CLOSED: 'status--closed',
-    CANCELLED: 'status--cancelled',
+    '모집중': 'status--open', OPEN: 'status--open',
+    '모집마감': 'status--waiting-closed', WAITING_CLOSED: 'status--waiting-closed',
+    '종료': 'status--closed', CLOSED: 'status--closed',
+    '취소됨': 'status--cancelled', CANCELLED: 'status--cancelled',
   }[status] || ''
 }
+
+// 프로그램이 종료/취소 상태인지 (수정 불가 조건)
+const isFinished = (status) => ['종료', 'CLOSED', '취소됨', 'CANCELLED'].includes(status)
+const isCancelled = (status) => ['취소됨', 'CANCELLED'].includes(status)
+
+// 월 범위 포함 여부 확인 (startDate ~ endDate가 해당 월과 겹치는지)
+const isInMonth = (program, yyyyMm) => {
+  if (!yyyyMm) return true
+  const [y, m] = yyyyMm.split('-').map(Number)
+  const monthStart = yyyyMm + '-01'
+  const monthEnd = `${yyyyMm}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+  const start = program.startDate || '0000-01-01'
+  const end = program.endDate || '9999-12-31'
+  return start <= monthEnd && end >= monthStart
+}
+
+// 상태·월 클라이언트 필터
+const filteredList = computed(() =>
+  state.list.filter((p) => {
+    const matchStatus = !state.selectedStatus || statusLabel(p.status) === statusLabel(state.selectedStatus)
+    const matchMonth = isInMonth(p, state.filterMonth)
+    return matchStatus && matchMonth
+  })
+)
+
+// 현재 페이지 슬라이스
+const pagedList = computed(() => {
+  const start = (state.currentPage - 1) * state.pageSize
+  return filteredList.value.slice(start, start + state.pageSize)
+})
+
+const maxPage = computed(() => Math.ceil(filteredList.value.length / state.pageSize) || 1)
 
 // ── stacked bar (GX 확정율 기준) ─────────────────────────────
 
@@ -250,24 +329,69 @@ const handleSubmit = async () => {
   try {
     if (state.mode === 'create') {
       await gxStore.createGxProgram({ ...payload, facilityId: form.facilityId })
-      resultModal.type = 'success'
-      resultModal.title = 'GX 프로그램이 등록되었습니다.'
-      resultModal.subtitle = `${form.name} 프로그램이 추가되었습니다.`
+      state.mode = 'list'
+      openResultModal({
+        type: 'success',
+        title: 'GX 프로그램이 등록되었습니다.',
+        itemName: form.name,
+        actionLabel: 'GX 프로그램 등록',
+        time: getCurrentTimeText(),
+        actor: getCurrentActorName(),
+        afterConfirm: () => fetchList(),
+      })
     } else {
       await gxStore.updateGxProgram(state.editTarget.programId, payload)
-      resultModal.type = 'success'
-      resultModal.title = 'GX 프로그램이 수정되었습니다.'
-      resultModal.subtitle = `${form.name} 정보가 업데이트되었습니다.`
+      state.mode = 'list'
+      openResultModal({
+        type: 'success',
+        title: 'GX 프로그램이 수정되었습니다.',
+        itemName: form.name,
+        actionLabel: 'GX 프로그램 수정',
+        time: getCurrentTimeText(),
+        actor: getCurrentActorName(),
+        afterConfirm: () => fetchList(),
+      })
     }
-    resultModal.show = true
-    state.mode = 'list'
-    await fetchList()
   } catch (e) {
     form.error =
       e.response?.data?.resultMessage || e.response?.data?.message || '저장 중 오류가 발생했습니다.'
   } finally {
     state.submitting = false
   }
+}
+
+// 상세 모달 열기/닫기
+const openDetail = (program) => {
+  detailModal.program = program
+  detailModal.show = true
+}
+const closeDetail = () => {
+  detailModal.show = false
+  detailModal.program = null
+}
+
+// 상세 모달에서 수정 진입
+const goEditFromDetail = (program) => {
+  closeDetail()
+  openEdit(program)
+}
+
+// 상세 모달에서 취소 확인 진입
+const openCancelFromDetail = (program) => {
+  closeDetail()
+  openCancelConfirm(program)
+}
+
+// 페이지 이동
+const goToPage = (page) => { state.currentPage = page }
+
+// 필터 초기화
+const resetFilters = () => {
+  state.selectedFacilityId = ''
+  state.selectedStatus = ''
+  state.filterMonth = ''
+  state.currentPage = 1
+  fetchList()
 }
 
 // 취소 확인 모달 열기
@@ -280,23 +404,28 @@ const openCancelConfirm = (program) => {
 const handleCancelProgram = async () => {
   if (!cancelModal.target) return
   cancelModal.loading = true
+  const targetName = cancelModal.target.name
   try {
     await gxStore.cancelGxProgram(cancelModal.target.programId, { reason: '' })
     cancelModal.show = false
-    resultModal.type = 'success'
-    resultModal.title = 'GX 프로그램이 취소되었습니다.'
-    resultModal.subtitle = `${cancelModal.target.name} 운영이 취소되었습니다.`
-    resultModal.show = true
     cancelModal.target = null
-    await fetchList()
+    openResultModal({
+      type: 'success',
+      title: 'GX 프로그램이 취소되었습니다.',
+      itemName: targetName,
+      actionLabel: 'GX 프로그램 취소',
+      time: getCurrentTimeText(),
+      actor: getCurrentActorName(),
+      afterConfirm: () => fetchList(),
+    })
   } catch (e) {
     cancelModal.show = false
     cancelModal.target = null
-    resultModal.type = 'danger'
-    resultModal.title = '취소에 실패했습니다.'
-    resultModal.subtitle =
-      e.response?.data?.resultMessage || e.response?.data?.message || '잠시 후 다시 시도해주세요.'
-    resultModal.show = true
+    openResultModal({
+      type: 'danger',
+      title: '취소에 실패했습니다.',
+      subtitle: e.response?.data?.resultMessage || e.response?.data?.message || '잠시 후 다시 시도해주세요.',
+    })
   } finally {
     cancelModal.loading = false
   }
@@ -443,38 +572,26 @@ onUnmounted(() => {
 
     <!-- 목록 화면 -->
     <template v-else>
+      <!-- 필터 바 -->
+      <div class="card-shell">
+        <AdminFilterBar @reset="resetFilters">
+          <input
+            v-model="state.filterMonth"
+            type="month"
+            class="filter-input"
+            @change="state.currentPage = 1"
+          />
+          <select v-model="state.selectedStatus" class="filter-select" @change="state.currentPage = 1">
+            <option v-for="opt in STATUS_OPTIONS" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+        </AdminFilterBar>
+      </div>
+
+      <!-- 카드 목록 -->
       <article class="panel">
         <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
-
-        <!-- 필터 -->
-        <div class="search-row">
-          <label class="form-field">
-            <span>GX 시설</span>
-            <select v-model="state.selectedFacilityId" @change="fetchList">
-              <option value="">전체</option>
-              <option
-                v-for="f in state.gxFacilities"
-                :key="f.facilityId"
-                :value="f.facilityId"
-              >
-                {{ f.name }}
-              </option>
-            </select>
-          </label>
-
-          <label class="form-field">
-            <span>상태</span>
-            <select v-model="state.selectedStatus" @change="fetchList">
-              <option v-for="opt in STATUS_OPTIONS" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
-          </label>
-
-          <div class="search-actions">
-            <button class="btn-secondary" type="button" @click="fetchList">조회</button>
-          </div>
-        </div>
 
         <!-- 로딩 -->
         <div v-if="state.loading" class="empty-box">목록을 불러오는 중...</div>
@@ -482,9 +599,10 @@ onUnmounted(() => {
         <!-- 카드 그리드 -->
         <div v-else class="program-grid">
           <div
-            v-for="program in state.list"
+            v-for="program in pagedList"
             :key="program.programId"
             class="program-card"
+            @click="openDetail(program)"
           >
             <!-- 카드 헤더 -->
             <div class="card-header">
@@ -506,7 +624,6 @@ onUnmounted(() => {
 
             <!-- 카드 본문 -->
             <div class="card-body">
-              <!-- 기간 + 운영 시간 -->
               <div class="card-info-row">
                 <div class="card-info">
                   <span class="info-label">기간</span>
@@ -523,7 +640,6 @@ onUnmounted(() => {
                   </span>
                 </div>
               </div>
-              <!-- 운영 요일 + 정원 -->
               <div class="card-info-row">
                 <div class="card-info">
                   <span class="info-label">요일</span>
@@ -541,61 +657,154 @@ onUnmounted(() => {
               <!-- 확정율 stacked bar -->
               <div class="stacked-bar-wrap">
                 <div class="stacked-bar">
-                  <div
-                    class="bar-segment bar-reserved"
-                    :style="{
-                      width: getGxConfirmedRatio(program) + '%',
-                      background: getBarColor(getGxConfirmedRatio(program)),
-                    }"
+                  <div class="bar-segment bar-reserved"
+                    :style="{ width: getGxConfirmedRatio(program) + '%', background: getBarColor(getGxConfirmedRatio(program)) }"
                   ></div>
-                  <div
-                    class="bar-segment bar-remaining"
-                    :style="{
-                      width: (100 - getGxConfirmedRatio(program)) + '%',
-                      background: getRemainingColor(getGxConfirmedRatio(program)),
-                    }"
+                  <div class="bar-segment bar-remaining"
+                    :style="{ width: (100 - getGxConfirmedRatio(program)) + '%', background: getRemainingColor(getGxConfirmedRatio(program)) }"
                   ></div>
                 </div>
                 <div class="stacked-bar-legend">
                   <span class="legend-item">
                     <span class="legend-dot" :style="{ background: getBarColor(getGxConfirmedRatio(program)) }"></span>
-                    확정 {{ program.confirmedCount ?? 0 }} / {{ program.maxCount ?? '-' }}명 ({{ getGxConfirmedRatio(program) }}%)
+                    확정 {{ program.confirmedCount ?? 0 }}/{{ program.maxCount ?? '-' }}명 ({{ getGxConfirmedRatio(program) }}%)
                   </span>
                   <span class="legend-item">
-                    <span class="legend-dot" style="background: #F6E05E"></span>
+                    <span class="legend-dot" style="background:#F6E05E"></span>
                     대기 {{ program.waitingCount ?? 0 }}명
                   </span>
                 </div>
               </div>
             </div>
-
-            <!-- 카드 액션 -->
-            <div class="card-actions">
-              <button
-                class="btn-card-action"
-                type="button"
-                :disabled="program.status === 'CANCELLED' || program.status === 'CLOSED'"
-                @click="openEdit(program)"
-              >
-                수정
-              </button>
-              <button
-                class="btn-card-action btn-card-action--danger"
-                type="button"
-                :disabled="program.status === 'CANCELLED'"
-                @click="openCancelConfirm(program)"
-              >
-                취소
-              </button>
-            </div>
           </div>
 
-          <div v-if="state.list.length === 0" class="empty-box">
+          <div v-if="filteredList.length === 0" class="empty-box">
             등록된 GX 프로그램이 없습니다.
           </div>
         </div>
+
+        <!-- 페이지네이션 -->
+        <AppPagination
+          :currentPage="state.currentPage"
+          :maxPage="maxPage"
+          :totalAll="state.list.length"
+          :totalFiltered="filteredList.length"
+          unit="개"
+          @change="goToPage"
+        />
       </article>
     </template>
+
+    <!-- 상세 모달 -->
+    <BaseModal
+      class="gx-detail-modal"
+      :visible="detailModal.show"
+      title="GX 프로그램 상세"
+      :subtitle="detailModal.program ? facilityNameById(detailModal.program.facilityId) : ''"
+      @close="closeDetail"
+    >
+      <div v-if="detailModal.program" class="detail-content">
+        <!-- 프로그램명 + 상태 -->
+        <div class="detail-hero">
+          <span :class="['detail-status-badge', statusClass(detailModal.program.status)]">
+            {{ statusLabel(detailModal.program.status) }}
+          </span>
+          <h2 class="detail-title">{{ detailModal.program.name }}</h2>
+        </div>
+
+        <!-- 확정율 bar -->
+        <div class="stacked-bar-wrap detail-bar">
+          <div class="stacked-bar">
+            <div class="bar-segment bar-reserved"
+              :style="{ width: getGxConfirmedRatio(detailModal.program) + '%', background: getBarColor(getGxConfirmedRatio(detailModal.program)) }"
+            ></div>
+            <div class="bar-segment bar-remaining"
+              :style="{ width: (100 - getGxConfirmedRatio(detailModal.program)) + '%', background: getRemainingColor(getGxConfirmedRatio(detailModal.program)) }"
+            ></div>
+          </div>
+          <div class="stacked-bar-legend">
+            <span class="legend-item">
+              <span class="legend-dot" :style="{ background: getBarColor(getGxConfirmedRatio(detailModal.program)) }"></span>
+              확정 {{ detailModal.program.confirmedCount ?? 0 }}/{{ detailModal.program.maxCount ?? '-' }}명 ({{ getGxConfirmedRatio(detailModal.program) }}%)
+            </span>
+            <span class="legend-item">
+              <span class="legend-dot" style="background:#F6E05E"></span>
+              대기 {{ detailModal.program.waitingCount ?? 0 }}명
+            </span>
+          </div>
+        </div>
+
+        <div class="detail-divider"></div>
+
+        <!-- 정보 그리드 -->
+        <div class="detail-grid">
+          <div class="detail-cell">
+            <span class="detail-cell-label">운영 기간</span>
+            <span class="detail-cell-value">
+              {{ detailModal.program.startDate ?? '-' }} ~ {{ detailModal.program.endDate ?? '-' }}
+            </span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">운영 시간</span>
+            <span class="detail-cell-value">
+              {{ detailModal.program.startTime ? String(detailModal.program.startTime).slice(0,5) : '-' }}
+              ~ {{ detailModal.program.endTime ? String(detailModal.program.endTime).slice(0,5) : '-' }}
+            </span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">운영 요일</span>
+            <span class="detail-cell-value">{{ dayLabel(detailModal.program.daysOfWeek) }}</span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">정원</span>
+            <span class="detail-cell-value">
+              최대 {{ detailModal.program.maxCount ?? '-' }}명
+              <span v-if="detailModal.program.minCount">(최소 {{ detailModal.program.minCount }}명)</span>
+            </span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">요금</span>
+            <span class="detail-cell-value">
+              {{ detailModal.program.baseFee > 0 ? Number(detailModal.program.baseFee).toLocaleString() + '원' : '무료' }}
+            </span>
+          </div>
+          <div class="detail-cell">
+            <span class="detail-cell-label">대기 허용</span>
+            <span class="detail-cell-value">{{ detailModal.program.waitingEnabled ? '허용' : '미허용' }}</span>
+          </div>
+        </div>
+
+        <!-- 설명 -->
+        <template v-if="detailModal.program.description">
+          <div class="detail-divider"></div>
+          <div class="detail-desc">
+            <span class="detail-cell-label">프로그램 설명</span>
+            <p class="detail-desc-text">{{ detailModal.program.description }}</p>
+          </div>
+        </template>
+      </div>
+
+      <template #footer>
+        <div class="modal-footer-inner">
+          <button
+            class="btn-secondary-action"
+            type="button"
+            :disabled="isCancelled(detailModal.program?.status)"
+            @click="openCancelFromDetail(detailModal.program)"
+          >
+            취소 처리
+          </button>
+          <button
+            class="btn-submit"
+            type="button"
+            :disabled="isFinished(detailModal.program?.status)"
+            @click="goEditFromDetail(detailModal.program)"
+          >
+            수정하기
+          </button>
+        </div>
+      </template>
+    </BaseModal>
 
     <!-- 취소 확인 모달 -->
     <ConfirmModal
@@ -618,15 +827,31 @@ onUnmounted(() => {
       :type="resultModal.type"
       :title="resultModal.title"
       :subtitle="resultModal.subtitle"
+      :desc="resultModal.desc"
+      :item-name="resultModal.itemName"
+      :time="resultModal.time"
+      :action-label="resultModal.actionLabel"
+      :actor="resultModal.actor"
       confirm-text="확인"
-      @close="resultModal.show = false"
+      @close="handleResultConfirm"
     />
   </section>
 </template>
 
 <style scoped>
 .gx-program {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   font-family: 'Noto Sans KR', sans-serif;
+}
+
+.card-shell {
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  background: #FFFFFF;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
 }
 
 
@@ -657,18 +882,18 @@ onUnmounted(() => {
   color: #687282;
 }
 
-/* 필터 행 */
-.search-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.search-actions {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
+/* ── 필터 바 ── */
+.filter-input,
+.filter-select {
+  min-width: 140px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #1A202C;
+  font: inherit;
+  font-size: 13px;
 }
 
 /* 폼 그리드 */
@@ -962,6 +1187,96 @@ onUnmounted(() => {
 .btn-card-action--danger { color: #e53e3e; border-color: #fecaca; }
 .btn-card-action--danger:hover:not(:disabled) { background: #fff5f5; }
 .btn-card-action:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── 상세 모달 ── */
+.detail-content { display: flex; flex-direction: column; gap: 14px; }
+
+.detail-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.detail-status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.detail-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e2a3e;
+  margin: 0;
+}
+
+.detail-bar { margin-top: 4px; }
+
+.detail-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 4px 0;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.detail-cell { display: flex; flex-direction: column; gap: 3px; }
+.detail-cell-label { font-size: 11px; color: #687282; }
+.detail-cell-value { font-size: 13px; font-weight: 600; color: #1a202c; }
+
+.detail-desc { display: flex; flex-direction: column; gap: 6px; }
+.detail-desc-text {
+  font-size: 13px;
+  color: #4a5568;
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-line;
+}
+
+/* 상세 모달 푸터 */
+.modal-footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.btn-secondary-action {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff;
+  color: #e53e3e;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.btn-secondary-action:hover:not(:disabled) { background: #fff5f5; }
+.btn-secondary-action:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-submit {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #1e2a3e;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* 공통 */
 .error-box {
