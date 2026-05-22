@@ -2,6 +2,7 @@
 import { onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
+import { useAuthStore } from '@/stores/useAuthStore.js'
 
 import BaseModal from '@/components/common/BaseModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
@@ -17,6 +18,18 @@ const props = defineProps({
 
 const router = useRouter()
 const facilityStore = useFacilityStore()
+const authStore = useAuthStore()
+
+// 처리 시각 텍스트
+const getCurrentTimeText = () =>
+  new Date().toLocaleString('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
+
+// 처리자명
+const getCurrentActorName = () =>
+  authStore.userInfo?.name || authStore.user?.name || authStore.name || '관리자'
 
 // 목록·필터·페이지 상태
 const state = reactive({
@@ -51,12 +64,18 @@ const seatFormModal = reactive({
   isActive: true,
 })
 
-// 좌석 처리 결과 모달 상태
+// 처리 결과 모달 상태 (규칙 패턴 전체 필드)
 const resultModal = reactive({
   show: false,
   type: 'success',
   title: '',
   subtitle: '',
+  desc: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
 })
 
 // ── 정규화 ──────────────────────────────────────────────────────
@@ -124,8 +143,15 @@ const isSeatFacility = (facility) =>
 
 // ── 표시 헬퍼 ──────────────────────────────────────────────────
 
-const statusLabel = (f) => (f?.isActive ? '운영 중' : '운영 중단')
-const statusClass = (f) => (f?.isActive ? 'active' : 'inactive')
+// 오늘 차단이 있으면 "점검중" 우선 표시
+const statusLabel = (f) => {
+  if (f?.isTodayBlocked && f?.isActive) return '점검중'
+  return f?.isActive ? '운영 중' : '운영 중단'
+}
+const statusClass = (f) => {
+  if (f?.isTodayBlocked && f?.isActive) return 'maintenance'
+  return f?.isActive ? 'active' : 'inactive'
+}
 const formatTime = (t) => (t ? String(t).slice(0, 5) : '-')
 const formatPrice = (p) => (!p || p === 0 ? '무료' : Number(p).toLocaleString() + '원')
 const seatStatusLabel = (isActive) => (isActive ? '활성' : '비활성')
@@ -153,9 +179,9 @@ const getTotalDailyCapacity = (f) => {
   return Math.floor((closeMin - openMin) / f.slotMin) * f.maxCount
 }
 
-// 오늘 예약 비율 (0~100)
+// 오늘 예약 비율 (0~100) — 점검중이거나 비활성이면 0
 const getReservedRatio = (f) => {
-  if (!f.isActive) return 0
+  if (!f.isActive || f.isTodayBlocked) return 0
   const count = f.todayReservedCount ?? 0
   const total = getTotalDailyCapacity(f)
   if (!total) return 0
@@ -283,15 +309,20 @@ const closeSeatFormModal = () => {
   seatFormModal.errorMessage = ''
 }
 
-const openResultModal = (type, title, subtitle) => {
-  resultModal.type = type
-  resultModal.title = title
-  resultModal.subtitle = subtitle
-  resultModal.show = true
+// resultModal 오픈 헬퍼 (규칙 패턴)
+const openResultModal = ({
+  type = 'success', title, subtitle = '', desc = '',
+  itemName = '', time = '', actionLabel = '', actor = '', afterConfirm = null,
+} = {}) => {
+  Object.assign(resultModal, { show: true, type, title, subtitle, desc, itemName, time, actionLabel, actor, afterConfirm })
 }
 
-const closeResultModal = () => {
+// 확인 클릭 후 afterConfirm 콜백 실행
+const handleResultConfirm = async () => {
+  const callback = resultModal.afterConfirm
   resultModal.show = false
+  resultModal.afterConfirm = null
+  if (typeof callback === 'function') await callback()
 }
 
 const submitSeatForm = async () => {
@@ -310,23 +341,42 @@ const submitSeatForm = async () => {
         seatName: String(seatFormModal.seatName || '').trim(),
         isActive: !!seatFormModal.isActive,
       })
-      openResultModal('success', '좌석이 등록되었습니다.', '입주민 좌석 예약에 사용할 수 있습니다.')
+      openResultModal({
+        type: 'success',
+        title: '좌석이 등록되었습니다.',
+        itemName: `${seatFormModal.seatNo}번 좌석`,
+        actionLabel: '좌석 등록',
+        time: getCurrentTimeText(),
+        actor: getCurrentActorName(),
+        afterConfirm: () => fetchSeats(),
+      })
     } else {
       // 백엔드 수정 API는 좌석 번호 변경을 지원하지 않으므로 이름·활성 여부만 전송
       await facilityStore.updateFacilitySeat(seatFormModal.seatId, {
         seatName: String(seatFormModal.seatName || '').trim(),
         isActive: !!seatFormModal.isActive,
       })
-      openResultModal('success', '좌석이 수정되었습니다.', '좌석 정보가 목록에 반영되었습니다.')
+      openResultModal({
+        type: 'success',
+        title: '좌석이 수정되었습니다.',
+        itemName: `${seatFormModal.seatNo}번 좌석`,
+        actionLabel: '좌석 수정',
+        time: getCurrentTimeText(),
+        actor: getCurrentActorName(),
+        afterConfirm: () => fetchSeats(),
+      })
     }
     closeSeatFormModal()
-    await fetchSeats()
   } catch (error) {
     seatFormModal.errorMessage =
       error.response?.data?.resultMessage ||
       error.response?.data?.message ||
       '좌석 저장에 실패했습니다.'
-    openResultModal('danger', '좌석 저장에 실패했습니다.', seatFormModal.errorMessage)
+    openResultModal({
+      type: 'danger',
+      title: '좌석 저장에 실패했습니다.',
+      subtitle: seatFormModal.errorMessage,
+    })
   } finally {
     seatFormModal.loading = false
   }
@@ -376,7 +426,7 @@ onMounted(() => {
           v-for="f in pagedList"
           :key="f.facilityId"
           class="facility-card"
-          :class="{ inactive: !f.isActive }"
+          :class="{ inactive: !f.isActive, 'maintenance-card': f.isTodayBlocked && f.isActive }"
           @click="openDetail(f)"
         >
           <!-- 카드 헤더 -->
@@ -425,33 +475,41 @@ onMounted(() => {
                 </div>
               </div>
 
-              <!-- 오늘 예약율 stacked bar -->
+              <!-- 오늘 예약율 stacked bar (점검중·비활성이면 회색) -->
               <div class="stacked-bar-wrap">
                 <div class="stacked-bar">
                   <div
                     class="bar-segment bar-reserved"
                     :style="{
-                      width: f.isActive ? getReservedRatio(f) + '%' : '0%',
+                      width: (f.isActive && !f.isTodayBlocked) ? getReservedRatio(f) + '%' : '0%',
                       background: getBarColor(getReservedRatio(f)),
                     }"
                   ></div>
                   <div
                     class="bar-segment bar-remaining"
                     :style="{
-                      width: f.isActive ? (100 - getReservedRatio(f)) + '%' : '100%',
-                      background: f.isActive ? getRemainingColor(getReservedRatio(f)) : '#E2E8F0',
+                      width: (f.isActive && !f.isTodayBlocked) ? (100 - getReservedRatio(f)) + '%' : '100%',
+                      background: (f.isActive && !f.isTodayBlocked) ? getRemainingColor(getReservedRatio(f)) : '#E2E8F0',
                     }"
                   ></div>
                 </div>
                 <div class="stacked-bar-legend">
-                  <span class="legend-item">
-                    <span class="legend-dot" :style="{ background: f.isActive ? getBarColor(getReservedRatio(f)) : '#A0AEC0' }"></span>
-                    오늘 예약 {{ f.isActive ? (f.todayReservedCount ?? 0) : 0 }}건 ({{ f.isActive ? getReservedRatio(f) : 0 }}%)
-                  </span>
-                  <span class="legend-item">
-                    <span class="legend-dot" :style="{ background: f.isActive ? getRemainingColor(getReservedRatio(f)) : '#E2E8F0' }"></span>
-                    잔여 {{ f.isActive ? 100 - getReservedRatio(f) : 0 }}%
-                  </span>
+                  <template v-if="f.isTodayBlocked && f.isActive">
+                    <span class="legend-item">
+                      <span class="legend-dot" style="background: #A0AEC0"></span>
+                      점검 중 (예약 차단)
+                    </span>
+                  </template>
+                  <template v-else>
+                    <span class="legend-item">
+                      <span class="legend-dot" :style="{ background: f.isActive ? getBarColor(getReservedRatio(f)) : '#A0AEC0' }"></span>
+                      오늘 예약 {{ f.isActive ? (f.todayReservedCount ?? 0) : 0 }}건 ({{ f.isActive ? getReservedRatio(f) : 0 }}%)
+                    </span>
+                    <span class="legend-item">
+                      <span class="legend-dot" :style="{ background: f.isActive ? getRemainingColor(getReservedRatio(f)) : '#E2E8F0' }"></span>
+                      잔여 {{ f.isActive ? 100 - getReservedRatio(f) : 0 }}%
+                    </span>
+                  </template>
                 </div>
               </div>
             </template>
@@ -464,10 +522,7 @@ onMounted(() => {
             </template>
           </div>
 
-          <!-- 카드 액션 (클릭 버블링 차단) -->
-          <div class="card-actions" @click.stop>
-            <button class="btn-card-action" type="button" @click="goEdit(f.facilityId)">수정</button>
-          </div>
+          <!-- 상세 모달에서 수정 진행하므로 카드 액션 없음 -->
         </div>
 
         <div v-if="pagedList.length === 0" class="empty">등록된 시설이 없습니다.</div>
@@ -637,14 +692,19 @@ onMounted(() => {
       </template>
     </BaseModal>
 
-    <!-- ── 좌석 처리 결과 모달 ── -->
+    <!-- ── 처리 결과 모달 ── -->
     <ActionResultModal
       :visible="resultModal.show"
       :type="resultModal.type"
       :title="resultModal.title"
       :subtitle="resultModal.subtitle"
+      :desc="resultModal.desc"
+      :item-name="resultModal.itemName"
+      :time="resultModal.time"
+      :action-label="resultModal.actionLabel"
+      :actor="resultModal.actor"
       confirm-text="확인"
-      @close="closeResultModal"
+      @close="handleResultConfirm"
     />
   </div>
 </template>
@@ -797,12 +857,20 @@ onMounted(() => {
   display: inline-block;
   padding: 3px 10px;
   border-radius: 20px;
+  flex-shrink: 0;
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
 }
 .status-badge.active { background: #ebf5ee; color: #4d8b5a; }
 .status-badge.inactive { background: #e0e0e0; color: #4a5568; }
+.status-badge.maintenance { background: #fef3cd; color: #b7791f; }
+
+/* 점검중 카드 테두리 강조 */
+.facility-card.maintenance-card {
+  border-color: #f6d860;
+  background: #fffdf0;
+}
 
 /* ── 카드 본문 ── */
 .card-body {
