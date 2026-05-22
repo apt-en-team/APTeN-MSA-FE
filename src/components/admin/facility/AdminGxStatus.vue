@@ -2,18 +2,28 @@
 import { reactive, computed, watch, onMounted } from 'vue'
 import gxApi from '@/api/gxApi'
 import { toList } from '@/utils/apiResponse'
-import BaseModal from '@/components/common/BaseModal.vue'
+import { useAuthStore } from '@/stores/useAuthStore.js'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
+import AdminGxReservationDetailModal from '@/components/admin/facility/AdminGxReservationDetailModal.vue'
+import AdminGxApprovalModal from '@/components/admin/facility/Admingxapprovalmodal.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
 
-const RESERVATION_STATUS_LABEL = {
-  WAITING: '대기',
-  PENDING: '대기',
-  CONFIRMED: '확정',
-  REJECTED: '거절',
-  CANCELLED: '취소',
-  COMPLETED: '이용완료',
-}
+
+const authStore = useAuthStore()
+
+const getCurrentTimeText = () =>
+  new Date().toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+const getCurrentActorName = () =>
+  authStore.userInfo?.name || authStore.user?.name || authStore.name || '관리자'
+
 
 const state = reactive({
   programs: { loading: false, error: '', list: [] },
@@ -22,12 +32,47 @@ const state = reactive({
   statusLoading: false,
   status: null,
 
-  reservations: { loading: false, error: false, list: [] },
+  reservations: { loading: false, error: false, list: [], currentPage: 1 },
 
   bulkModal: { show: false, loading: false },
   closeModal: { show: false, loading: false },
-  resultModal: { show: false, type: 'success', title: '', subtitle: '' },
+  detailModal: { show: false, reservationId: null },
+  cancelModal: { show: false, loading: false, targetId: null, targetName: '', targetUnit: '' },
 })
+
+const resultModal = reactive({
+  show: false,
+  type: 'success',
+  title: '',
+  subtitle: '',
+  desc: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
+})
+
+const openResultModal = ({
+  type = 'success',
+  title,
+  subtitle = '',
+  desc = '',
+  itemName = '',
+  time = '',
+  actionLabel = '',
+  actor = '',
+  afterConfirm = null,
+} = {}) => {
+  Object.assign(resultModal, { show: true, type, title, subtitle, desc, itemName, time, actionLabel, actor, afterConfirm })
+}
+
+const handleResultConfirm = async () => {
+  const callback = resultModal.afterConfirm
+  resultModal.show = false
+  resultModal.afterConfirm = null
+  if (typeof callback === 'function') await callback()
+}
 
 const selectedProgram = computed(() =>
   state.programs.list.find((p) => String(p.programId) === String(state.selectedProgramId)) || null,
@@ -43,27 +88,46 @@ const bulkApproveCount = computed(() => {
 
 const waitingList = computed(() =>
   state.reservations.list
-    .filter((r) => r.status === 'WAITING' || r.status === 'PENDING')
-    .sort((a, b) => (a.waitNo ?? Infinity) - (b.waitNo ?? Infinity))
-    .map((r, i) => ({ ...r, willConfirm: i < bulkApproveCount.value })),
+    .filter((r) => r.status === '대기')
+    .sort((a, b) => (a.waitNo ?? Infinity) - (b.waitNo ?? Infinity)),
 )
 
-const overflowCount = computed(() => Math.max(0, waitingCount.value - bulkApproveCount.value))
+const programWaitingCount = (p) => {
+  if (String(p.programId) === String(state.selectedProgramId)) {
+    return waitingList.value.length
+  }
+  return p.waitingCount ?? 0
+}
 
-const programStatusLabel = (status) =>
-  ({ OPEN: '모집중', CLOSED: '종료', CANCELLED: '취소됨' }[status] || status || '-')
+const programCancelledCount = (p) => {
+  if (String(p.programId) === String(state.selectedProgramId)) {
+    return state.reservations.list.filter((r) => r.status === '거절' || r.status === '취소').length
+  }
+  return p.cancelledCount ?? 0
+}
+
+const PAGE_SIZE = 10
+
+const pagedReservations = computed(() => {
+  const start = (state.reservations.currentPage - 1) * PAGE_SIZE
+  return state.reservations.list.slice(start, start + PAGE_SIZE)
+})
+
+const totalResPages = computed(() =>
+  Math.max(1, Math.ceil(state.reservations.list.length / PAGE_SIZE)),
+)
+
+const programStatusLabel = (status) => status || '-'
 
 const programStatusClass = (status) =>
-  ({ OPEN: 'open', CLOSED: 'closed', CANCELLED: 'cancelled' }[status] || '')
+  ({ '모집중': 'open', '모집마감': 'waiting-closed', '종료': 'closed', '프로그램취소': 'cancelled' }[status] || '')
 
 const resStatusClass = (status) =>
   ({
-    WAITING: 'res-status--waiting',
-    PENDING: 'res-status--waiting',
-    CONFIRMED: 'res-status--confirmed',
-    REJECTED: 'res-status--rejected',
-    CANCELLED: 'res-status--cancelled',
-    COMPLETED: 'res-status--completed',
+    대기: 'status--waiting',
+    확정: 'status--confirmed',
+    거절: 'status--cancelled',
+    취소: 'status--cancelled',
   }[status] || '')
 
 const formatDate = (d) => (d ? String(d).replace(/-/g, '.') : '-')
@@ -117,6 +181,7 @@ const fetchReservations = async () => {
       size: 100,
     })
     state.reservations.list = toList(res)
+    state.reservations.currentPage = 1
   } catch {
     state.reservations.list = []
     state.reservations.error = true
@@ -133,37 +198,72 @@ const selectProgram = (id) => {
   state.selectedProgramId = id
 }
 
+const openDetailModal = (row) => {
+  state.detailModal.reservationId = row.gxReservationId
+  state.detailModal.show = true
+}
+
+const closeDetailModal = () => {
+  state.detailModal.show = false
+  state.detailModal.reservationId = null
+}
+
+const openGxCancelModal = (reservation) => {
+  state.cancelModal.targetId = reservation.gxReservationId
+  state.cancelModal.targetName =
+    reservation.programName
+      ? `${reservation.programName} · ${reservation.residentName ?? ''}`
+      : `GX 예약 #${reservation.gxReservationId}`
+  state.cancelModal.targetUnit = reservation.unit || ''
+  state.cancelModal.show = true
+}
+
+const closeGxCancelModal = () => {
+  state.cancelModal.show = false
+  state.cancelModal.loading = false
+  state.cancelModal.targetId = null
+  state.cancelModal.targetName = ''
+  state.cancelModal.targetUnit = ''
+}
+
+const handleGxCancel = async () => {
+  state.cancelModal.loading = true
+  const { targetName } = state.cancelModal
+  try {
+    await gxApi.cancelAdminGxReservation(state.cancelModal.targetId)
+    closeGxCancelModal()
+    closeDetailModal()
+    openResultModal({
+      type: 'success',
+      title: '예약이 취소되었습니다.',
+      subtitle: '관리자 강제 취소 처리가 완료되었습니다.',
+      itemName: targetName,
+      time: getCurrentTimeText(),
+      actionLabel: 'GX 예약 강제 취소',
+      actor: getCurrentActorName(),
+      afterConfirm: refreshDetail,
+    })
+  } catch (e) {
+    closeGxCancelModal()
+    openResultModal({
+      type: 'danger',
+      title: '취소 처리에 실패했습니다.',
+      subtitle: e?.response?.data?.resultMessage || '잠시 후 다시 시도해주세요.',
+      itemName: targetName,
+    })
+  }
+}
+
 const openBulkApprove = () => {
   state.bulkModal.show = true
 }
 
 const closeBulkApprove = () => {
   state.bulkModal.show = false
-  state.bulkModal.loading = false
 }
 
-const confirmBulkApprove = async () => {
-  state.bulkModal.loading = true
-  try {
-    await gxApi.bulkApproveGxProgram(state.selectedProgramId, { approveCount: bulkApproveCount.value })
-    state.bulkModal.show = false
-    state.bulkModal.loading = false
-    state.resultModal = {
-      show: true,
-      type: 'success',
-      title: '일괄 승인 완료',
-      subtitle: `${bulkApproveCount.value}명이 승인 처리되었습니다.`,
-    }
-    await Promise.all([fetchPrograms(), refreshDetail()])
-  } catch {
-    state.bulkModal.loading = false
-    state.resultModal = {
-      show: true,
-      type: 'error',
-      title: '일괄 승인 실패',
-      subtitle: '처리 중 오류가 발생했습니다.',
-    }
-  }
+const handleApproved = async () => {
+  await Promise.all([fetchPrograms(), refreshDetail()])
 }
 
 const openClose = () => {
@@ -177,26 +277,31 @@ const cancelClose = () => {
 
 const confirmClose = async () => {
   state.closeModal.loading = true
+  const programName = selectedProgram.value?.name || ''
+  const pendingCount = waitingList.value.length
   try {
-    const res = await gxApi.closeWaiting(state.selectedProgramId)
+    await gxApi.closeWaiting(state.selectedProgramId)
     state.closeModal.show = false
     state.closeModal.loading = false
-    state.resultModal = {
-      show: true,
+    openResultModal({
       type: 'success',
-      title: '모집 마감 완료',
-      subtitle: `${res?.rejectedCount ?? 0}명이 거절 처리되어 모집이 마감되었습니다.`,
-    }
-    await Promise.all([fetchPrograms(), refreshDetail()])
+      title: '모집이 마감되었습니다.',
+      subtitle: programName,
+      desc: `대기자 ${pendingCount}명이 거절 처리되었습니다.`,
+      itemName: programName,
+      time: getCurrentTimeText(),
+      actionLabel: 'GX 모집 마감',
+      actor: getCurrentActorName(),
+      afterConfirm: async () => { await Promise.all([fetchPrograms(), refreshDetail()]) },
+    })
   } catch (e) {
     state.closeModal.loading = false
-    state.resultModal = {
-      show: true,
-      type: 'error',
-      title: '마감 처리 실패',
-      subtitle:
-        e?.response?.data?.resultMessage || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
-    }
+    openResultModal({
+      type: 'danger',
+      title: '마감 처리에 실패했습니다.',
+      subtitle: e?.response?.data?.resultMessage || e?.response?.data?.message || '잠시 후 다시 시도해주세요.',
+      itemName: programName,
+    })
   }
 }
 
@@ -229,17 +334,17 @@ onMounted(fetchPrograms)
         >
           <div class="program-item-top">
             <span class="program-name">{{ p.name }}</span>
-            <span v-if="(p.waitingCount ?? 0) > 0" class="pending-badge">대기 {{ p.waitingCount }}</span>
+            <span v-if="programWaitingCount(p) > 0" class="pending-badge">대기 {{ programWaitingCount(p) }}</span>
           </div>
           <div class="program-period">
             {{ formatDate(p.startDate) }} ~ {{ formatDate(p.endDate) }}
           </div>
-          <div class="program-capacity">
-            최대 {{ p.maxCount ?? '-' }}명 · 최소 {{ p.minCount ?? '-' }}명
-          </div>
-          <div class="program-chips">
-            <span class="chip chip-confirmed">확정 {{ p.confirmedCount ?? 0 }}</span>
-            <span class="chip chip-waiting">대기 {{ p.waitingCount ?? 0 }}</span>
+          <div class="program-capacity-row">
+            <span class="program-capacity">최대 {{ p.maxCount ?? '-' }}명 · 최소 {{ p.minCount ?? '-' }}명</span>
+            <div class="program-chips">
+              <span class="chip chip-confirmed">확정 {{ p.confirmedCount ?? 0 }}</span>
+              <span class="chip chip-cancelled">취소 {{ programCancelledCount(p) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -272,7 +377,7 @@ onMounted(fetchPrograms)
             </button>
             <button
               class="btn-close"
-              :disabled="selectedProgram.status !== 'OPEN' || state.closeModal.loading"
+              :disabled="selectedProgram.status !== '모집중' || state.closeModal.loading"
               @click="openClose"
             >
               모집 마감
@@ -294,91 +399,69 @@ onMounted(fetchPrograms)
           <table class="custom-table">
             <thead>
               <tr>
-                <th>예약자명</th>
                 <th>세대</th>
-                <th>상태</th>
-                <th>대기순번</th>
+                <th>예약자명</th>
                 <th>신청일</th>
+                <th>대기순번</th>
+                <th>상태</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in state.reservations.list" :key="row.gxReservationId">
-                <td>{{ row.residentName || '-' }}</td>
+              <tr
+                v-for="row in pagedReservations"
+                :key="row.gxReservationId"
+                class="clickable-row"
+                @click="openDetailModal(row)"
+              >
                 <td>{{ formatUnit(row) }}</td>
+                <td>{{ row.residentName || '-' }}</td>
+                <td>{{ formatDateTime(row.createdAt) }}</td>
+                <td>{{ row.waitNo ?? '-' }}</td>
                 <td>
-                  <span :class="['res-status', resStatusClass(row.status)]">
-                    {{ row.statusName || RESERVATION_STATUS_LABEL[row.status] || row.status || '-' }}
+                  <span :class="['status-badge', resStatusClass(row.status)]">
+                    {{ row.status || '-' }}
                   </span>
                 </td>
-                <td>{{ row.waitNo ?? '-' }}</td>
-                <td>{{ formatDateTime(row.createdAt) }}</td>
               </tr>
             </tbody>
           </table>
+          <AppPagination
+            :current-page="state.reservations.currentPage"
+            :total-pages="totalResPages"
+            :total-all="state.reservations.list.length"
+            :total-filtered="pagedReservations.length"
+            unit="명"
+            @change="(p) => (state.reservations.currentPage = p)"
+          />
         </div>
       </template>
     </div>
   </div>
 
   <!-- 일괄 승인 모달 -->
-  <BaseModal
-    :visible="state.bulkModal.show"
-    title="일괄 승인"
-    subtitle="대기 인원을 승인 순서대로 처리합니다."
+  <AdminGxApprovalModal
+    v-if="state.bulkModal.show"
+    :program="selectedProgram"
+    :waiting-list="waitingList"
     @close="closeBulkApprove"
-  >
-    <div class="bulk-stat-cards">
-      <div class="bulk-stat-card">
-        <p class="bulk-stat-label">승인 대기</p>
-        <p class="bulk-stat-value">{{ waitingCount }}명</p>
-      </div>
-      <div class="bulk-stat-card">
-        <p class="bulk-stat-label">최대 정원</p>
-        <p class="bulk-stat-value">{{ selectedProgram?.maxCount ?? '-' }}명</p>
-      </div>
-      <div class="bulk-stat-card">
-        <p class="bulk-stat-label">확정 가능</p>
-        <p class="bulk-stat-value">{{ bulkApproveCount }}명</p>
-      </div>
-    </div>
-    <div v-if="bulkApproveCount > 0" class="bulk-notice">
-      신청 순서대로 <strong>{{ bulkApproveCount }}명</strong> 확정되며, 나머지
-      <strong>{{ overflowCount }}명</strong>은 대기 상태를 유지합니다.
-    </div>
-    <div v-else class="bulk-notice bulk-notice--warn">
-      확정 가능한 인원이 없습니다. (정원 초과 또는 대기자 없음)
-    </div>
-    <div v-if="waitingList.length > 0" class="bulk-pending-list">
-      <div
-        v-for="r in waitingList"
-        :key="r.gxReservationId"
-        :class="['bulk-pending-item', r.willConfirm ? 'will-confirm' : 'will-remain']"
-      >
-        <span class="bulk-pending-name">{{ r.residentName || '-' }}</span>
-        <span :class="['bulk-badge', r.willConfirm ? 'badge-confirm' : 'badge-remain']">
-          {{ r.willConfirm ? '확정 예정' : '대기 유지' }}
-        </span>
-      </div>
-    </div>
-    <template #footer>
-      <button class="btn-modal-secondary" @click="closeBulkApprove">닫기</button>
-      <button
-        class="btn-modal-primary"
-        :disabled="bulkApproveCount === 0 || state.bulkModal.loading"
-        @click="confirmBulkApprove"
-      >
-        {{ state.bulkModal.loading ? '처리 중...' : '일괄 승인' }}
-      </button>
-    </template>
-  </BaseModal>
+    @approved="handleApproved"
+  />
 
   <!-- 모집 마감 확인 모달 -->
   <ConfirmModal
     :visible="state.closeModal.show"
-    title="모집 마감 처리"
-    :subtitle="`잔여 대기자 ${waitingCount}명이 거절 처리되고 모집이 마감됩니다. 계속하시겠습니까?`"
-    confirm-type="danger"
+    title="모집을 마감하시겠습니까?"
+    subtitle="취소된 대기 예약은 되돌릴 수 없습니다."
+    subtitle-color="#e53e3e"
+    item-label="프로그램"
+    :item-name="selectedProgram?.name"
+    action-label="GX 모집"
+    action-text="마감 처리"
+    :extra-value="`${waitingList.length}명`"
+    extra-label="잔여 대기자"
     confirm-text="마감 처리"
+    cancel-text="닫기"
+    confirm-type="danger"
     :loading="state.closeModal.loading"
     @confirm="confirmClose"
     @cancel="cancelClose"
@@ -386,11 +469,45 @@ onMounted(fetchPrograms)
 
   <!-- 결과 모달 -->
   <ActionResultModal
-    :visible="state.resultModal.show"
-    :type="state.resultModal.type"
-    :title="state.resultModal.title"
-    :subtitle="state.resultModal.subtitle"
-    @close="state.resultModal.show = false"
+    :visible="resultModal.show"
+    :type="resultModal.type"
+    :title="resultModal.title"
+    :subtitle="resultModal.subtitle"
+    :desc="resultModal.desc"
+    :item-name="resultModal.itemName"
+    :time="resultModal.time"
+    :action-label="resultModal.actionLabel"
+    :actor="resultModal.actor"
+    confirm-text="확인"
+    @close="handleResultConfirm"
+  />
+
+  <!-- GX 예약 상세 모달 -->
+  <AdminGxReservationDetailModal
+    v-if="state.detailModal.show"
+    :gx-reservation-id="state.detailModal.reservationId"
+    @close="closeDetailModal"
+    @cancel-request="openGxCancelModal"
+  />
+
+  <!-- GX 예약 취소 확인 모달 -->
+  <ConfirmModal
+    :visible="state.cancelModal.show"
+    title="예약을 취소하시겠습니까?"
+    subtitle="취소된 예약은 되돌릴 수 없습니다."
+    subtitle-color="#e53e3e"
+    item-label="예약"
+    :item-name="state.cancelModal.targetName"
+    action-label="GX 예약"
+    action-text="관리자 강제 취소"
+    :extra-value="state.cancelModal.targetUnit"
+    extra-label="소속 세대"
+    confirm-text="예약 취소"
+    cancel-text="닫기"
+    confirm-type="danger"
+    :loading="state.cancelModal.loading"
+    @confirm="handleGxCancel"
+    @cancel="closeGxCancelModal"
   />
 </template>
 
@@ -484,18 +601,31 @@ onMounted(fetchPrograms)
   font-family: 'Noto Sans KR', sans-serif;
 }
 
-.program-period,
-.program-capacity {
+.program-period {
   font-size: 12px;
   color: #718096;
   margin-bottom: 4px;
   font-family: 'Noto Sans KR', sans-serif;
 }
 
+.program-capacity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.program-capacity {
+  font-size: 12px;
+  color: #718096;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
 .program-chips {
   display: flex;
   gap: 6px;
-  margin-top: 8px;
+  flex-shrink: 0;
 }
 
 .chip {
@@ -511,9 +641,9 @@ onMounted(fetchPrograms)
   color: #2e7d32;
 }
 
-.chip-waiting {
-  background: #fff3e0;
-  color: #e65100;
+.chip-cancelled {
+  background: #fce4ec;
+  color: #c62828;
 }
 
 /* ── 상세 헤더 ───────────────────────────────── */
@@ -561,6 +691,11 @@ onMounted(fetchPrograms)
 .status-badge.open {
   background: #e6f4ea;
   color: #4d8b5a;
+}
+
+.status-badge.waiting-closed {
+  background: #fff3e0;
+  color: #e65100;
 }
 
 .status-badge.closed {
@@ -660,174 +795,44 @@ onMounted(fetchPrograms)
   border-bottom: none;
 }
 
-.res-status {
+.clickable-row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.clickable-row:hover td {
+  background: #f8fafc;
+}
+
+.status-badge {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
+  width: fit-content;
+  padding: 3px 10px;
+  border-radius: 20px;
   font-size: 11px;
   font-weight: 700;
 }
 
-.res-status--waiting {
+.status--confirmed {
+  background: #e6f4ea;
+  color: #2e7d32;
+}
+
+.status--waiting {
   background: #fff3e0;
   color: #e65100;
 }
 
-.res-status--confirmed {
-  background: #e8f5e9;
-  color: #2e7d32;
+.status--completed {
+  background: #fef9e7;
+  color: #b7950b;
 }
 
-.res-status--rejected {
+.status--cancelled {
   background: #fce4ec;
   color: #c62828;
 }
 
-.res-status--cancelled {
-  background: #f5f5f5;
-  color: #616161;
-}
-
-.res-status--completed {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-/* ── 일괄 승인 모달 ──────────────────────────── */
-.bulk-stat-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.bulk-stat-card {
-  padding: 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #f8fafc;
-  text-align: center;
-}
-
-.bulk-stat-label {
-  margin: 0 0 4px;
-  font-size: 11px;
-  color: #718096;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.bulk-stat-value {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 800;
-  color: #1a202c;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.bulk-notice {
-  padding: 12px 16px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #92400e;
-  margin-bottom: 16px;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.bulk-notice--warn {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #c62828;
-}
-
-.bulk-pending-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.bulk-pending-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.bulk-pending-item.will-confirm {
-  background: #e6f4ea;
-}
-
-.bulk-pending-item.will-remain {
-  background: #f5f5f5;
-}
-
-.bulk-pending-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #2d3748;
-}
-
-.bulk-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 20px;
-}
-
-.badge-confirm {
-  background: #d9f0dc;
-  color: #2e7d32;
-}
-
-.badge-remain {
-  background: #e5e7eb;
-  color: #6b7280;
-}
-
-/* ── 모달 버튼 ───────────────────────────────── */
-.btn-modal-secondary,
-.btn-modal-primary {
-  min-width: 80px;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 7px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.btn-modal-secondary {
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #718096;
-}
-
-.btn-modal-secondary:hover {
-  background: #f8fafc;
-}
-
-.btn-modal-primary {
-  border: none;
-  background: #2b3a55;
-  color: #ffffff;
-}
-
-.btn-modal-primary:hover:not(:disabled) {
-  background: #1e2d44;
-}
-
-.btn-modal-primary:disabled {
-  background: #e2e8f0;
-  color: #94a3b8;
-  cursor: not-allowed;
-}
 
 @media (max-width: 1100px) {
   .gx-layout {

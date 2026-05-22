@@ -2,11 +2,10 @@
 import { computed, onMounted, reactive } from 'vue'
 import facilityApi from '@/api/facilityApi'
 import { toList } from '@/utils/apiResponse'
-import AdminStudyRoomStatus from '@/components/admin/facility/AdminStudyRoomStatus.vue'
-import AdminGolfStatus from '@/components/admin/facility/AdminGolfStatus.vue'
-import AdminGymStatus from '@/components/admin/facility/AdminGymStatus.vue'
+import AdminSeatStatus from '@/components/admin/facility/AdminSeatStatus.vue'
+import AdminSeatTimeStatus from '@/components/admin/facility/AdminSeatTimeStatus.vue'
+import AdminCountStatus from '@/components/admin/facility/AdminCountStatus.vue'
 import AdminGxStatus from '@/components/admin/facility/AdminGxStatus.vue'
-
 const RESERVATION_TYPE_LABEL = {
   SEAT: '좌석형',
   COUNT: '정원형',
@@ -20,7 +19,6 @@ const state = reactive({
   selectedFacilityId: null,
   loadingFacilities: false,
   facilityError: '',
-
   seatSummary: { reservedCount: 0, totalCount: 0 },
   countSummary: { maxCount: 0, reservedCount: 0, availableCount: 0 },
 })
@@ -146,14 +144,17 @@ onMounted(fetchFacilities)
             :class="['facility-card', { active: String(state.selectedFacilityId) === String(facility.facilityId) }]"
             @click="selectFacility(facility.facilityId)"
           >
-            <div class="card-name">{{ facility.name }}</div>
-            <div class="card-row">
+            <div class="card-top">
+              <div class="card-name">{{ facility.name }}</div>
               <span class="type-badge">
                 {{ RESERVATION_TYPE_LABEL[facility.reservationType] || facility.reservationType || '-' }}
               </span>
-              <span class="card-time">{{ formatTime(facility.openTime) }} ~ {{ formatTime(facility.closeTime) }}</span>
             </div>
-            <div v-if="facility.maxCount" class="card-sub">최대 {{ facility.maxCount }}명</div>
+            <div class="card-row">
+              <span class="card-time">{{ formatTime(facility.openTime) }} ~ {{ formatTime(facility.closeTime) }}</span>
+              <span v-if="facility.maxCount" class="card-sub">{{facility.usageUnitType === 'MINUTE' ? '타임별' : '최대'}} {{ facility.maxCount }}명</span>
+              <span v-else class="card-sub"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -162,7 +163,7 @@ onMounted(fetchFacilities)
       <div class="right-panel">
         <div v-if="!selectedFacility" class="panel-empty">왼쪽에서 시설을 선택하세요.</div>
         <template v-else>
-          <AdminGolfStatus
+          <AdminSeatTimeStatus
             v-if="reservationType === 'SEAT' && selectedFacility.usageUnitType === 'MINUTE'"
             :facility-id="selectedFacility.facilityId"
             :selected-date="state.selectedDate"
@@ -170,7 +171,7 @@ onMounted(fetchFacilities)
             :close-time="selectedFacility.closeTime"
             :slot-min="selectedFacility.slotMin"
           />
-          <AdminStudyRoomStatus
+          <AdminSeatStatus
             v-else-if="reservationType === 'SEAT'"
             :facility-id="selectedFacility.facilityId"
             :selected-date="state.selectedDate"
@@ -178,7 +179,7 @@ onMounted(fetchFacilities)
             :close-time="selectedFacility.closeTime"
             @update-summary="updateSeatSummary"
           />
-          <AdminGymStatus
+          <AdminCountStatus
             v-else-if="reservationType === 'COUNT'"
             :facility-id="selectedFacility.facilityId"
             :selected-date="state.selectedDate"
@@ -300,7 +301,7 @@ onMounted(fetchFacilities)
 /* ── 좌우 분할 레이아웃 ─────────────────────────────────── */
 .split-layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 280px 1fr;
   gap: 16px;
   align-items: start;
 }
@@ -312,6 +313,7 @@ onMounted(fetchFacilities)
   border-radius: 10px;
   padding: 16px;
   min-height: 480px;
+  min-width: 0;
 }
 
 /* ── 리스트 공통 ────────────────────────────────────────── */
@@ -340,19 +342,19 @@ onMounted(fetchFacilities)
   border-color: #c7d2fe;
 }
 
-.card-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1a202c;
-  margin-bottom: 6px;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.card-row {
+.card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  margin-bottom: 6px;
+}
+
+.card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a202c;
+  font-family: 'Noto Sans KR', sans-serif;
 }
 
 .type-badge {
@@ -371,10 +373,17 @@ onMounted(fetchFacilities)
   font-family: 'Noto Sans KR', sans-serif;
 }
 
+.card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .card-sub {
   font-size: 12px;
   color: #94a3b8;
-  margin-top: 6px;
   font-family: 'Noto Sans KR', sans-serif;
 }
 

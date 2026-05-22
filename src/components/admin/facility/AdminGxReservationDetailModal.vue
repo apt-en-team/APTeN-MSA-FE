@@ -1,10 +1,10 @@
 <script setup>
 import { reactive, watch } from 'vue'
 import BaseModal from '@/components/common/BaseModal.vue'
-import reservationApi from '@/api/reservationApi'
+import gxApi from '@/api/gxApi'
 
 const props = defineProps({
-  reservationId: {
+  gxReservationId: {
     type: [Number, String],
     required: true,
   },
@@ -18,14 +18,12 @@ const state = reactive({
 })
 
 watch(
-  () => props.reservationId,
+  () => props.gxReservationId,
   async (id) => {
     if (!id) return
-
     state.isLoading = true
-
     try {
-      state.reservation = await reservationApi.getAdminReservationDetail(id)
+      state.reservation = await gxApi.getAdminGxReservationDetail(id)
     } catch {
       state.reservation = null
     } finally {
@@ -35,24 +33,35 @@ watch(
   { immediate: true },
 )
 
-const statusLabel = (s) =>
-  ({ CONFIRMED: '확정', PENDING: '대기', CANCELLED: '취소', COMPLETED: '완료' }[s] || s)
+const STATUS_LABEL = {
+  CONFIRMED: '확정',
+  WAITING: '대기',
+  CANCELLED: '취소',
+  REJECTED: '거절',
+}
 
-const statusClass = (s) =>
-  ({
-    CONFIRMED: 'badge-confirmed',
-    PENDING: 'badge-pending',
-    CANCELLED: 'badge-cancelled',
-    COMPLETED: 'badge-completed',
-  }[s] || '')
+const STATUS_CLASS = {
+  CONFIRMED: 'badge-confirmed',
+  WAITING: 'badge-pending',
+  CANCELLED: 'badge-cancelled',
+  REJECTED: 'badge-cancelled',
+}
+
+const statusLabel = (s) => STATUS_LABEL[s] || s || '-'
+const statusClass = (s) => STATUS_CLASS[s] || ''
+const isCancellable = (s) => s === 'CONFIRMED' || s === 'WAITING'
 
 const fmt = (dt) => (dt ? String(dt).replace('T', ' ').slice(0, 16) : '-')
-
-const isCancellable = (s) => s === 'CONFIRMED' || s === 'PENDING'
+const fmtDate = (d) => (d ? String(d).replace(/-/g, '.') : '-')
+const fmtTime = (t) => (t ? String(t).slice(0, 5) : '-')
 </script>
 
 <template>
-  <BaseModal title="예약 상세 정보" :subtitle="`ID ${reservationId}`" @close="$emit('close')">
+  <BaseModal
+    title="GX 예약 상세 정보"
+    :subtitle="`ID ${gxReservationId}`"
+    @close="$emit('close')"
+  >
     <div v-if="state.isLoading" class="loading">로딩 중...</div>
 
     <template v-else-if="state.reservation">
@@ -60,31 +69,22 @@ const isCancellable = (s) => s === 'CONFIRMED' || s === 'PENDING'
         <span :class="['badge', statusClass(state.reservation.status)]">
           {{ statusLabel(state.reservation.status) }}
         </span>
-        <h3 class="facility-name">{{ state.reservation.facilityName }}</h3>
+        <h3 class="program-name">{{ state.reservation.programName }}</h3>
+        <p class="facility-name">{{ state.reservation.facilityName }}</p>
       </div>
 
       <div class="detail-grid">
         <div class="detail-item">
           <span class="label">예약 ID</span>
-          <span class="value">{{ state.reservation.reservationId }}</span>
+          <span class="value">{{ state.reservation.gxReservationId }}</span>
         </div>
         <div class="detail-item">
           <span class="label">예약자</span>
-          <span class="value">{{ state.reservation.residentName }}</span>
+          <span class="value">{{ state.reservation.residentName ?? '-' }}</span>
         </div>
         <div class="detail-item">
-          <span class="label">시설명</span>
-          <span class="value">{{ state.reservation.facilityName }}</span>
-        </div>
-        <div class="detail-item">
-          <span class="label">예약 날짜</span>
-          <span class="value">{{ state.reservation.reservationDate ?? '-' }}</span>
-        </div>
-        <div class="detail-item">
-          <span class="label">시간</span>
-          <span class="value">
-            {{ state.reservation.startTime ?? '-' }} ~ {{ state.reservation.endTime ?? '-' }}
-          </span>
+          <span class="label">세대</span>
+          <span class="value">{{ state.reservation.unit ?? '-' }}</span>
         </div>
         <div class="detail-item">
           <span class="label">예약 상태</span>
@@ -92,12 +92,33 @@ const isCancellable = (s) => s === 'CONFIRMED' || s === 'PENDING'
             {{ statusLabel(state.reservation.status) }}
           </span>
         </div>
-        <div v-if="state.reservation.seatNo" class="detail-item">
-          <span class="label">좌석 번호</span>
-          <span class="value">{{ state.reservation.seatNo }}번</span>
+        <div class="detail-item">
+          <span class="label">프로그램 기간</span>
+          <span class="value">
+            {{ fmtDate(state.reservation.startDate) }} ~ {{ fmtDate(state.reservation.endDate) }}
+          </span>
         </div>
         <div class="detail-item">
-          <span class="label">예약일</span>
+          <span class="label">운영 시간</span>
+          <span class="value">
+            {{ fmtTime(state.reservation.startTime) }} ~ {{ fmtTime(state.reservation.endTime) }}
+          </span>
+        </div>
+        <div v-if="state.reservation.waitNo" class="detail-item">
+          <span class="label">대기 순번</span>
+          <span class="value">{{ state.reservation.waitNo }}번</span>
+        </div>
+        <div
+          v-if="state.reservation.confirmedCount != null && state.reservation.maxCount != null"
+          class="detail-item"
+        >
+          <span class="label">현재 확정 / 최대</span>
+          <span class="value">
+            {{ state.reservation.confirmedCount }} / {{ state.reservation.maxCount }}명
+          </span>
+        </div>
+        <div class="detail-item">
+          <span class="label">신청일</span>
           <span class="value">{{ fmt(state.reservation.createdAt) }}</span>
         </div>
         <div v-if="state.reservation.cancelledAt" class="detail-item">
@@ -126,22 +147,33 @@ const isCancellable = (s) => s === 'CONFIRMED' || s === 'PENDING'
   padding: 40px;
   color: #888;
 }
+
 .summary {
   background: #f8f9fa;
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 20px;
 }
-.facility-name {
-  font-size: 20px;
+
+.program-name {
+  font-size: 18px;
   font-weight: 700;
-  margin: 8px 0 4px;
+  margin: 8px 0 2px;
+  color: #1a202c;
 }
+
+.facility-name {
+  font-size: 13px;
+  color: #718096;
+  margin: 0;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   border-top: 1px solid #eee;
 }
+
 .detail-item {
   padding: 12px 4px;
   border-bottom: 1px solid #eee;
@@ -149,14 +181,17 @@ const isCancellable = (s) => s === 'CONFIRMED' || s === 'PENDING'
   flex-direction: column;
   gap: 4px;
 }
+
 .label {
   font-size: 12px;
   color: #888;
 }
+
 .value {
   font-size: 14px;
   font-weight: 500;
 }
+
 .badge {
   display: inline-block;
   padding: 3px 10px;
@@ -164,22 +199,22 @@ const isCancellable = (s) => s === 'CONFIRMED' || s === 'PENDING'
   font-size: 12px;
   font-weight: 500;
 }
+
 .badge-confirmed {
   background: #e6f4ea;
   color: #2e7d32;
 }
+
 .badge-pending {
   background: #fff3e0;
   color: #e65100;
 }
+
 .badge-cancelled {
   background: #fce4ec;
   color: #c62828;
 }
-.badge-completed {
-  background: #e8eaf6;
-  color: #3949ab;
-}
+
 .btn-primary {
   padding: 9px 20px;
   border-radius: 8px;
@@ -189,6 +224,7 @@ const isCancellable = (s) => s === 'CONFIRMED' || s === 'PENDING'
   font-size: 14px;
   cursor: pointer;
 }
+
 .btn-danger {
   padding: 9px 20px;
   border-radius: 8px;

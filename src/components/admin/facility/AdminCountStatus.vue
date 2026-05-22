@@ -1,7 +1,12 @@
 <script setup>
-import { reactive, watch } from 'vue'
+import { reactive, computed, watch } from 'vue'
 import facilityApi from '@/api/facilityApi'
+import reservationApi from '@/api/reservationApi'
+import { useAuthStore } from '@/stores/useAuthStore.js'
 import AdminReservationDetailModal from '@/components/admin/facility/Adminreservationdetailmodal.vue'
+import ConfirmModal from '@/components/common/ConfirmModal.vue'
+import ActionResultModal from '@/components/common/ActionResultModal.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
 
 const props = defineProps({
   facilityId: {
@@ -24,15 +29,62 @@ const props = defineProps({
 
 const emit = defineEmits(['update-summary'])
 
+const authStore = useAuthStore()
+
+const getCurrentTimeText = () =>
+  new Date().toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+const getCurrentActorName = () =>
+  authStore.userInfo?.name || authStore.user?.name || authStore.name || '관리자'
+
 const state = reactive({
   loading: false,
   error: false,
   data: null,
-  detailModal: {
-    show: false,
-    reservationId: null,
-  },
+  currentPage: 1,
+  detailModal: { show: false, reservationId: null },
+  cancelModal: { show: false, loading: false, targetId: null, targetName: '', targetUnit: '' },
 })
+
+const resultModal = reactive({
+  show: false,
+  type: 'success',
+  title: '',
+  subtitle: '',
+  desc: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
+})
+
+const openResultModal = ({
+  type = 'success',
+  title,
+  subtitle = '',
+  desc = '',
+  itemName = '',
+  time = '',
+  actionLabel = '',
+  actor = '',
+  afterConfirm = null,
+} = {}) => {
+  Object.assign(resultModal, { show: true, type, title, subtitle, desc, itemName, time, actionLabel, actor, afterConfirm })
+}
+
+const handleResultConfirm = async () => {
+  const callback = resultModal.afterConfirm
+  resultModal.show = false
+  resultModal.afterConfirm = null
+  if (typeof callback === 'function') await callback()
+}
 
 const fetchCountStatus = async () => {
   if (!props.facilityId || !props.selectedDate || !props.openTime || !props.closeTime) return
@@ -48,6 +100,7 @@ const fetchCountStatus = async () => {
     })
 
     state.data = res || null
+    state.currentPage = 1
 
     emit('update-summary', {
       maxCount: res?.maxCount || 0,
@@ -81,6 +134,57 @@ const closeDetailModal = () => {
   state.detailModal.show = false
   state.detailModal.reservationId = null
 }
+
+const openCancelModal = (reservation) => {
+  state.cancelModal.targetId = reservation.reservationId
+  state.cancelModal.targetName = reservation.facilityName || `예약 #${reservation.reservationId}`
+  state.cancelModal.targetUnit = reservation.unit || ''
+  state.cancelModal.show = true
+}
+
+const closeCancelModal = () => {
+  state.cancelModal.show = false
+  state.cancelModal.loading = false
+  state.cancelModal.targetId = null
+  state.cancelModal.targetName = ''
+  state.cancelModal.targetUnit = ''
+}
+
+const handleCancel = async () => {
+  state.cancelModal.loading = true
+  const { targetName } = state.cancelModal
+  try {
+    await reservationApi.cancelAdminReservation(state.cancelModal.targetId, {})
+    closeCancelModal()
+    closeDetailModal()
+    openResultModal({
+      type: 'success',
+      title: '예약이 취소되었습니다.',
+      subtitle: '관리자 강제 취소 처리가 완료되었습니다.',
+      itemName: targetName,
+      time: getCurrentTimeText(),
+      actionLabel: '시설 예약 강제 취소',
+      actor: getCurrentActorName(),
+      afterConfirm: fetchCountStatus,
+    })
+  } catch (e) {
+    closeCancelModal()
+    openResultModal({
+      type: 'danger',
+      title: '취소 처리에 실패했습니다.',
+      subtitle: e?.response?.data?.resultMessage || '잠시 후 다시 시도해주세요.',
+      itemName: targetName,
+    })
+  }
+}
+
+const PAGE_SIZE = 10
+const allUsers = computed(() => state.data?.users ?? [])
+const pagedUsers = computed(() => {
+  const start = (state.currentPage - 1) * PAGE_SIZE
+  return allUsers.value.slice(start, start + PAGE_SIZE)
+})
+const totalPages = computed(() => Math.max(1, Math.ceil(allUsers.value.length / PAGE_SIZE)))
 
 const statusLabel = (s) =>
   ({ CONFIRMED: '확정', COMPLETED: '완료', CANCELLED: '취소', WAITING: '대기' }[s] || s || '-')
@@ -116,7 +220,7 @@ const statusClass = (s) =>
           </tr>
 
           <tr
-            v-for="user in state.data?.users ?? []"
+            v-for="user in pagedUsers"
             :key="user.reservationId"
             class="clickable-row"
             @click="openDetailModal(user)"
@@ -132,20 +236,57 @@ const statusClass = (s) =>
           </tr>
         </tbody>
       </table>
+      <AppPagination
+        :current-page="state.currentPage"
+        :total-pages="totalPages"
+        :total-all="allUsers.length"
+        :total-filtered="pagedUsers.length"
+        unit="명"
+        @change="(p) => (state.currentPage = p)"
+      />
     </div>
 
-    <AdminReservationDetailModal
-      v-if="state.detailModal.show"
-      :reservation-id="state.detailModal.reservationId"
-      @close="closeDetailModal"
-      @cancelled="
-        async () => {
-          closeDetailModal()
-          await fetchCountStatus()
-        }
-      "
-    />
   </div>
+
+  <AdminReservationDetailModal
+    v-if="state.detailModal.show"
+    :reservation-id="state.detailModal.reservationId"
+    @close="closeDetailModal"
+    @cancel-request="openCancelModal"
+  />
+
+  <ConfirmModal
+    :visible="state.cancelModal.show"
+    title="예약을 취소하시겠습니까?"
+    subtitle="취소된 예약은 되돌릴 수 없습니다."
+    subtitle-color="#e53e3e"
+    item-label="예약"
+    :item-name="state.cancelModal.targetName"
+    action-label="시설 예약"
+    action-text="관리자 강제 취소"
+    :extra-value="state.cancelModal.targetUnit"
+    extra-label="소속 세대"
+    confirm-text="예약 취소"
+    cancel-text="닫기"
+    confirm-type="danger"
+    :loading="state.cancelModal.loading"
+    @confirm="handleCancel"
+    @cancel="closeCancelModal"
+  />
+
+  <ActionResultModal
+    :visible="resultModal.show"
+    :type="resultModal.type"
+    :title="resultModal.title"
+    :subtitle="resultModal.subtitle"
+    :desc="resultModal.desc"
+    :item-name="resultModal.itemName"
+    :time="resultModal.time"
+    :action-label="resultModal.actionLabel"
+    :actor="resultModal.actor"
+    confirm-text="확인"
+    @close="handleResultConfirm"
+  />
 </template>
 
 <style scoped>

@@ -1,7 +1,11 @@
 <script setup>
 import { reactive, computed, watch } from 'vue'
 import facilityApi from '@/api/facilityApi'
+import reservationApi from '@/api/reservationApi'
+import { useAuthStore } from '@/stores/useAuthStore.js'
 import AdminReservationDetailModal from '@/components/admin/facility/Adminreservationdetailmodal.vue'
+import ConfirmModal from '@/components/common/ConfirmModal.vue'
+import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const props = defineProps({
   facilityId: {
@@ -26,15 +30,61 @@ const props = defineProps({
   },
 })
 
+const authStore = useAuthStore()
+
+const getCurrentTimeText = () =>
+  new Date().toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+const getCurrentActorName = () =>
+  authStore.userInfo?.name || authStore.user?.name || authStore.name || '관리자'
+
 const state = reactive({
   loading: false,
   timeRows: [],
   seatNos: [],
-  detailModal: {
-    show: false,
-    reservationId: null,
-  },
+  detailModal: { show: false, reservationId: null },
+  cancelModal: { show: false, loading: false, targetId: null, targetName: '', targetUnit: '' },
 })
+
+const resultModal = reactive({
+  show: false,
+  type: 'success',
+  title: '',
+  subtitle: '',
+  desc: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
+})
+
+const openResultModal = ({
+  type = 'success',
+  title,
+  subtitle = '',
+  desc = '',
+  itemName = '',
+  time = '',
+  actionLabel = '',
+  actor = '',
+  afterConfirm = null,
+} = {}) => {
+  Object.assign(resultModal, { show: true, type, title, subtitle, desc, itemName, time, actionLabel, actor, afterConfirm })
+}
+
+const handleResultConfirm = async () => {
+  const callback = resultModal.afterConfirm
+  resultModal.show = false
+  resultModal.afterConfirm = null
+  if (typeof callback === 'function') await callback()
+}
 
 const selectedDateLabel = computed(() => {
   const date = new Date(props.selectedDate)
@@ -111,7 +161,8 @@ const fetchGolfStatus = async () => {
         seats[s.seatNo] = s
       })
       return {
-        time: `${slot.start}~${slot.end}`,
+        timeStart: slot.start,
+        timeEnd: slot.end,
         seats,
       }
     })
@@ -124,6 +175,10 @@ const fetchGolfStatus = async () => {
 
 const isOccupied = (seat) => seat && seat.status !== 'AVAILABLE' && seat.status !== 'BLOCKED'
 
+const visibleTimeRows = computed(() =>
+  state.timeRows.filter((row) => state.seatNos.some((seatNo) => isOccupied(row.seats[seatNo]))),
+)
+
 const openDetailModal = (seat) => {
   if (!seat?.reservationId) return
   state.detailModal.reservationId = seat.reservationId
@@ -133,6 +188,49 @@ const openDetailModal = (seat) => {
 const closeDetailModal = () => {
   state.detailModal.show = false
   state.detailModal.reservationId = null
+}
+
+const openCancelModal = (reservation) => {
+  state.cancelModal.targetId = reservation.reservationId
+  state.cancelModal.targetName = reservation.facilityName || `예약 #${reservation.reservationId}`
+  state.cancelModal.targetUnit = reservation.unit || ''
+  state.cancelModal.show = true
+}
+
+const closeCancelModal = () => {
+  state.cancelModal.show = false
+  state.cancelModal.loading = false
+  state.cancelModal.targetId = null
+  state.cancelModal.targetName = ''
+  state.cancelModal.targetUnit = ''
+}
+
+const handleCancel = async () => {
+  state.cancelModal.loading = true
+  const { targetName } = state.cancelModal
+  try {
+    await reservationApi.cancelAdminReservation(state.cancelModal.targetId, {})
+    closeCancelModal()
+    closeDetailModal()
+    openResultModal({
+      type: 'success',
+      title: '예약이 취소되었습니다.',
+      subtitle: '관리자 강제 취소 처리가 완료되었습니다.',
+      itemName: targetName,
+      time: getCurrentTimeText(),
+      actionLabel: '시설 예약 강제 취소',
+      actor: getCurrentActorName(),
+      afterConfirm: fetchGolfStatus,
+    })
+  } catch (e) {
+    closeCancelModal()
+    openResultModal({
+      type: 'danger',
+      title: '취소 처리에 실패했습니다.',
+      subtitle: e?.response?.data?.resultMessage || '잠시 후 다시 시도해주세요.',
+      itemName: targetName,
+    })
+  }
 }
 
 watch(
@@ -155,7 +253,7 @@ watch(
     <div class="golf-table-wrap">
       <h3 class="table-title">{{ selectedDateLabel }} 타석 현황</h3>
 
-      <div v-if="!state.loading && state.timeRows.length === 0" class="empty-row">
+      <div v-if="!state.loading && visibleTimeRows.length === 0" class="empty-row">
         예약 데이터가 없습니다.
       </div>
 
@@ -168,8 +266,11 @@ watch(
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in state.timeRows" :key="row.time">
-              <td class="time-cell">{{ row.time }}</td>
+            <tr v-for="row in visibleTimeRows" :key="row.timeStart">
+              <td class="time-cell">
+                <span class="time-start">{{ row.timeStart }}</span>
+                <span class="time-end">~{{ row.timeEnd }}</span>
+              </td>
               <td
                 v-for="seatNo in state.seatNos"
                 :key="`${row.time}-${seatNo}`"
@@ -202,13 +303,47 @@ watch(
       </div>
     </div>
 
-    <AdminReservationDetailModal
-      v-if="state.detailModal.show"
-      :reservation-id="state.detailModal.reservationId"
-      @close="closeDetailModal"
-      @cancelled="async () => { closeDetailModal(); await fetchGolfStatus() }"
-    />
   </div>
+
+  <AdminReservationDetailModal
+    v-if="state.detailModal.show"
+    :reservation-id="state.detailModal.reservationId"
+    @close="closeDetailModal"
+    @cancel-request="openCancelModal"
+  />
+
+  <ConfirmModal
+    :visible="state.cancelModal.show"
+    title="예약을 취소하시겠습니까?"
+    subtitle="취소된 예약은 되돌릴 수 없습니다."
+    subtitle-color="#e53e3e"
+    item-label="예약"
+    :item-name="state.cancelModal.targetName"
+    action-label="시설 예약"
+    action-text="관리자 강제 취소"
+    :extra-value="state.cancelModal.targetUnit"
+    extra-label="소속 세대"
+    confirm-text="예약 취소"
+    cancel-text="닫기"
+    confirm-type="danger"
+    :loading="state.cancelModal.loading"
+    @confirm="handleCancel"
+    @cancel="closeCancelModal"
+  />
+
+  <ActionResultModal
+    :visible="resultModal.show"
+    :type="resultModal.type"
+    :title="resultModal.title"
+    :subtitle="resultModal.subtitle"
+    :desc="resultModal.desc"
+    :item-name="resultModal.itemName"
+    :time="resultModal.time"
+    :action-label="resultModal.actionLabel"
+    :actor="resultModal.actor"
+    confirm-text="확인"
+    @close="handleResultConfirm"
+  />
 </template>
 
 <style scoped>
@@ -265,28 +400,39 @@ watch(
 .golf-table th {
   background: #f8fafc;
   color: #718096;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
-  padding: 14px 12px;
+  padding: 10px 8px;
   white-space: nowrap;
 }
 
 .time-head {
-  width: 160px;
+  width: 80px;
 }
 
 .time-cell {
-  padding: 20px 12px;
-  font-size: 15px;
+  padding: 12px 8px;
   font-weight: 900;
   color: #1a202c;
   background: #fff;
   white-space: nowrap;
 }
 
+.time-start {
+  display: block;
+  font-size: 13px;
+  color: #1a202c;
+}
+
+.time-end {
+  display: block;
+  font-size: 13px;
+  color: #718096;
+}
+
 .seat-cell {
-  padding: 16px 8px;
-  min-width: 120px;
+  padding: 12px 6px;
+  min-width: 90px;
 }
 
 .seat-cell.occupied {
