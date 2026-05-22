@@ -2,9 +2,12 @@
 // 일반 ADMIN과 MASTER 선택 단지 모드가 공통으로 사용하는 데스크톱 관리자 레이아웃이다.
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { FEATURE_CODES } from '@/constants/complexFeatures'
 import { useComplexStore } from '@/stores/useComplexStore'
+import { useParkingStore } from '@/stores/useParkingStore'
+import { codeToParkingTypeName } from '@/constants/parkingTypes'
 import { normalizeFeatures, isFeatureEnabled } from '@/utils/featureGate'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import NotificationBadge from '@/components/notification/NotificationBadge.vue'
@@ -16,12 +19,19 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
+const parkingStore = useParkingStore()
 const notificationStore = useNotificationStore()
+const { parkingSetting } = storeToRefs(parkingStore)
 
 // MASTER는 알림 UI를 표시하지 않음 (USER, ADMIN, MANAGER만 대상)
 const showNotification = computed(() => {
   return authStore.role === 'ADMIN' || authStore.role === 'MANAGER'
 })
+
+// 현재 단지의 주차 운영 타입 이름 계산 (NONE / BASIC / SENSOR)
+const currentParkingType = computed(() =>
+  codeToParkingTypeName(parkingSetting.value?.parkingTypeCode),
+)
 
 // 일반 ADMIN과 MASTER 모드가 공유하는 대표 메뉴 정의이다.
 const adminMenuDefinitions = [
@@ -94,9 +104,9 @@ function isAdminMenuVisible(path) {
     return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.FACILITY)
   }
 
-  // 주차 관련 메뉴는 단지의 주차 기능이 켜진 경우에만 노출
+  // 주차 관련 메뉴는 단지 운영 타입이 BASIC 또는 SENSOR일 때만 노출 (NONE은 숨김)
   if (['parking-logs', 'parking/dashboard', 'parking/statistics', 'parking/zones'].includes(path)) {
-    return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.PARKING_STATUS)
+    return currentParkingType.value === 'BASIC' || currentParkingType.value === 'SENSOR'
   }
 
   if (path === 'votes') {
@@ -171,7 +181,7 @@ const currentComplexName = computed(() => {
 
 // 상단 보조 문구는 현재 모드와 선택 단지명을 기준으로 표시한다.
 const topbarSub = computed(() => {
-  return `${todayStr.value} · ${currentComplexName.value}`
+  return `${todayStr.value} / ${currentComplexName.value}`
 })
 
 // 기존 store 액션을 사용해 로그아웃 버튼을 연결한다.
@@ -202,6 +212,7 @@ provide('registerCreateModal', (fn) => {
   createModalFn.value = typeof fn === 'function' ? fn : null
 })
 
+// 등록 버튼 클릭 시 자식 페이지가 등록한 등록 모달 열기 함수를 실행한다.
 function handleCreateClick() {
   if (createModalFn.value) {
     createModalFn.value()
@@ -218,12 +229,13 @@ const canRegisterAdmin = computed(() => {
   return isAdminManagePage && allowedRole
 })
 
+// 세대 관리 화면에서 평형/라인 관리 버튼 노출 여부를 판단한다.
 const canManageHouseholdType = computed(() => {
   const allowedRole = userRole.value === 'MASTER' || userRole.value === 'MANAGER'
   return route.path === '/admin/households' && allowedRole
 })
 
-// 게시판 관리 화면에서 공지 작성 버튼 표시
+// 게시판 관리 화면에서 공지 작성 버튼 노출 여부를 판단한다.
 const canCreateNotice = computed(() => route.path === '/admin/boards/statistics')
 
 // 입출차 기록 화면에서 기록 등록 버튼을 표시할지 판단한다.
@@ -436,7 +448,6 @@ watch(
                   <line x1="16" y1="2" x2="16" y2="6" />
                   <line x1="8" y1="2" x2="8" y2="6" />
                   <line x1="3" y1="10" x2="21" y2="10" />
-
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'gx'"

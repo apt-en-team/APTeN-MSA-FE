@@ -1,12 +1,24 @@
 import {createRouter, createWebHistory} from 'vue-router'
 import {useAuthStore} from '@/stores/useAuthStore'
 import {useComplexStore} from '@/stores/useComplexStore'
+import {useParkingStore} from '@/stores/useParkingStore'
 import { getAdminFeatureByPath, getResidentFeatureByPath, isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
+import { codeToParkingTypeName } from '@/constants/parkingTypes'
 import adminRoutes from './adminRoutes'
 import authRoutes from './authRoutes'
 import masterRoutes from './masterRoutes'
 import residentRoutes from './residentRoutes'
 
+// parkingTypeCode 가드가 책임지는 관리자 주차 경로 목록, 새 주차 경로 추가 시 여기에 명시해야 가드가 적용된다
+const PARKING_GUARDED_PATHS = [
+  '/admin/parking-logs',
+  '/admin/parking/dashboard',
+  '/admin/parking/statistics',
+  '/admin/parking/zones',
+  '/admin/parking/sensors',
+]
+
+// 입주민 접근 제한 상태 목록, 이 상태면 일반 화면 대신 대기 페이지로 보낸다
 const RESIDENT_RESTRICTED_STATUSES = ['PENDING', 'REJECTED', '01', '03', '대기', '반려', '거절']
 
 // 역할 기반 접근 권한 확인
@@ -94,6 +106,44 @@ router.beforeEach(async (to, from) => {
     }
   }
 
+  // 관리자 주차 경로 가드, 단지 운영 타입(parkingTypeCode) 기준으로 차단
+  if (PARKING_GUARDED_PATHS.some((p) => to.path.startsWith(p))) {
+    const parkingStore = useParkingStore()
+
+    // 현재 관리자 단지 컨텍스트 식별 (MASTER는 선택 단지, 일반은 본인 단지)
+    const currentComplexId =
+      authStore.role === 'MASTER'
+        ? complexStore.selectedComplex?.complexId
+        : complexStore.myComplex?.complexId
+
+    // parkingSetting이 비어있거나 단지가 바뀐 경우에만 재조회 판정
+    const cachedComplexId = parkingStore.parkingSetting?.complexId
+    const cachedTypeCode = parkingStore.parkingSetting?.parkingTypeCode
+    const needsFetch =
+      !cachedTypeCode ||
+      (currentComplexId != null && String(cachedComplexId) !== String(currentComplexId))
+
+    if (needsFetch) {
+      try {
+        await parkingStore.fetchParkingSetting()
+      } catch (e) {
+        // 실패 시 NONE으로 간주해 주차 경로 전체를 막고, 원인은 추적용으로 경고만 남긴다
+        console.warn('[parking guard] fetchParkingSetting 실패, NONE 간주', e)
+      }
+    }
+
+    // 단지 운영 타입 이름 평가 (빈 값/실패 → 'NONE')
+    const parkingType = codeToParkingTypeName(parkingStore.parkingSetting?.parkingTypeCode)
+
+    // 센서 관리 경로는 SENSOR 단지만 통과
+    if (to.path.startsWith('/admin/parking/sensors')) {
+      if (parkingType !== 'SENSOR') return '/admin/dashboard'
+    } else if (parkingType !== 'BASIC' && parkingType !== 'SENSOR') {
+      // 그 외 주차 경로(입출차 기록/주차 현황/통계/구역 관리)는 BASIC·SENSOR만 통과
+      return '/admin/dashboard'
+    }
+  }
+
   // 입주민 진입 시 단지 정보를 보장. 캐시되어 있으면 API 스킵
   if (to.path.startsWith('/resident/') && authStore.isAuthenticated && authStore.role === 'USER') {
     try {
@@ -127,7 +177,7 @@ router.beforeEach(async (to, from) => {
     }
   }
 
-  // 입주민 승인 대기 상태면 대기 페이지로 이동
+  // 입주민 접근 제한 상태면 대기 페이지로 이동
   if (authStore.role === 'USER' && RESIDENT_RESTRICTED_STATUSES.includes(authStore.status) && to.path !== `/resident/${authStore.complexId}/pending`) {
     return `/resident/${authStore.complexId}/pending`
   }
