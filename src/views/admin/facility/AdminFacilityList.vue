@@ -798,7 +798,7 @@ onMounted(() => {
 /* ── 카드 그리드 ── */
 .facility-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   padding: 20px;
 }
@@ -839,6 +839,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 .card-icon {
   width: 36px;
@@ -851,8 +854,23 @@ onMounted(() => {
   color: #2b3a55;
   flex-shrink: 0;
 }
-.card-name { font-size: 15px; font-weight: 700; color: #333333; }
-.card-id { font-size: 11px; color: #687282; margin-top: 2px; }
+.card-title-wrap > div { min-width: 0; overflow: hidden; }
+.card-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #333333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-id {
+  font-size: 11px;
+  color: #687282;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .status-badge {
   display: inline-block;
   padding: 3px 10px;
@@ -880,16 +898,26 @@ onMounted(() => {
 }
 .card-info-row {
   display: flex;
-  gap: 20px;
+  gap: 12px 20px;
+  flex-wrap: wrap;
 }
 .card-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1;
+  min-width: 80px;
 }
-.info-label { font-size: 11px; color: #687282; }
-.info-value { font-size: 13px; font-weight: 600; color: #1a202c; }
+.info-label { font-size: 11px; color: #687282; white-space: nowrap; }
+.info-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a202c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ── 승인형 안내 ── */
 .approval-notice {
@@ -1186,15 +1214,18 @@ onMounted(() => {
 
 /* ── 반응형 ── */
 @media (max-width: 1100px) {
-  .facility-grid { grid-template-columns: repeat(3, 1fr); }
+  .facility-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 768px) {
-  .facility-grid { grid-template-columns: repeat(2, 1fr); }
+  .facility-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .facility-detail-modal :deep(.base-modal__content) {
     width: calc(100vw - 24px);
     max-height: calc(100vh - 24px);
   }
   .detail-grid { grid-template-columns: 1fr; }
   .seat-section__header { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 480px) {
+  .facility-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

@@ -488,7 +488,12 @@ onUnmounted(() => {
 
           <label class="form-field form-field--wide">
             <span>설명</span>
-            <input v-model="form.description" type="text" placeholder="프로그램에 대한 간단한 설명" />
+            <textarea
+              v-model="form.description"
+              class="form-textarea"
+              placeholder="프로그램에 대한 간단한 설명"
+              rows="3"
+            ></textarea>
           </label>
 
           <label class="form-field">
@@ -930,6 +935,18 @@ onUnmounted(() => {
 .form-field input:disabled {
   background: #f5f6f8;
   color: #a0aec0;
+}
+
+.form-textarea {
+  padding: 10px 12px;
+  border: 1px solid #d7dee8;
+  border-radius: 8px;
+  color: #1e2a3e;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.6;
 }
 
 .field-hint {
