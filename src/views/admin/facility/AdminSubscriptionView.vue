@@ -6,10 +6,13 @@ import facilityApi from '@/api/facilityApi.js'
 import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
 import AdminTable from '@/components/admin/AdminTable.vue'
 import StatsCards from '@/components/admin/StatsCards.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
 
 const facilityStore = useFacilityStore()
 
 // 목록, 필터, 로딩 상태
+const PAGE_SIZE = 10
+
 const state = reactive({
   list: [],
   loading: false,
@@ -19,6 +22,7 @@ const state = reactive({
     facilityId: '',   // BE @RequestParam facilityId
     status: '',       // BE @RequestParam status (ACTIVE | CANCELLED)
   },
+  currentPage: 1,
 })
 
 // facilityId → 시설명 매핑 테이블
@@ -47,7 +51,7 @@ const columns = [
   { key: 'status', label: '상태' },
 ]
 
-// 테이블 행 — 시설명 매핑, 해지일 없으면 '-' 표시
+// 전체 행 — 시설명 매핑, 해지일 없으면 '-' 표시, no는 전체 기준 순번
 const rows = computed(() =>
   state.list.map((s, i) => ({
     ...s,
@@ -56,6 +60,17 @@ const rows = computed(() =>
     cancelledAt: s.cancelledAt || '-',
   })),
 )
+
+const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE)))
+
+const pagedRows = computed(() => {
+  const start = (state.currentPage - 1) * PAGE_SIZE
+  return rows.value.slice(start, start + PAGE_SIZE)
+})
+
+const goToPage = (page) => {
+  state.currentPage = page
+}
 
 // 시설 목록 조회 — 필터 드롭다운과 이름 매핑에 사용
 const fetchFacilities = async () => {
@@ -99,6 +114,7 @@ const fetchList = async () => {
 const resetFilters = () => {
   state.filter.facilityId = ''
   state.filter.status = ''
+  state.currentPage = 1
   fetchList()
 }
 
@@ -117,7 +133,7 @@ onMounted(async () => {
       <!-- 필터 바 -->
       <AdminFilterBar @reset="resetFilters">
         <!-- 시설 필터 -->
-        <select v-model="state.filter.facilityId" class="filter-select" @change="fetchList">
+        <select v-model="state.filter.facilityId" class="filter-select" @change="() => { state.currentPage = 1; fetchList() }">
           <option value="">전체 시설</option>
           <option
             v-for="f in state.facilities"
@@ -129,7 +145,7 @@ onMounted(async () => {
         </select>
 
         <!-- 상태 필터 — ACTIVE/CANCELLED 는 BE enum 이름 -->
-        <select v-model="state.filter.status" class="filter-select" @change="fetchList">
+        <select v-model="state.filter.status" class="filter-select" @change="() => { state.currentPage = 1; fetchList() }">
           <option value="">전체 상태</option>
           <option value="ACTIVE">구독중</option>
           <option value="CANCELLED">해지</option>
@@ -140,7 +156,7 @@ onMounted(async () => {
       <div v-if="state.loading" class="empty-box">목록을 불러오는 중...</div>
       <div v-else-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
 
-      <AdminTable v-else :columns="columns" :rows="rows">
+      <AdminTable v-else :columns="columns" :rows="pagedRows">
         <!-- 상태 뱃지 커스텀 셀 -->
         <template #cell-status="{ value }">
           <span :class="['status-badge', value === '구독중' ? 'badge--active' : 'badge--cancelled']">
@@ -148,6 +164,15 @@ onMounted(async () => {
           </span>
         </template>
       </AdminTable>
+
+      <AppPagination
+        :currentPage="state.currentPage"
+        :maxPage="totalPages"
+        :totalAll="state.list.length"
+        :totalFiltered="rows.length"
+        unit="건"
+        @change="goToPage"
+      />
     </section>
   </div>
 </template>

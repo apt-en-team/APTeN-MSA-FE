@@ -442,7 +442,7 @@ onMounted(() => {
               </div>
               <div>
                 <div class="card-name">{{ f.name }}</div>
-                <div class="card-id">ID #{{ f.facilityId }}</div>
+                <div class="card-id">{{ f.typeName || '-' }}</div>
               </div>
             </div>
             <span :class="['status-badge', statusClass(f)]">{{ statusLabel(f) }}</span>
@@ -543,7 +543,7 @@ onMounted(() => {
       class="facility-detail-modal"
       :visible="detailModal.show"
       title="시설 상세 정보"
-      :subtitle="detailModal.facility ? 'ID #' + detailModal.facility.facilityId : ''"
+      :subtitle="detailModal.facility?.typeName || ''"
       @close="closeDetail"
     >
       <div class="detail-modal-content">
@@ -562,8 +562,8 @@ onMounted(() => {
         <!-- 기본 정보 그리드 -->
         <div class="detail-grid">
           <div class="detail-cell">
-            <span class="detail-cell-label">시설 ID</span>
-            <span class="detail-cell-value">#{{ detailModal.facility?.facilityId }}</span>
+            <span class="detail-cell-label">시설 타입</span>
+            <span class="detail-cell-value">{{ detailModal.facility?.typeName || '-' }}</span>
           </div>
           <div class="detail-cell">
             <span class="detail-cell-label">등록일</span>
