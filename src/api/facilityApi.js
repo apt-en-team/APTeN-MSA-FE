@@ -200,6 +200,12 @@ export const getFacilityCountStatus = async (facilityId, params) => {
   return unwrapApiData(res)
 }
 
+// API-653 관리자 구독 목록 조회 (facilityId, status 필터 선택)
+export const getAdminSubscriptions = async (params) => {
+  const res = await apiClient.get('/api/admin/facility-subscriptions', { params })
+  return unwrapApiData(res)
+}
+
 export default {
   createFacility,
   getAdminFacilities,
@@ -230,4 +236,5 @@ export default {
   getFacilityUsageStatus,
   getFacilitySeatStatus,
   getFacilityCountStatus,
+  getAdminSubscriptions,
 }

@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs ls -la)"
+      "Bash(xargs ls -la)",
+      "Bash(grep -E \"\\\\.\\(java|yml\\)$\")",
+      "Bash(xargs basename -a)",
+      "Bash(./gradlew compileJava)",
+      "Bash(./gradlew :facility-reservation-service:compileJava)"
     ],
     "additionalDirectories": [
       "/Users/soyoung/KDT/TimeProject/APTeN-MSA-BE"

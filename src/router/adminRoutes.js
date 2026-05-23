@@ -10,6 +10,7 @@ import AdminFacilityStatusView from '@/views/admin/facility/AdminFacilityStatusV
 import FacilityFormView from '@/views/admin/facility/FacilityFormView.vue'
 import AdminGxProgramList from '@/views/admin/facility/AdminGxProgramList.vue'
 import AdminReservationList from '@/views/admin/facility/AdminReservationList.vue'
+import AdminSubscriptionView from '@/views/admin/facility/AdminSubscriptionView.vue'
 import AdminHouseholdList from '@/views/admin/household/AdminHouseholdList.vue'
 import AdminParkingDashboard from '@/views/admin/parking/AdminParkingDashboard.vue'
 import AdminParkingLogList from '@/views/admin/parking/AdminParkingLogList.vue'
@@ -60,6 +61,8 @@ const adminRoutes = [
       { path: 'reservations', component: AdminReservationList, meta: { ...adminRouteMeta, title: '예약 현황' } },
       { path: 'reservations/facility-status', component: AdminFacilityStatusView, meta: { ...adminRouteMeta, title: '시설별 현황' } },
       { path: 'gx-programs', component: AdminGxProgramList, meta: { ...adminRouteMeta, title: 'GX 프로그램 관리' } },
+      // 구독 현황: FLAT/PER_PERSON 요금 방식 시설의 세대 구독 목록
+      { path: 'subscriptions', component: AdminSubscriptionView, meta: { ...adminRouteMeta, title: '구독 현황' } },
     ],
   },
 ]

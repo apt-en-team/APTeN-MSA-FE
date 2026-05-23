@@ -31,6 +31,7 @@ const state = reactive({
   feeType: 'FLAT',
   includedPersonCount: '',
   extraPersonFee: 0,
+  billingCutoffDay: '',   // 월정산 청구 기준일 (null이면 항상 전액)
   loading: false,
   submitting: false,
   errorMessage: '',
@@ -129,6 +130,8 @@ const syncPolicyForm = (policy) => {
   state.feeType = policy?.feeType ?? 'FLAT'
   state.includedPersonCount = policy?.includedPersonCount ?? ''
   state.extraPersonFee = policy?.extraPersonFee ?? 0
+  // null이면 '' 로 초기화해 "기준일 없음(항상 전액)" 상태를 input에서 표현
+  state.billingCutoffDay = policy?.billingCutoffDay ?? ''
 }
 
 const fetchPolicyForFacility = async (facilityId) => {
@@ -214,6 +217,8 @@ const handleConfirmSave = async () => {
       ? (state.includedPersonCount === '' ? null : Number(state.includedPersonCount))
       : null,
     extraPersonFee: isFlatWithExtra.value ? Number(state.extraPersonFee || 0) : null,
+    // 빈 문자열이면 null 전송 → BE에서 항상 전액 청구로 처리
+    billingCutoffDay: state.billingCutoffDay === '' ? null : Number(state.billingCutoffDay),
     isActive: true,
   }
 
@@ -343,6 +348,16 @@ onMounted(async () => {
               <span class="detail-label">취소 마감</span>
               <span class="detail-value">{{ selectedPolicy.cancelDeadlineHours || '-' }}시간 전</span>
             </div>
+            <!-- FLAT/PER_PERSON 요금 방식일 때만 월정산 기준일 표시 -->
+            <div
+              v-if="['FLAT', 'PER_PERSON'].includes(selectedPolicy.feeType)"
+              class="detail-row"
+            >
+              <span class="detail-label">월정산 기준일</span>
+              <span class="detail-value">
+                {{ selectedPolicy.billingCutoffDay != null ? selectedPolicy.billingCutoffDay + '일' : '기준일 없음 (항상 전액)' }}
+              </span>
+            </div>
             <div
               v-if="['COUNT', 'APPROVAL'].includes(normalizeReservationType(selectedFacility?.reservationType))"
               class="detail-row"
@@ -421,6 +436,21 @@ onMounted(async () => {
               <div class="input-suffix-wrap">
                 <input v-model="state.cancelDeadlineHours" type="number" min="0" />
                 <span class="input-suffix">시간 전</span>
+              </div>
+            </label>
+
+            <!-- FLAT/PER_PERSON 요금 방식일 때만 월정산 기준일 입력 표시 -->
+            <label v-if="['FLAT', 'PER_PERSON'].includes(state.feeType)" class="form-field">
+              <span>월정산 기준일</span>
+              <div class="input-suffix-wrap">
+                <input
+                  v-model="state.billingCutoffDay"
+                  type="number"
+                  min="1"
+                  max="28"
+                  placeholder="없음 (항상 전액)"
+                />
+                <span class="input-suffix">일</span>
               </div>
             </label>
 
