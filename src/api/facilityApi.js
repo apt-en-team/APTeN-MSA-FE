@@ -111,6 +111,35 @@ export const updateFacilityBlockTime = async (facilityId, blockTimeId, body) => 
   return unwrapApiData(res)
 }
 
+// 정기 휴무 규칙 등록
+export const createClosureRule = async (facilityId, body) => {
+  const res = await apiClient.post(`/api/admin/facilities/${facilityId}/closure-rules`, body)
+  return unwrapApiData(res)
+}
+
+// 정기 휴무 규칙 목록 조회
+export const getClosureRules = async (facilityId) => {
+  const res = await apiClient.get(`/api/admin/facilities/${facilityId}/closure-rules`)
+  return unwrapApiData(res)
+}
+
+// 정기 휴무 규칙 수정
+export const updateClosureRule = async (facilityId, ruleId, body) => {
+  const res = await apiClient.patch(
+    `/api/admin/facilities/${facilityId}/closure-rules/${ruleId}`,
+    body,
+  )
+  return unwrapApiData(res)
+}
+
+// 정기 휴무 규칙 비활성화
+export const deactivateClosureRule = async (facilityId, ruleId) => {
+  const res = await apiClient.patch(
+    `/api/admin/facilities/${facilityId}/closure-rules/${ruleId}/deactivate`,
+  )
+  return unwrapApiData(res)
+}
+
 // 시설 좌석 등록
 export const createFacilitySeat = async (facilityId, body) => {
   const res = await apiClient.post(`/api/admin/facilities/${facilityId}/seats`, body)
@@ -187,6 +216,10 @@ export default {
   deactivateFacilityBlockTimeBatch,
   deactivateFacilityBlockTime,
   updateFacilityBlockTime,
+  createClosureRule,
+  getClosureRules,
+  updateClosureRule,
+  deactivateClosureRule,
   createFacilitySeat,
   bulkCreateFacilitySeats,
   getFacilitySeats,

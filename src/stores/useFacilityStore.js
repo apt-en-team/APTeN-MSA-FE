@@ -315,6 +315,62 @@ export const useFacilityStore = defineStore('facility', {
       }
     },
 
+    // 정기 휴무 규칙 등록
+    async createClosureRule(facilityId, body) {
+      this.loading = true
+      this.error = null
+      try {
+        return await facilityApi.createClosureRule(facilityId, body)
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 정기 휴무 규칙 목록 조회
+    async fetchClosureRules(facilityId) {
+      this.loading = true
+      this.error = null
+      try {
+        return await facilityApi.getClosureRules(facilityId)
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 정기 휴무 규칙 수정
+    async updateClosureRule(facilityId, ruleId, body) {
+      this.loading = true
+      this.error = null
+      try {
+        return await facilityApi.updateClosureRule(facilityId, ruleId, body)
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 정기 휴무 규칙 비활성화
+    async deactivateClosureRule(facilityId, ruleId) {
+      this.loading = true
+      this.error = null
+      try {
+        return await facilityApi.deactivateClosureRule(facilityId, ruleId)
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
     // 관리자 시설 좌석 목록 조회
     async fetchFacilitySeats(facilityId) {
       this.loading = true

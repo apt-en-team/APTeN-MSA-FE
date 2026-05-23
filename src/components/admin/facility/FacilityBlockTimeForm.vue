@@ -4,6 +4,15 @@ import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import { getFacilitySeats } from '@/api/facilityApi.js'
 import { toList } from '@/utils/apiResponse'
 
+// 정기 휴무 요일/주차 선택지 상수
+const WEEK_ORDINALS = [
+  { value: 1, label: '첫째' },
+  { value: 2, label: '둘째' },
+  { value: 3, label: '셋째' },
+  { value: 4, label: '넷째' },
+  { value: 5, label: '다섯째' },
+]
+
 const props = defineProps({
   facilities: {
     type: Array,
@@ -18,14 +27,14 @@ const props = defineProps({
     type: Object,
     default: null,
   },
-  // 배치 재등록 모드: 시간/사유 프리필 데이터
-  batchPrefill: {
+  // 정기 휴무 규칙 수정 모드
+  editClosureRule: {
     type: Object,
     default: null,
   },
 })
 
-const emit = defineEmits(['saved', 'cancel'])
+const emit = defineEmits(['saved', 'rule-saved', 'cancel'])
 
 const facilityStore = useFacilityStore()
 
@@ -44,11 +53,14 @@ const state = reactive({
   facilityId: '',
   seatScope: 'facility',
   seatId: '',
-  blockMode: 'single', // 'single' | 'batch'
+  // 'single' | 'closure-rule'
+  blockMode: 'single',
   // 단일 모드
   blockDate: '',
-  // 반복 모드
-  daysOfWeek: [],
+  // 정기 휴무 모드
+  ruleType: 'WEEKLY',         // 'WEEKLY' | 'MONTHLY_NTH'
+  daysOfWeek: [],             // 선택된 요일 목록
+  weekOrdinals: [],           // MONTHLY_NTH 전용: 선택된 주차 목록
   validFrom: '',
   validUntil: '',
   // 공통
@@ -61,8 +73,10 @@ const state = reactive({
   errorMessage: '',
 })
 
+// 단건 차단 수정 모드 여부
 const isEditMode = computed(() => !!props.editItem)
-const isBatchPrefill = computed(() => !!props.batchPrefill)
+// 정기 휴무 규칙 수정 모드 여부
+const isEditClosureRule = computed(() => !!props.editClosureRule)
 
 const selectedFacility = computed(() =>
   props.facilities.find((f) => String(f.facilityId) === String(state.facilityId)) || null,
@@ -87,12 +101,15 @@ const toSecondTime = (time) => {
 
 const resetModeFields = () => {
   state.blockDate = ''
+  state.ruleType = 'WEEKLY'
   state.daysOfWeek = []
+  state.weekOrdinals = []
   state.validFrom = ''
   state.validUntil = ''
   state.fullDay = false
   state.startTime = '09:00'
   state.endTime = '18:00'
+  state.reason = ''
   state.errorMessage = ''
 }
 
@@ -126,6 +143,27 @@ const toggleDay = (day) => {
   else state.daysOfWeek.splice(idx, 1)
 }
 
+// 주차 토글 (MONTHLY_NTH 전용)
+const toggleOrdinal = (ordinal) => {
+  const idx = state.weekOrdinals.indexOf(ordinal)
+  if (idx === -1) state.weekOrdinals.push(ordinal)
+  else state.weekOrdinals.splice(idx, 1)
+}
+
+// 정기 휴무 규칙 유효성 검사
+const validateClosureRule = () => {
+  if (!state.facilityId) return '시설을 선택해주세요.'
+  if (state.daysOfWeek.length === 0) return '적용 요일을 하나 이상 선택해주세요.'
+  if (state.ruleType === 'MONTHLY_NTH' && state.weekOrdinals.length === 0)
+    return '몇 번째 주인지 선택해주세요.'
+  if (!state.fullDay && (!state.startTime || !state.endTime)) return '차단 시간을 입력해주세요.'
+  if (state.validFrom && state.validUntil && state.validFrom > state.validUntil)
+    return '종료일은 시작일 이후여야 합니다.'
+  if (isSeatFacility.value && state.seatScope === 'seat' && !state.seatId)
+    return '차단할 좌석을 선택해주세요.'
+  return ''
+}
+
 const validateSingle = () => {
   if (!state.facilityId) return '시설을 선택해주세요.'
   if (!state.blockDate) return '차단일을 선택해주세요.'
@@ -135,19 +173,14 @@ const validateSingle = () => {
   return ''
 }
 
-const validateBatch = () => {
-  if (!state.facilityId) return '시설을 선택해주세요.'
-  if (state.daysOfWeek.length === 0) return '반복 요일을 하나 이상 선택해주세요.'
-  if (!state.validFrom || !state.validUntil) return '적용 기간을 입력해주세요.'
-  if (state.validFrom > state.validUntil) return '종료일은 시작일 이후여야 합니다.'
-  if (!state.fullDay && (!state.startTime || !state.endTime)) return '차단 시간을 입력해주세요.'
-  if (isSeatFacility.value && state.seatScope === 'seat' && !state.seatId)
-    return '차단할 좌석을 선택해주세요.'
-  return ''
-}
 
 const submitBlockTime = async () => {
-  const error = isEditMode.value || state.blockMode === 'single' ? validateSingle() : validateBatch()
+  // 모드별 유효성 검사
+  const error = state.blockMode === 'closure-rule'
+    ? validateClosureRule()
+    : isEditMode.value || state.blockMode === 'single'
+      ? validateSingle()
+      : validateSingle()
   if (error) {
     state.errorMessage = error
     return
@@ -156,11 +189,31 @@ const submitBlockTime = async () => {
   state.submitting = true
   state.errorMessage = ''
 
-  const seatId =
-    isSeatFacility.value && state.seatScope === 'seat' ? state.seatId : null
+  const seatId = isSeatFacility.value && state.seatScope === 'seat' ? state.seatId : null
 
   try {
-    if (isEditMode.value) {
+    if (state.blockMode === 'closure-rule') {
+      // 정기 휴무 규칙 등록 또는 수정
+      const body = {
+        ruleType: state.ruleType,
+        daysOfWeek: [...state.daysOfWeek],
+        weekOrdinals: state.ruleType === 'MONTHLY_NTH' ? [...state.weekOrdinals] : [],
+        startTime: state.fullDay ? null : toSecondTime(state.startTime),
+        endTime: state.fullDay ? null : toSecondTime(state.endTime),
+        validFrom: state.validFrom || null,
+        validUntil: state.validUntil || null,
+        reason: String(state.reason || '').trim(),
+        seatId,
+      }
+      if (isEditClosureRule.value) {
+        await facilityStore.updateClosureRule(state.facilityId, props.editClosureRule.closureRuleId, body)
+        emit('rule-saved', '수정')
+      } else {
+        await facilityStore.createClosureRule(state.facilityId, body)
+        emit('rule-saved', '등록')
+      }
+    } else if (isEditMode.value) {
+      // 단건 차단 수정
       await facilityStore.updateFacilityBlockTime(
         state.facilityId,
         props.editItem.facilityBlockTimeId,
@@ -171,7 +224,8 @@ const submitBlockTime = async () => {
         },
       )
       emit('saved', selectedFacility.value?.name || '선택 시설', '차단 시간이 수정되었습니다.')
-    } else if (state.blockMode === 'single') {
+    } else {
+      // 단건 차단 등록
       await facilityStore.createFacilityBlockTime(state.facilityId, {
         blockDate: state.blockDate,
         startTime: state.fullDay ? null : toSecondTime(state.startTime),
@@ -180,28 +234,13 @@ const submitBlockTime = async () => {
         seatId,
       })
       emit('saved', selectedFacility.value?.name || '선택 시설', null)
-    } else {
-      const res = await facilityStore.createFacilityBlockTimeBatch(state.facilityId, {
-        daysOfWeek: [...state.daysOfWeek],
-        validFrom: state.validFrom,
-        validUntil: state.validUntil,
-        startTime: state.fullDay ? null : toSecondTime(state.startTime),
-        endTime: state.fullDay ? null : toSecondTime(state.endTime),
-        reason: String(state.reason || '').trim(),
-        seatId,
-      })
-      emit(
-        'saved',
-        selectedFacility.value?.name || '선택 시설',
-        `${res?.createdCount ?? 0}건의 반복 차단이 등록되었습니다.`,
-      )
     }
     resetModeFields()
   } catch (e) {
     state.errorMessage =
       e?.response?.data?.resultMessage ||
       e?.response?.data?.message ||
-      (isEditMode.value ? '차단 시간 수정에 실패했습니다.' : '차단 시간 등록에 실패했습니다.')
+      '처리 중 오류가 발생했습니다.'
   } finally {
     state.submitting = false
   }
@@ -210,7 +249,7 @@ const submitBlockTime = async () => {
 watch(
   () => state.blockMode,
   () => {
-    if (!isEditMode.value && !isBatchPrefill.value) resetModeFields()
+    if (!isEditMode.value && !isEditClosureRule.value) resetModeFields()
   },
 )
 
@@ -233,19 +272,24 @@ watch(
   { immediate: true },
 )
 
-// 배치 재등록 모드: 시간/사유 프리필
+// 정기 휴무 규칙 수정 모드: editClosureRule로 폼 프리필
 watch(
-  () => props.batchPrefill,
-  (prefill) => {
-    if (!prefill) return
-    if (prefill.facilityId) state.facilityId = String(prefill.facilityId)
-    state.blockMode = 'batch'
-    state.fullDay = !prefill.startTime && !prefill.endTime
-    state.startTime = prefill.startTime ? String(prefill.startTime).slice(0, 5) : '09:00'
-    state.endTime = prefill.endTime ? String(prefill.endTime).slice(0, 5) : '18:00'
-    state.reason = prefill.reason || ''
-    state.seatId = prefill.seatId || ''
-    state.seatScope = prefill.seatId ? 'seat' : 'facility'
+  () => props.editClosureRule,
+  (rule) => {
+    if (!rule) return
+    state.facilityId = String(rule.facilityId || '')
+    state.blockMode = 'closure-rule'
+    state.ruleType = rule.ruleType || 'WEEKLY'
+    state.daysOfWeek = Array.isArray(rule.daysOfWeek) ? [...rule.daysOfWeek] : []
+    state.weekOrdinals = Array.isArray(rule.weekOrdinals) ? [...rule.weekOrdinals] : []
+    state.fullDay = !rule.startTime && !rule.endTime
+    state.startTime = rule.startTime ? String(rule.startTime).slice(0, 5) : '09:00'
+    state.endTime = rule.endTime ? String(rule.endTime).slice(0, 5) : '18:00'
+    state.validFrom = rule.validFrom || ''
+    state.validUntil = rule.validUntil || ''
+    state.reason = rule.reason || ''
+    state.seatId = rule.seatId || ''
+    state.seatScope = rule.seatId ? 'seat' : 'facility'
     fetchSeats()
   },
   { immediate: true },
@@ -254,7 +298,7 @@ watch(
 watch(
   () => props.initialFacilityId,
   (facilityId) => {
-    if (!state.facilityId && facilityId && !props.editItem && !props.batchPrefill) {
+    if (!state.facilityId && facilityId && !props.editItem && !props.editClosureRule) {
       state.facilityId = facilityId
       fetchSeats()
     }
@@ -267,47 +311,59 @@ watch(
   <article class="panel">
     <div class="panel-header">
       <div>
-        <h3>{{ isEditMode ? '차단 시간 수정' : '차단 시간 등록' }}</h3>
+        <h3>
+          {{
+            isEditClosureRule
+              ? '정기 휴무 수정'
+              : isEditMode
+                ? '차단 시간 수정'
+                : state.blockMode === 'closure-rule'
+                  ? '정기 휴무 등록'
+                  : '차단 시간 등록'
+          }}
+        </h3>
         <p>
           {{
-            isEditMode
-              ? '차단일과 시간을 수정합니다.'
-              : isBatchPrefill
-                ? '기존 반복 차단을 대체할 새 반복 차단을 등록합니다.'
-                : '시설 전체 또는 좌석별 예약 차단 시간을 등록합니다.'
+            isEditClosureRule
+              ? '정기 휴무 규칙을 수정합니다.'
+              : isEditMode
+                ? '차단일과 시간을 수정합니다.'
+                : state.blockMode === 'closure-rule'
+                  ? '매주 또는 매월 N번째 요일에 반복되는 휴무를 설정합니다.'
+                  : '시설 전체 또는 좌석별 예약 차단 시간을 등록합니다.'
           }}
         </p>
       </div>
       <button class="btn-secondary" type="button" @click="emit('cancel')">목록으로</button>
     </div>
 
-    <!-- 등록 모드 선택: 수정/프리필 모드에서는 숨김 -->
-    <div v-if="!isEditMode && !isBatchPrefill" class="mode-tabs">
+    <!-- 등록 모드 선택: 수정 모드에서는 숨김 -->
+    <div v-if="!isEditMode && !isEditClosureRule" class="mode-tabs">
       <button
         :class="['mode-tab', { active: state.blockMode === 'single' }]"
         type="button"
         @click="state.blockMode = 'single'"
       >
-        단일 차단
+        임시 차단
       </button>
       <button
-        :class="['mode-tab', { active: state.blockMode === 'batch' }]"
+        :class="['mode-tab', { active: state.blockMode === 'closure-rule' }]"
         type="button"
-        @click="state.blockMode = 'batch'"
+        @click="state.blockMode = 'closure-rule'"
       >
-        반복 차단
+        정기 휴무
       </button>
     </div>
 
     <div v-if="state.errorMessage" class="error-box">{{ state.errorMessage }}</div>
 
     <div class="form-grid">
-      <!-- 시설 선택: 수정/프리필 모드에서는 비활성 -->
+      <!-- 시설 선택: 수정 모드에서는 비활성 -->
       <label class="form-field form-field--wide">
         <span>시설 선택</span>
         <select
           v-model="state.facilityId"
-          :disabled="isEditMode || isBatchPrefill"
+          :disabled="isEditMode || isEditClosureRule"
           @change="changeFacility"
         >
           <option value="" disabled>시설을 선택해주세요.</option>
@@ -357,10 +413,32 @@ watch(
         </label>
       </template>
 
-      <!-- 반복 모드: 요일 + 기간 -->
-      <template v-if="!isEditMode && state.blockMode === 'batch'">
+      <!-- 정기 휴무 모드: 규칙 유형 + 요일 + 주차 + 기간 -->
+      <template v-if="isEditClosureRule || (!isEditMode && state.blockMode === 'closure-rule')">
+        <!-- 규칙 유형: 매주 / 매월 N번째 -->
         <div class="form-field form-field--wide">
-          <span>반복 요일</span>
+          <span>규칙 유형</span>
+          <div class="mode-tabs mode-tabs--inline">
+            <button
+              :class="['mode-tab', { active: state.ruleType === 'WEEKLY' }]"
+              type="button"
+              @click="state.ruleType = 'WEEKLY'"
+            >
+              매주
+            </button>
+            <button
+              :class="['mode-tab', { active: state.ruleType === 'MONTHLY_NTH' }]"
+              type="button"
+              @click="state.ruleType = 'MONTHLY_NTH'"
+            >
+              매월 N번째
+            </button>
+          </div>
+        </div>
+
+        <!-- 적용 요일 -->
+        <div class="form-field form-field--wide">
+          <span>적용 요일</span>
           <div class="days-grid">
             <button
               v-for="day in DAYS_OF_WEEK"
@@ -374,15 +452,33 @@ watch(
           </div>
         </div>
 
+        <!-- MONTHLY_NTH 전용: 몇 번째 주 선택 -->
+        <div v-if="state.ruleType === 'MONTHLY_NTH'" class="form-field form-field--wide">
+          <span>주차 선택 (해당 월의 몇 번째 주)</span>
+          <div class="days-grid">
+            <button
+              v-for="ord in WEEK_ORDINALS"
+              :key="ord.value"
+              type="button"
+              :class="['day-chip', 'day-chip--wide', { active: state.weekOrdinals.includes(ord.value) }]"
+              @click="toggleOrdinal(ord.value)"
+            >
+              {{ ord.label }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 유효 기간 (선택사항) -->
         <label class="form-field">
-          <span>적용 시작일</span>
+          <span>적용 시작일 <span class="optional">(선택)</span></span>
           <input v-model="state.validFrom" type="date" />
         </label>
         <label class="form-field">
-          <span>적용 종료일</span>
+          <span>적용 종료일 <span class="optional">(선택)</span></span>
           <input v-model="state.validUntil" type="date" />
         </label>
 
+        <!-- 하루종일 체크 -->
         <label class="check-row check-row--batch">
           <input v-model="state.fullDay" type="checkbox" />
           <span>하루종일</span>
@@ -416,14 +512,16 @@ watch(
       <button class="btn-primary" type="button" :disabled="state.submitting" @click="submitBlockTime">
         {{
           state.submitting
-            ? isEditMode
-              ? '수정 중...'
-              : '등록 중...'
-            : isEditMode
-              ? '차단 시간 수정'
-              : state.blockMode === 'batch'
-                ? '반복 차단 등록'
-                : '차단 시간 등록'
+            ? isEditClosureRule || state.blockMode === 'closure-rule'
+              ? isEditClosureRule ? '수정 중...' : '등록 중...'
+              : isEditMode ? '수정 중...' : '등록 중...'
+            : isEditClosureRule
+              ? '정기 휴무 수정'
+              : isEditMode
+                ? '차단 시간 수정'
+                : state.blockMode === 'closure-rule'
+                  ? '정기 휴무 등록'
+                  : '차단 시간 등록'
         }}
       </button>
     </div>
@@ -552,6 +650,11 @@ watch(
   grid-column: 1 / -1;
 }
 
+/* ── 인라인 모드 탭 (규칙 유형) ──────────────── */
+.mode-tabs--inline {
+  width: fit-content;
+}
+
 /* ── 요일 선택 ───────────────────────────────── */
 .days-grid {
   display: flex;
@@ -583,6 +686,20 @@ watch(
   background: #2b3a55;
   border-color: #2b3a55;
   color: #ffffff;
+}
+
+/* 주차 칩: 더 넓은 너비 */
+.day-chip--wide {
+  width: auto;
+  min-width: 56px;
+  padding: 0 10px;
+}
+
+/* 선택 항목 옵션 표시 */
+.optional {
+  font-weight: 400;
+  color: #a0aec0;
+  font-size: 12px;
 }
 
 /* ── 버튼 ─────────────────────────────────────── */
