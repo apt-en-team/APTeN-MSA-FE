@@ -200,6 +200,12 @@ export const getFacilityCountStatus = async (facilityId, params) => {
   return unwrapApiData(res)
 }
 
+// API-651 입주민 시설 구독 해지
+export const cancelFacilitySubscription = async (facilityId) => {
+  const res = await apiClient.post(`/api/facility-subscriptions/${facilityId}/cancel`)
+  return unwrapApiData(res)
+}
+
 // API-653 관리자 구독 목록 조회 (facilityId, status 필터 선택)
 export const getAdminSubscriptions = async (params) => {
   const res = await apiClient.get('/api/admin/facility-subscriptions', { params })
@@ -236,5 +242,6 @@ export default {
   getFacilityUsageStatus,
   getFacilitySeatStatus,
   getFacilityCountStatus,
+  cancelFacilitySubscription,
   getAdminSubscriptions,
 }

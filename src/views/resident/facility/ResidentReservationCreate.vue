@@ -48,10 +48,19 @@ const state = reactive({
 
 const resultModal = reactive({ show: false, success: false, message: '' })
 
+// 구독형 시설 첫 예약 시 요금 안내 확인 모달
+const billingConfirmModal = reactive({ show: false })
+
 const reservationType = computed(() => normalizeReservationType(state.facility?.reservationType))
 const isApproval = computed(() => reservationType.value === 'APPROVAL')
 const isSeat = computed(() => reservationType.value === 'SEAT')
 const isCount = computed(() => reservationType.value === 'COUNT')
+
+// FLAT/PER_PERSON 시설 = 구독형 → 예약 시 요금 안내 필요
+const isSubscriptionType = computed(() => {
+  const fee = state.facility?.feeType
+  return fee === 'FLAT' || fee === 'PER_PERSON'
+})
 
 const canSubmit = computed(() => {
   if (!state.form.selectedTime) return false
@@ -167,6 +176,16 @@ const isSeatAvailable = (seat) => seat.status === 'AVAILABLE'
 
 const seatStatusLabel = (status) =>
   ({ AVAILABLE: '예약 가능', RESERVED: '예약됨', HOLDING: '선점됨', BLOCKED: '차단됨' }[status] || '')
+
+// 구독형이면 요금 안내 모달 표시 후 확인 시 예약 실행, 아니면 바로 예약
+const onReserveClick = () => {
+  if (!canSubmit.value || state.submitting) return
+  if (isSubscriptionType.value) {
+    billingConfirmModal.show = true
+    return
+  }
+  submitReservation()
+}
 
 const submitReservation = async () => {
   if (!canSubmit.value || state.submitting) return
@@ -365,11 +384,23 @@ onMounted(async () => {
         class="btn-submit"
         type="button"
         :disabled="!canSubmit || state.submitting"
-        @click="submitReservation"
+        @click="onReserveClick"
       >
         {{ state.submitting ? '예약 중...' : '예약하기' }}
       </button>
     </div>
+
+    <!-- 구독형 요금 안내 확인 모달 (FLAT/PER_PERSON 시설 첫 예약 시) -->
+    <ResidentModal
+      :visible="billingConfirmModal.show"
+      type="info"
+      title="매월 요금이 청구됩니다"
+      subtitle="이 시설은 구독 방식으로 운영됩니다. 예약 후 매월 이용 요금이 청구되며, 해지 전까지 자동 갱신됩니다."
+      confirmText="예약하기"
+      confirmType="primary"
+      @close="billingConfirmModal.show = false"
+      @confirm="() => { billingConfirmModal.show = false; submitReservation() }"
+    />
 
     <!-- 결과 모달 -->
     <ResidentModal

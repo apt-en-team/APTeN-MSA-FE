@@ -5,7 +5,9 @@
       "Bash(grep -E \"\\\\.\\(java|yml\\)$\")",
       "Bash(xargs basename -a)",
       "Bash(./gradlew compileJava)",
-      "Bash(./gradlew :facility-reservation-service:compileJava)"
+      "Bash(./gradlew :facility-reservation-service:compileJava)",
+      "Bash(./gradlew compileJava -q)",
+      "Bash(./gradlew :facility-reservation-service:compileJava -q)"
     ],
     "additionalDirectories": [
       "/Users/soyoung/KDT/TimeProject/APTeN-MSA-BE"
