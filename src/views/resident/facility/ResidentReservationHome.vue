@@ -177,10 +177,11 @@ onMounted(() => {
 
 <template>
   <div class="reservation-home">
-    <!-- 메인 탭: 예약하기 / 내 예약 -->
+    <!-- 메인 탭: 예약하기 / 내 예약 / 나의 구독 -->
     <div class="main-tabs">
       <button class="main-tab" type="button" @click="goToFacility">예약하기</button>
       <button class="main-tab is-active" type="button">내 예약</button>
+      <button class="main-tab" type="button" @click="router.push(`/resident/${route.params.complexId}/facility/subscriptions`)">나의 구독</button>
     </div>
 
     <!-- 필터 탭: 이용예정 / 지난예약 -->
@@ -304,7 +305,7 @@ onMounted(() => {
 /* 메인 탭 */
 .main-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   background: #e2e8f0;
   border-radius: 12px;
   padding: 4px;
@@ -315,7 +316,7 @@ onMounted(() => {
   height: 40px;
   border: none;
   border-radius: 9px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   background: transparent;

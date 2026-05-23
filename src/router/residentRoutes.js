@@ -53,6 +53,11 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'facility/subscriptions',
+        component: () => import('@/views/resident/facility/ResidentMySubscriptionView.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'facility/:facilityId',
         component: () => import('@/views/resident/facility/ResidentFacilityDetail.vue'),
         meta: { requiresAuth: true, roles: ['USER'] },
