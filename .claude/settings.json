@@ -7,7 +7,27 @@
       "Bash(./gradlew compileJava)",
       "Bash(./gradlew :facility-reservation-service:compileJava)",
       "Bash(./gradlew compileJava -q)",
-      "Bash(./gradlew :facility-reservation-service:compileJava -q)"
+      "Bash(./gradlew :facility-reservation-service:compileJava -q)",
+      "Bash(mariadb -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"DESCRIBE facility_subscription;\")",
+      "Bash(brew list *)",
+      "Read(//usr/local/bin/**)",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"DESCRIBE facility_subscription;\")",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"SELECT id, name, complex_id FROM facility LIMIT 10;\")",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_household -e ' *)",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_household -e \"DESCRIBE household_member;\")",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_auth -e ' *)",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_auth -e \"SHOW TABLES;\")",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"SHOW TABLES;\")",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e ' *)",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"DESCRIBE household_member_cache;\")",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"DESCRIBE household_cache;\")",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"SELECT status FROM facility_subscription LIMIT 3;\")",
+      "Bash(git -C /Users/soyoung/KDT/TimeProject/APTeN-MSA-FE diff --name-only)",
+      "Bash(git -C /Users/soyoung/KDT/TimeProject/APTeN-MSA-BE diff --name-only)",
+      "Bash(git -C /Users/soyoung/KDT/TimeProject/APTeN-MSA-FE status --short)",
+      "Bash(git -C /Users/soyoung/KDT/TimeProject/APTeN-MSA-BE status --short)",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"DESCRIBE user_cache;\")",
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"DESCRIBE facility_usage_monthly;\")"
     ],
     "additionalDirectories": [
       "/Users/soyoung/KDT/TimeProject/APTeN-MSA-BE"

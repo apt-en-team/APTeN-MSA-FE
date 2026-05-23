@@ -546,7 +546,7 @@ watch(
           </button>
 
           <button
-            v-if="route.path === '/admin/reservations'"
+            v-if="route.path === '/admin/reservations' || route.path === '/admin/reservations/list'"
             type="button"
             class="admin-layout__action-button"
             @click="goToFacilityStatus"

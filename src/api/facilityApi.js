@@ -218,6 +218,24 @@ export const getAdminSubscriptions = async (params) => {
   return unwrapApiData(res)
 }
 
+// 관리자 세대별 구독 요약 목록 조회
+export const getAdminHouseholdSubscriptionList = async () => {
+  const res = await apiClient.get('/api/admin/facility-subscriptions/households')
+  return unwrapApiData(res)
+}
+
+// 관리자 세대별 구독 상세 조회
+export const getAdminHouseholdSubscriptionDetail = async (householdId) => {
+  const res = await apiClient.get(`/api/admin/facility-subscriptions/households/${householdId}`)
+  return unwrapApiData(res)
+}
+
+// 관리자 구독 강제 해지
+export const adminCancelSubscription = async (subscriptionId) => {
+  const res = await apiClient.delete(`/api/admin/facility-subscriptions/${subscriptionId}`)
+  return unwrapApiData(res)
+}
+
 export default {
   createFacility,
   getAdminFacilities,
@@ -251,4 +269,7 @@ export default {
   cancelFacilitySubscription,
   getMySubscriptions,
   getAdminSubscriptions,
+  getAdminHouseholdSubscriptionList,
+  getAdminHouseholdSubscriptionDetail,
+  adminCancelSubscription,
 }
