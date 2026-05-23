@@ -56,8 +56,15 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${accessToken}`
     }
 
+    // 로그인 사용자 권한 헤더 주입
+    if (userInfo?.role) {
+      config.headers = config.headers || {}
+      config.headers['X-User-Role'] = String(userInfo.role)
+    }
+
     // MASTER가 공통 관리자 API를 호출할 때만 선택 단지 ID 헤더 추가.
     // master 전용 API(/api/admin/master/*)는 단지 무관하므로 제외.
+    // env baseURL이 게이트웨이 루트이므로 config.url은 /api/admin/...에서 시작한다.
     const isCommonAdminApi =
       requestUrl.startsWith('/api/admin/') &&
       !requestUrl.startsWith('/api/admin/master/')
