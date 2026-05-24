@@ -79,7 +79,7 @@ const fetchDetail = async () => {
     state.detail = res
   } catch (e) {
     state.errorMessage =
-      e?.response?.data?.resultMessage || '시설 정보를 불러오지 못했습니다.'
+      e?.response?.data?.message || '시설 정보를 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }

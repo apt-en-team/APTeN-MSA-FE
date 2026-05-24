@@ -214,7 +214,7 @@ const fetchAll = async () => {
   } catch (error) {
     console.error('시설 목록 조회 실패:', error)
     state.errorMessage =
-      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
       error.response?.data?.message ||
       '시설 목록을 불러오지 못했습니다.'
   }
@@ -276,7 +276,7 @@ const fetchSeats = async (facilityId = detailModal.facility?.facilityId) => {
   } catch (error) {
     console.error('시설 좌석 목록 조회 실패:', error)
     seatState.errorMessage =
-      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
       error.response?.data?.message ||
       '좌석 목록을 불러오지 못했습니다.'
   } finally {
@@ -369,7 +369,7 @@ const submitSeatForm = async () => {
     closeSeatFormModal()
   } catch (error) {
     seatFormModal.errorMessage =
-      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
       error.response?.data?.message ||
       '좌석 저장에 실패했습니다.'
     openResultModal({

@@ -146,7 +146,7 @@ const fetchDetail = async () => {
     }
   } catch (e) {
     state.errorMessage =
-      e?.response?.data?.resultMessage || 'GX 프로그램 정보를 불러오지 못했습니다.'
+      e?.response?.data?.message || 'GX 프로그램 정보를 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }
@@ -188,7 +188,6 @@ const onApplyConfirm = async () => {
       resultModal.message = '모집이 마감된 프로그램입니다.'
     } else {
       resultModal.message =
-        e?.response?.data?.resultMessage ||
         e?.response?.data?.message ||
         '신청에 실패했습니다. 다시 시도해 주세요.'
     }
@@ -212,7 +211,7 @@ const onCancelConfirm = async () => {
   } catch (e) {
     resultModal.success = false
     resultModal.message =
-      e?.response?.data?.resultMessage || '취소에 실패했습니다. 다시 시도해 주세요.'
+      e?.response?.data?.message || '취소에 실패했습니다. 다시 시도해 주세요.'
   } finally {
     resultModal.show = true
   }
@@ -440,7 +439,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 12px 16px 120px;
+  padding: 12px 16px calc(88px + env(safe-area-inset-bottom, 0px) + 16px);
 }
 
 /* 뒤로가기 */
@@ -701,14 +700,7 @@ onMounted(() => {
 
 /* CTA */
 .cta-area {
-  position: fixed;
-  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 430px;
-  padding: 0 16px;
-  z-index: 100;
+  margin-top: 4px;
 }
 
 .btn-apply {

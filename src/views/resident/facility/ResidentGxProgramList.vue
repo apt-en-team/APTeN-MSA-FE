@@ -82,7 +82,7 @@ const fetchPrograms = async () => {
     state.list = toList(res)
   } catch (e) {
     state.errorMessage =
-      e?.response?.data?.resultMessage || 'GX 프로그램 목록을 불러오지 못했습니다.'
+      e?.response?.data?.message || 'GX 프로그램 목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }

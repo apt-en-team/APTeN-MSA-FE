@@ -41,7 +41,7 @@ const fetchDetail = async () => {
     state.detail = res
   } catch (e) {
     state.errorMessage =
-      e?.response?.data?.resultMessage || '예약 정보를 불러오지 못했습니다.'
+      e?.response?.data?.message || '예약 정보를 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }
@@ -57,7 +57,7 @@ const onCancelConfirm = async () => {
   } catch (e) {
     resultModal.success = false
     resultModal.message =
-      e?.response?.data?.resultMessage || '취소에 실패했습니다. 다시 시도해 주세요.'
+      e?.response?.data?.message || '취소에 실패했습니다. 다시 시도해 주세요.'
   } finally {
     resultModal.show = true
   }
@@ -124,11 +124,6 @@ onMounted(() => {
         <div v-if="state.detail.headCount" class="info-row">
           <span class="info-label">이용 인원</span>
           <span class="info-value">{{ state.detail.headCount }}명</span>
-        </div>
-        <div class="info-divider" />
-        <div class="info-row">
-          <span class="info-label">예약 ID</span>
-          <span class="info-value id-value">#{{ state.detail.reservationId ?? state.detail.id }}</span>
         </div>
         <div class="info-divider" />
         <div class="info-row">
@@ -279,11 +274,6 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 600;
   color: #1a202c;
-}
-
-.id-value {
-  font-size: 12px;
-  color: #94a3b8;
 }
 
 .info-divider {

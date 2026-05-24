@@ -80,7 +80,7 @@ async function sendSms() {
     await authApi.sendSmsCode({phone: form.phone})
     smsSent.value = true
   } catch (e) {
-    smsError.value = e.response?.data?.resultMessage || 'SMS 발송에 실패했습니다.'
+    smsError.value = e.response?.data?.message || 'SMS 발송에 실패했습니다.'
   } finally {
     smsLoading.value = false
   }
@@ -99,7 +99,7 @@ async function verifySms() {
     await authApi.verifySmsCode({phone: form.phone, code: form.authCode})
     smsVerified.value = true
   } catch (e) {
-    smsError.value = e.response?.data?.resultMessage || '인증에 실패했습니다.'
+    smsError.value = e.response?.data?.message || '인증에 실패했습니다.'
   } finally {
     smsLoading.value = false
   }
@@ -169,7 +169,7 @@ async function handleSubmit() {
     })
     router.push('/login')
   } catch (e) {
-    serverError.value = e.response?.data?.resultMessage || '회원가입에 실패했습니다.'
+    serverError.value = e.response?.data?.message || '회원가입에 실패했습니다.'
   } finally {
     loading.value = false
   }

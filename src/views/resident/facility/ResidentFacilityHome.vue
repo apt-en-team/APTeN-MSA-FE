@@ -87,7 +87,7 @@ const fetchFacilities = async () => {
     state.list = toList(res)
   } catch (e) {
     state.errorMessage =
-      e?.response?.data?.resultMessage || '시설 목록을 불러오지 못했습니다.'
+      e?.response?.data?.message || '시설 목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }

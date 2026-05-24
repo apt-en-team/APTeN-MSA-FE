@@ -186,7 +186,7 @@ const fetchFacilities = async () => {
     }
   } catch (e) {
     state.errorMessage =
-      e?.response?.data?.resultMessage ||
+      e?.response?.data?.message ||
       e?.response?.data?.message ||
       '시설 목록을 불러오지 못했습니다.'
   } finally {
@@ -210,7 +210,7 @@ const fetchBlockTimes = async () => {
     state.page = 1
   } catch (e) {
     state.errorMessage =
-      e?.response?.data?.resultMessage ||
+      e?.response?.data?.message ||
       e?.response?.data?.message ||
       '차단 시간 목록을 불러오지 못했습니다.'
   } finally {
@@ -340,7 +340,7 @@ const confirmDeleteRule = async () => {
     openResultModal({
       type: 'error',
       title: '삭제 실패',
-      subtitle: e?.response?.data?.resultMessage || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
+      subtitle: e?.response?.data?.message || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
     })
   }
 }
@@ -425,7 +425,7 @@ const confirmDeleteSingle = async () => {
     openResultModal({
       type: 'error',
       title: '삭제 실패',
-      subtitle: e?.response?.data?.resultMessage || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
+      subtitle: e?.response?.data?.message || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
     })
   }
 }
@@ -468,7 +468,7 @@ const confirmEditBatch = async () => {
     openResultModal({
       type: 'error',
       title: '처리 실패',
-      subtitle: e?.response?.data?.resultMessage || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
+      subtitle: e?.response?.data?.message || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
     })
   }
 }
@@ -512,7 +512,7 @@ const confirmDeactivate = async () => {
     openResultModal({
       type: 'error',
       title: '비활성화 실패',
-      subtitle: e?.response?.data?.resultMessage || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
+      subtitle: e?.response?.data?.message || e?.response?.data?.message || '처리 중 오류가 발생했습니다.',
     })
   }
 }

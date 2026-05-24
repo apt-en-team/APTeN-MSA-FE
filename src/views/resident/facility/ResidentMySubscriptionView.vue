@@ -80,7 +80,7 @@ const executeCancel = async () => {
     resultModal.subtitle = '다음 달부터 요금이 청구되지 않습니다.'
     await fetchSubscriptions()
   } catch (e) {
-    const msg = e?.response?.data?.resultMessage || '해지 처리 중 오류가 발생했습니다.'
+    const msg = e?.response?.data?.message || '해지 처리 중 오류가 발생했습니다.'
     resultModal.type = 'danger'
     resultModal.title = '해지할 수 없습니다.'
     resultModal.subtitle = msg
@@ -95,7 +95,7 @@ const fetchSubscriptions = async () => {
     const res = await getMySubscriptions()
     state.list = Array.isArray(res) ? res : []
   } catch (e) {
-    state.errorMessage = e?.response?.data?.resultMessage || '구독 목록을 불러오지 못했습니다.'
+    state.errorMessage = e?.response?.data?.message || '구독 목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }

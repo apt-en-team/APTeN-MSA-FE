@@ -110,7 +110,7 @@ async function checkEmail() {
   } catch (e) {
     emailChecked.value = false
     emailCheckError.value = true
-    emailCheckMsg.value = e.response?.data?.resultMessage || '이미 사용중인 이메일입니다.'
+    emailCheckMsg.value = e.response?.data?.message || '이미 사용중인 이메일입니다.'
   }
 }
 
@@ -206,7 +206,7 @@ async function sendSms() {
     await authApi.sendSmsCode({ phone: form.phone })
     smsSent.value = true
   } catch (e) {
-    smsError.value = e.response?.data?.resultMessage || 'SMS 발송에 실패했습니다.'
+    smsError.value = e.response?.data?.message || 'SMS 발송에 실패했습니다.'
   } finally {
     smsLoading.value = false
   }
@@ -229,7 +229,7 @@ async function verifySms() {
     await authApi.verifySmsCode({ phone: form.phone, code: form.authCode })
     smsVerified.value = true
   } catch (e) {
-    smsError.value = e.response?.data?.resultMessage || '인증에 실패했습니다.'
+    smsError.value = e.response?.data?.message || '인증에 실패했습니다.'
   } finally {
     smsLoading.value = false
   }
@@ -258,7 +258,7 @@ async function handleRegister() {
     // 회원가입 성공 → 바로 이동하지 않고 성공 모달 표시
     showSuccessModal.value = true
   } catch (e) {
-    serverError.value = e.response?.data?.resultMessage || '회원가입에 실패했습니다.'
+    serverError.value = e.response?.data?.message || '회원가입에 실패했습니다.'
   } finally {
     loading.value = false
   }

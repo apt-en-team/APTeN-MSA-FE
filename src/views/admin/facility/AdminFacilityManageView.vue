@@ -90,7 +90,7 @@ const fetchFacilities = async () => {
     console.error('시설 통계 조회 실패:', error)
     state.facilities = []
     state.errorMessage =
-      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
       error.response?.data?.message ||
       '시설 목록을 불러오지 못했습니다.'
   }

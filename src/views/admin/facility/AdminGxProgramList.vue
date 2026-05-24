@@ -242,7 +242,7 @@ const fetchList = async () => {
     state.list = toList(result)
   } catch (e) {
     state.errorMessage =
-      e.response?.data?.resultMessage || e.response?.data?.message || 'GX 프로그램 목록을 불러오지 못했습니다.'
+      e.response?.data?.message || e.response?.data?.message || 'GX 프로그램 목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }
@@ -354,7 +354,7 @@ const handleSubmit = async () => {
     }
   } catch (e) {
     form.error =
-      e.response?.data?.resultMessage || e.response?.data?.message || '저장 중 오류가 발생했습니다.'
+      e.response?.data?.message || e.response?.data?.message || '저장 중 오류가 발생했습니다.'
   } finally {
     state.submitting = false
   }
@@ -424,7 +424,7 @@ const handleCancelProgram = async () => {
     openResultModal({
       type: 'danger',
       title: '취소에 실패했습니다.',
-      subtitle: e.response?.data?.resultMessage || e.response?.data?.message || '잠시 후 다시 시도해주세요.',
+      subtitle: e.response?.data?.message || e.response?.data?.message || '잠시 후 다시 시도해주세요.',
     })
   } finally {
     cancelModal.loading = false

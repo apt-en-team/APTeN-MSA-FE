@@ -113,7 +113,7 @@ const fetchList = async () => {
     const res = await facilityApi.getAdminHouseholdSubscriptionList()
     state.list = Array.isArray(res) ? res : []
   } catch (e) {
-    state.errorMessage = e?.response?.data?.resultMessage || '목록을 불러오지 못했습니다.'
+    state.errorMessage = e?.response?.data?.message || '목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }
@@ -170,7 +170,7 @@ const handleCancelConfirm = async () => {
     openResultModal({
       type: 'error',
       title: '해지할 수 없습니다.',
-      subtitle: e?.response?.data?.resultMessage || '오류가 발생했습니다.',
+      subtitle: e?.response?.data?.message || '오류가 발생했습니다.',
     })
   }
 }

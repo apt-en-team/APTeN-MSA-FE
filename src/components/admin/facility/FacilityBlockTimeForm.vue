@@ -238,7 +238,7 @@ const submitBlockTime = async () => {
     resetModeFields()
   } catch (e) {
     state.errorMessage =
-      e?.response?.data?.resultMessage ||
+      e?.response?.data?.message ||
       e?.response?.data?.message ||
       '처리 중 오류가 발생했습니다.'
   } finally {

@@ -85,7 +85,7 @@ const fetchFacility = async () => {
     state.facility = res
   } catch (e) {
     state.facilityError =
-      e?.response?.data?.resultMessage || '시설 정보를 불러오지 못했습니다.'
+      e?.response?.data?.message || '시설 정보를 불러오지 못했습니다.'
   } finally {
     state.facilityLoading = false
   }
@@ -107,7 +107,7 @@ const fetchAvailableTimes = async () => {
     state.times = toList(res)
   } catch (e) {
     state.timesError =
-      e?.response?.data?.resultMessage || '예약 가능 시간을 불러오지 못했습니다.'
+      e?.response?.data?.message || '예약 가능 시간을 불러오지 못했습니다.'
   } finally {
     state.timesLoading = false
   }
@@ -128,7 +128,7 @@ const fetchSeats = async () => {
     state.seats = toList(res)
   } catch (e) {
     state.seatsError =
-      e?.response?.data?.resultMessage || '좌석 정보를 불러오지 못했습니다.'
+      e?.response?.data?.message || '좌석 정보를 불러오지 못했습니다.'
   } finally {
     state.seatsLoading = false
   }
@@ -221,7 +221,7 @@ const submitReservation = async () => {
   } catch (e) {
     resultModal.success = false
     resultModal.message =
-      e?.response?.data?.resultMessage || '예약에 실패했습니다. 다시 시도해 주세요.'
+      e?.response?.data?.message || '예약에 실패했습니다. 다시 시도해 주세요.'
   } finally {
     state.submitting = false
     resultModal.show = true

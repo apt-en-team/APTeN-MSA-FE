@@ -166,7 +166,7 @@ const fetchFacilitiesAndPolicies = async () => {
     state.policiesMap = Object.fromEntries(entries)
   } catch (error) {
     state.errorMessage =
-      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
       error.response?.data?.message ||
       '시설 정책 목록을 불러오지 못했습니다.'
   } finally {
@@ -242,7 +242,7 @@ const handleConfirmSave = async () => {
       type: 'danger',
       title: '시설 정책 저장에 실패했습니다.',
       subtitle:
-        error.response?.data?.resultMessage ||
+        error.response?.data?.message ||
         error.response?.data?.message ||
         '잠시 후 다시 시도해주세요.',
     })
