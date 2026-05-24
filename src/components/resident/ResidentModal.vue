@@ -30,6 +30,14 @@ defineProps({
     type: Array,
     default: () => [],
   },
+  cancelText: {
+    type: String,
+    default: '취소',
+  },
+  showCancel: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 defineEmits(['close', 'confirm'])
@@ -95,9 +103,9 @@ defineEmits(['close', 'confirm'])
             {{ confirmText }}
           </button>
 
-          <!-- 취소 버튼 (confirm emit이 있으면 표시) -->
-          <button class="resident-modal__cancel" @click="$emit('close')">
-            취소
+          <!-- 취소 버튼 -->
+          <button v-if="showCancel" class="resident-modal__cancel" @click="$emit('close')">
+            {{ cancelText }}
           </button>
         </div>
       </div>

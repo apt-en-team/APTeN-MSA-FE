@@ -46,6 +46,21 @@ const feeTypeLabel = (t) => {
   return v
 }
 
+const isPerUse = (sub) => String(sub?.feeType || '') === 'PER_USE'
+
+// PER_USE: 이용 중/이용 완료, 나머지: 구독 중/해지
+const subStatusLabel = (sub) => {
+  if (isPerUse(sub)) return isActive(sub.status) ? '이용 중' : '이용 완료'
+  return isActive(sub.status) ? '구독 중' : '해지'
+}
+const subStatusClass = (sub) => (isActive(sub.status) ? 'is-active' : 'is-cancelled')
+
+const subDateText = (sub) => {
+  if (isPerUse(sub)) return sub.subscribedAt ? `${formatDate(sub.subscribedAt)} 이용 등록` : '-'
+  if (isActive(sub.status)) return sub.subscribedAt ? `${formatDate(sub.subscribedAt)} 구독 시작` : '-'
+  return sub.cancelledAt ? `${formatDate(sub.cancelledAt)} 해지` : '-'
+}
+
 const activeSubs = computed(() => state.list.filter(s => isActive(s.status)))
 const cancelledSubs = computed(() => state.list.filter(s => !isActive(s.status)))
 
@@ -136,12 +151,13 @@ onMounted(() => {
             <div class="sub-card__name">{{ sub.facilityName }}</div>
             <div class="sub-card__meta">
               <span class="tag">{{ feeTypeLabel(sub.feeType) }}</span>
-              <span class="sub-date">{{ formatDate(sub.subscribedAt) }} 구독 시작</span>
+              <span class="sub-date">{{ subDateText(sub) }}</span>
             </div>
           </div>
           <div class="sub-card__right">
-            <span class="status-badge is-active">구독 중</span>
+            <span :class="['status-badge', subStatusClass(sub)]">{{ subStatusLabel(sub) }}</span>
             <button
+              v-if="!isPerUse(sub)"
               class="btn-cancel"
               type="button"
               @click="openCancelModal(sub)"
@@ -164,11 +180,11 @@ onMounted(() => {
             <div class="sub-card__name">{{ sub.facilityName }}</div>
             <div class="sub-card__meta">
               <span class="tag">{{ feeTypeLabel(sub.feeType) }}</span>
-              <span class="sub-date">{{ formatDate(sub.cancelledAt) }} 해지</span>
+              <span class="sub-date">{{ subDateText(sub) }}</span>
             </div>
           </div>
           <div class="sub-card__right">
-            <span class="status-badge is-cancelled">해지</span>
+            <span :class="['status-badge', subStatusClass(sub)]">{{ subStatusLabel(sub) }}</span>
           </div>
         </div>
       </template>
