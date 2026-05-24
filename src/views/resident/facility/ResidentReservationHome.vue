@@ -5,6 +5,18 @@ import { useReservationStore } from '@/stores/useReservationStore.js'
 import { useGxStore } from '@/stores/useGxStore.js'
 import { toList } from '@/utils/apiResponse'
 import { normalizeReservationStatus, normalizeGxReservationStatus } from '@/utils/normalize.js'
+import imgReadingroom from '@/assets/images/readingroom.png'
+import imgGolf from '@/assets/images/golf.png'
+import imgPT from '@/assets/images/PT.png'
+import imgGroupPT from '@/assets/images/Group PT.png'
+import imgPilates from '@/assets/images/pilates.png'
+import imgGX from '@/assets/images/GX.png'
+import imgSwimmingPool from '@/assets/images/SwimmingPool.png'
+import imgSauna from '@/assets/images/Sauna.png'
+import imgGuestHouse from '@/assets/images/GuestHouse.png'
+import imgLaundryRoom from '@/assets/images/LaundryRoom.png'
+import imgCafe from '@/assets/images/Cafe.png'
+import imgYoga from '@/assets/images/Yoga.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,7 +26,7 @@ const gxStore = useGxStore()
 const state = reactive({
   facilityList: [],
   gxList: [],
-  activeFilterTab: 'all', // 'all' | 'confirmed' | 'past'
+  activeFilterTab: 'upcoming', // 'upcoming' | 'past'
   loading: false,
   errorMessage: '',
 })
@@ -27,8 +39,15 @@ const goToFacilityDetail = (reservationId) => {
   router.push(`/resident/${route.params.complexId}/reservations/${reservationId}`)
 }
 
-const goToGxDetail = (programId) => {
-  router.push(`/resident/${route.params.complexId}/facility/gx-programs/${programId}`)
+const goToGxDetail = (programId, gxReservationId, status, waitNo) => {
+  const query = { from: 'reservations' }
+  if (gxReservationId) query.gxReservationId = String(gxReservationId)
+  if (status) query.status = String(status)
+  if (waitNo != null) query.waitNo = String(waitNo)
+  router.push({
+    path: `/resident/${route.params.complexId}/facility/gx-programs/${programId}`,
+    query,
+  })
 }
 
 const today = new Date().toISOString().slice(0, 10)
@@ -39,14 +58,12 @@ const isFacilityPast = (r) => {
   const s = facilityStatusNorm(r)
   return s === 'COMPLETED' || s === 'CANCELLED'
 }
-const isFacilityConfirmed = (r) => facilityStatusNorm(r) === 'CONFIRMED'
 
 // GX 예약 필터
 const gxStatusNorm = (r) => normalizeGxReservationStatus(r.status)
 const isGxPast = (r) => {
   const s = gxStatusNorm(r)
   if (s === 'CANCELLED' || s === 'REJECTED') return true
-  // 프로그램 종료일이 오늘보다 이전이면 지난 예약
   return r.endDate && String(r.endDate).slice(0, 10) < today
 }
 const isGxActive = (r) => {
@@ -62,9 +79,9 @@ const combinedList = computed(() => {
 
 const filteredList = computed(() => {
   const list = combinedList.value
-  if (state.activeFilterTab === 'confirmed') {
+  if (state.activeFilterTab === 'upcoming') {
     return list.filter((r) =>
-      r._type === 'facility' ? isFacilityConfirmed(r) : isGxActive(r),
+      r._type === 'facility' ? !isFacilityPast(r) : isGxActive(r),
     )
   }
   if (state.activeFilterTab === 'past') {
@@ -74,6 +91,34 @@ const filteredList = computed(() => {
   }
   return list
 })
+
+// 예약 카드 이미지
+const getGxImage = (name) => {
+  if (!name) return imgGX
+  const n = name.toLowerCase()
+  if (n.includes('요가') || n.includes('yoga')) return imgYoga
+  if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
+  if (n.includes('그룹') || n.includes('group')) return imgGroupPT
+  if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
+  return imgGX
+}
+
+const getFacilityReservationImage = (name) => {
+  if (!name) return null
+  const n = name.toLowerCase()
+  if (n.includes('독서') || n.includes('reading')) return imgReadingroom
+  if (n.includes('골프') || n.includes('golf')) return imgGolf
+  if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
+  if (n.includes('그룹') || n.includes('group')) return imgGroupPT
+  if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
+  if (n.includes('gx') || n.includes('group exercise')) return imgGX
+  if (n.includes('수영') || n.includes('swimming') || n.includes('pool')) return imgSwimmingPool
+  if (n.includes('사우나') || n.includes('sauna')) return imgSauna
+  if (n.includes('게스트') || n.includes('guest')) return imgGuestHouse
+  if (n.includes('세탁') || n.includes('laundry')) return imgLaundryRoom
+  if (n.includes('카페') || n.includes('cafe') || n.includes('café')) return imgCafe
+  return null
+}
 
 // 일반 예약 상태
 const facilityStatusLabel = (s) =>
@@ -101,7 +146,7 @@ const formatDays = (days) => {
 
 const onCardClick = (item) => {
   if (item._type === 'gx') {
-    goToGxDetail(item.programId)
+    goToGxDetail(item.programId, item.gxReservationId, item.status, item.waitNo)
   } else {
     goToFacilityDetail(item.reservationId ?? item.id)
   }
@@ -132,27 +177,21 @@ onMounted(() => {
 
 <template>
   <div class="reservation-home">
-    <!-- 메인 탭: 예약하기 / 내 예약 -->
+    <!-- 메인 탭: 예약하기 / 내 예약 / 나의 구독 -->
     <div class="main-tabs">
       <button class="main-tab" type="button" @click="goToFacility">예약하기</button>
       <button class="main-tab is-active" type="button">내 예약</button>
+      <button class="main-tab" type="button" @click="router.push(`/resident/${route.params.complexId}/facility/subscriptions`)">나의 구독</button>
     </div>
 
-    <!-- 필터 탭: 전체 / 예약완료 / 지난예약 -->
+    <!-- 필터 탭: 이용예정 / 지난예약 -->
     <div class="filter-tabs">
       <button
-        :class="['filter-tab', state.activeFilterTab === 'all' && 'is-active']"
+        :class="['filter-tab', state.activeFilterTab === 'upcoming' && 'is-active']"
         type="button"
-        @click="state.activeFilterTab = 'all'"
+        @click="state.activeFilterTab = 'upcoming'"
       >
-        전체
-      </button>
-      <button
-        :class="['filter-tab', state.activeFilterTab === 'confirmed' && 'is-active']"
-        type="button"
-        @click="state.activeFilterTab = 'confirmed'"
-      >
-        예약완료
+        이용예정
       </button>
       <button
         :class="['filter-tab', state.activeFilterTab === 'past' && 'is-active']"
@@ -185,24 +224,29 @@ onMounted(() => {
           type="button"
           @click="onCardClick(r)"
         >
-          <div class="card-top">
-            <div class="card-name-row">
-              <span class="gx-type-badge">GX</span>
-              <span class="card-facility-name">{{ r.programName || '-' }}</span>
+          <div class="card-thumb">
+            <img :src="getGxImage(r.programName)" :alt="r.programName" class="card-thumb-img" />
+          </div>
+          <div class="card-body">
+            <div class="card-top">
+              <div class="card-name-row">
+                <span class="gx-type-badge">GX</span>
+                <span class="card-facility-name">{{ r.programName || '-' }}</span>
+              </div>
+              <span :class="['status-badge', gxStatusClass(r.status)]">{{ gxStatusLabel(r.status) }}</span>
             </div>
-            <span :class="['status-badge', gxStatusClass(r.status)]">{{ gxStatusLabel(r.status) }}</span>
+            <div class="card-info">
+              <span class="card-date">{{ formatDate(r.startDate) }} ~ {{ formatDate(r.endDate) }}</span>
+            </div>
+            <div class="card-info">
+              <span class="card-time">{{ formatTime(r.startTime) }} ~ {{ formatTime(r.endTime) }}</span>
+              <template v-if="r.daysOfWeek">
+                <span class="card-sep">·</span>
+                <span class="card-time">{{ formatDays(r.daysOfWeek) }}</span>
+              </template>
+            </div>
+            <div v-if="gxStatusNorm(r) === 'WAITING' && r.waitNo" class="card-seat">대기 {{ r.waitNo }}번</div>
           </div>
-          <div class="card-info">
-            <span class="card-date">{{ formatDate(r.startDate) }} ~ {{ formatDate(r.endDate) }}</span>
-          </div>
-          <div class="card-info">
-            <span class="card-time">{{ formatTime(r.startTime) }} ~ {{ formatTime(r.endTime) }}</span>
-            <template v-if="r.daysOfWeek">
-              <span class="card-sep">·</span>
-              <span class="card-time">{{ formatDays(r.daysOfWeek) }}</span>
-            </template>
-          </div>
-          <div v-if="r.status === 'WAITING' && r.waitNo" class="card-seat">대기 {{ r.waitNo }}번</div>
         </button>
 
         <!-- 일반 시설 예약 카드 -->
@@ -212,18 +256,34 @@ onMounted(() => {
           type="button"
           @click="onCardClick(r)"
         >
-          <div class="card-top">
-            <span class="card-facility-name">{{ r.facilityName || '-' }}</span>
-            <span :class="['status-badge', facilityStatusClass(r.status)]">{{ facilityStatusLabel(r.status) }}</span>
+          <div class="card-thumb">
+            <img
+              v-if="getFacilityReservationImage(r.facilityName)"
+              :src="getFacilityReservationImage(r.facilityName)"
+              :alt="r.facilityName"
+              class="card-thumb-img"
+            />
+            <div v-else class="card-thumb-placeholder">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M3 9h18M9 21V9" />
+              </svg>
+            </div>
           </div>
-          <div class="card-info">
-            <span class="card-date">{{ formatDate(r.reservationDate) }}</span>
-            <span class="card-sep">·</span>
-            <span class="card-time">
-              {{ formatTime(r.startTime) }} ~ {{ formatTime(r.endTime) }}
-            </span>
+          <div class="card-body">
+            <div class="card-top">
+              <span class="card-facility-name">{{ r.facilityName || '-' }}</span>
+              <span :class="['status-badge', facilityStatusClass(r.status)]">{{ facilityStatusLabel(r.status) }}</span>
+            </div>
+            <div class="card-info">
+              <span class="card-date">{{ formatDate(r.reservationDate) }}</span>
+              <span class="card-sep">·</span>
+              <span class="card-time">
+                {{ formatTime(r.startTime) }} ~ {{ formatTime(r.endTime) }}
+              </span>
+            </div>
+            <div v-if="r.seatNo" class="card-seat">좌석 {{ r.seatNo }}</div>
           </div>
-          <div v-if="r.seatNo" class="card-seat">좌석 {{ r.seatNo }}</div>
         </button>
       </template>
 
@@ -245,7 +305,7 @@ onMounted(() => {
 /* 메인 탭 */
 .main-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   background: #e2e8f0;
   border-radius: 12px;
   padding: 4px;
@@ -256,7 +316,7 @@ onMounted(() => {
   height: 40px;
   border: none;
   border-radius: 9px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   background: transparent;
@@ -305,9 +365,10 @@ onMounted(() => {
 
 .reservation-card {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
   background: #ffffff;
   border-radius: 16px;
   border: none;
@@ -321,6 +382,40 @@ onMounted(() => {
 
 .reservation-card:active {
   box-shadow: 0 1px 4px rgba(73, 115, 229, 0.1);
+}
+
+.card-thumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #eef3fb;
+}
+
+.card-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.card-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4973e5;
+  opacity: 0.45;
+}
+
+.card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .card-top {

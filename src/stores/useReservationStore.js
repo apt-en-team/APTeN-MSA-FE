@@ -10,6 +10,7 @@ export const useReservationStore = defineStore('reservation', {
     myReservations: [],
     reservationDetail: null,
     adminReservations: [],
+    adminReservationOverview: [],
     seatHold: null,
   }),
   getters: {
@@ -141,6 +142,31 @@ export const useReservationStore = defineStore('reservation', {
         throw e
       } finally {
         this.loading = false
+      }
+    },
+
+    // 관리자 통합 예약현황 조회 (FACILITY + GX)
+    async fetchAdminReservationOverview(params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await reservationApi.getAdminReservationOverview(params)
+        this.adminReservationOverview = res
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 예약 통계 조회
+    async fetchAdminReservationStats() {
+      try {
+        return await reservationApi.getAdminReservationStats()
+      } catch (e) {
+        throw e
       }
     },
 

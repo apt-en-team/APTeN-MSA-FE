@@ -255,6 +255,122 @@ export const useFacilityStore = defineStore('facility', {
       }
     },
 
+    // 시설 반복 차단 시간 일괄 등록
+    async createFacilityBlockTimeBatch(facilityId, body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await facilityApi.createFacilityBlockTimeBatch(facilityId, body)
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 시설 반복 차단 일괄 비활성화
+    async deactivateFacilityBlockTimeBatch(facilityId, batchId) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await facilityApi.deactivateFacilityBlockTimeBatch(facilityId, batchId)
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 시설 차단 시간 단건 비활성화
+    async deactivateFacilityBlockTime(facilityId, blockTimeId) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await facilityApi.deactivateFacilityBlockTime(facilityId, blockTimeId)
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 시설 차단 시간 단건 수정
+    async updateFacilityBlockTime(facilityId, blockTimeId, body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await facilityApi.updateFacilityBlockTime(facilityId, blockTimeId, body)
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 정기 휴무 규칙 등록
+    async createClosureRule(facilityId, body) {
+      this.loading = true
+      this.error = null
+      try {
+        return await facilityApi.createClosureRule(facilityId, body)
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 정기 휴무 규칙 목록 조회
+    async fetchClosureRules(facilityId) {
+      this.loading = true
+      this.error = null
+      try {
+        return await facilityApi.getClosureRules(facilityId)
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 정기 휴무 규칙 수정
+    async updateClosureRule(facilityId, ruleId, body) {
+      this.loading = true
+      this.error = null
+      try {
+        return await facilityApi.updateClosureRule(facilityId, ruleId, body)
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 정기 휴무 규칙 비활성화
+    async deactivateClosureRule(facilityId, ruleId) {
+      this.loading = true
+      this.error = null
+      try {
+        return await facilityApi.deactivateClosureRule(facilityId, ruleId)
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
     // 관리자 시설 좌석 목록 조회
     async fetchFacilitySeats(facilityId) {
       this.loading = true

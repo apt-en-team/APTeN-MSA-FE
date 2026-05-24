@@ -2,12 +2,25 @@
 import { onMounted, reactive, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useFacilityStore } from "@/stores/useFacilityStore.js";
+import { useAuthStore } from "@/stores/useAuthStore.js";
 import ConfirmModal from "@/components/common/ConfirmModal.vue";
 import ActionResultModal from "@/components/common/ActionResultModal.vue";
 
 const route = useRoute();
 const router = useRouter();
 const facilityStore = useFacilityStore();
+const authStore = useAuthStore();
+
+// 처리 시각 텍스트
+const getCurrentTimeText = () =>
+  new Date().toLocaleString('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
+
+// 처리자명
+const getCurrentActorName = () =>
+  authStore.userInfo?.name || authStore.user?.name || authStore.name || '관리자'
 
 // 라우트 파라미터에서 facilityId 추출 (등록/수정 모드 구분)
 const facilityId = computed(() => route.params.facilityId || route.params.id || "");
@@ -47,6 +60,7 @@ const state = reactive({
   name: "",
   description: "",
   reservationType: "COUNT",
+  maxCount: "",
   openTime: "09:00",
   closeTime: "22:00",
   isActive: true,
@@ -68,31 +82,46 @@ const state = reactive({
   bulkSeatError: "",
 });
 
+// 삭제 확인 모달
 const deleteModal = reactive({
   show: false,
-  stage: "confirm",
   loading: false,
-  resultType: "success",
-  resultTitle: "",
-  resultSubtitle: "",
-});
+})
 
+// 활성/비활성 확인 모달
 const activeModal = reactive({
   show: false,
   loading: false,
   nextActive: null,
-  resultShow: false,
-  resultType: "success",
-  resultTitle: "",
-  resultSubtitle: "",
-});
+})
 
-const submitResultModal = reactive({
+// 처리 결과 모달 (등록/수정/삭제/활성화 공통 — 규칙 패턴)
+const resultModal = reactive({
   show: false,
-  type: "success",
-  title: "",
-  subtitle: "",
-});
+  type: 'success',
+  title: '',
+  subtitle: '',
+  desc: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
+})
+
+const openResultModal = ({
+  type = 'success', title, subtitle = '', desc = '',
+  itemName = '', time = '', actionLabel = '', actor = '', afterConfirm = null,
+} = {}) => {
+  Object.assign(resultModal, { show: true, type, title, subtitle, desc, itemName, time, actionLabel, actor, afterConfirm })
+}
+
+const handleResultConfirm = async () => {
+  const callback = resultModal.afterConfirm
+  resultModal.show = false
+  resultModal.afterConfirm = null
+  if (typeof callback === 'function') await callback()
+}
 
 const getTypeNameById = (typeId) =>
   facilityStore.facilityTypes.find((type) => String(type.typeId) === String(typeId))?.typeName || "";
@@ -116,6 +145,7 @@ const syncForm = (data) => {
   state.name = data.name ?? "";
   state.description = data.description ?? "";
   state.reservationType = normalizeReservationType(data.reservationType);
+  state.maxCount = data.maxCount != null ? data.maxCount : "";
   state.openTime = data.openTime?.slice(0, 5) ?? "09:00";
   state.closeTime = data.closeTime?.slice(0, 5) ?? "22:00";
   state.isActive = data.isActive ?? data.active ?? true;
@@ -231,6 +261,7 @@ const handleSubmit = async () => {
       description: String(state.description || "").trim(),
       // GX는 APPROVAL 고정, SEAT/COUNT/APPROVAL 그대로 전송
       reservationType: isGxType.value ? "APPROVAL" : state.reservationType,
+      maxCount: state.maxCount !== "" && state.maxCount != null ? Number(state.maxCount) : null,
       openTime: state.openTime,
       closeTime: state.closeTime,
       isActive: !!state.isActive,
@@ -238,16 +269,22 @@ const handleSubmit = async () => {
 
     if (isEdit.value) {
       await facilityStore.updateFacility(facilityId.value, submitData);
-      router.push("/admin/facilities");
+      openResultModal({
+        type: 'success',
+        title: '시설이 수정되었습니다.',
+        itemName: state.name,
+        actionLabel: '시설 수정',
+        time: getCurrentTimeText(),
+        actor: getCurrentActorName(),
+        afterConfirm: () => router.push('/admin/facilities'),
+      })
     } else {
       const created = await facilityStore.createFacility(submitData);
       const createdFacilityId = created?.facilityId ?? created?.id;
 
       if (isSeatReservationType.value && hasBulkSeatInput()) {
         try {
-          if (!createdFacilityId) {
-            throw new Error("생성된 시설 ID를 확인할 수 없습니다.");
-          }
+          if (!createdFacilityId) throw new Error("생성된 시설 ID를 확인할 수 없습니다.");
 
           await facilityStore.bulkCreateFacilitySeats(createdFacilityId, {
             prefix: String(state.bulkSeatPrefix || "").trim(),
@@ -257,21 +294,38 @@ const handleSubmit = async () => {
             isActive: !!state.bulkSeatIsActive,
           });
 
-          submitResultModal.type = "success";
-          submitResultModal.title = "시설과 좌석이 등록되었습니다.";
-          submitResultModal.subtitle = "좌석형 시설 예약 테스트를 바로 진행할 수 있습니다.";
+          openResultModal({
+            type: 'success',
+            title: '시설과 좌석이 등록되었습니다.',
+            itemName: state.name,
+            actionLabel: '시설 및 좌석 일괄 등록',
+            time: getCurrentTimeText(),
+            actor: getCurrentActorName(),
+            afterConfirm: () => router.push('/admin/facilities'),
+          })
         } catch (bulkError) {
-          submitResultModal.type = "warning";
-          submitResultModal.title = "시설은 등록되었지만 좌석 일괄 등록에 실패했습니다.";
-          submitResultModal.subtitle =
-            bulkError.response?.data?.resultMessage ||
-            bulkError.response?.data?.message ||
-            bulkError.message ||
-            "상세 화면에서 좌석을 다시 등록해주세요.";
+          openResultModal({
+            type: 'warning',
+            title: '시설은 등록되었지만 좌석 일괄 등록에 실패했습니다.',
+            subtitle:
+              bulkError.response?.data?.resultMessage ||
+              bulkError.response?.data?.message ||
+              bulkError.message ||
+              '상세 화면에서 좌석을 다시 등록해주세요.',
+            itemName: state.name,
+            afterConfirm: () => router.push('/admin/facilities'),
+          })
         }
-        submitResultModal.show = true;
       } else {
-        router.push("/admin/facilities");
+        openResultModal({
+          type: 'success',
+          title: '시설이 등록되었습니다.',
+          itemName: state.name,
+          actionLabel: '시설 등록',
+          time: getCurrentTimeText(),
+          actor: getCurrentActorName(),
+          afterConfirm: () => router.push('/admin/facilities'),
+        })
       }
     }
   } catch (error) {
@@ -281,45 +335,37 @@ const handleSubmit = async () => {
   }
 };
 
-const closeSubmitResult = () => {
-  submitResultModal.show = false;
-  router.push("/admin/facilities");
-};
-
 const openDeleteModal = () => {
-  deleteModal.stage = "confirm";
   deleteModal.show = true;
 };
 
-const closeDeleteConfirm = () => {
+const closeDeleteModal = () => {
   deleteModal.show = false;
-  deleteModal.stage = "confirm";
-};
-
-const closeDeleteResult = () => {
-  deleteModal.show = false;
-  deleteModal.stage = "confirm";
-  if (deleteModal.resultType === "success") router.push("/admin/facilities");
 };
 
 const handleDelete = async () => {
   deleteModal.loading = true;
   try {
     await facilityStore.deleteFacility(facilityId.value);
-    deleteModal.resultType = "success";
-    deleteModal.resultTitle = "시설이 삭제되었습니다.";
-    deleteModal.resultSubtitle = `${state.name} 시설이 삭제되었습니다.`;
+    deleteModal.show = false;
+    openResultModal({
+      type: 'success',
+      title: '시설이 삭제되었습니다.',
+      itemName: state.name,
+      actionLabel: '시설 삭제',
+      time: getCurrentTimeText(),
+      actor: getCurrentActorName(),
+      afterConfirm: () => router.push('/admin/facilities'),
+    })
   } catch (e) {
-    const message =
-      e.response?.data?.resultMessage ||
-      e.response?.data?.message ||
-      "잠시 후 다시 시도해주세요.";
-    deleteModal.resultType = "danger";
-    deleteModal.resultTitle = "삭제에 실패했습니다.";
-    deleteModal.resultSubtitle = message;
+    deleteModal.show = false;
+    openResultModal({
+      type: 'danger',
+      title: '삭제에 실패했습니다.',
+      subtitle: e.response?.data?.resultMessage || e.response?.data?.message || '잠시 후 다시 시도해주세요.',
+    })
   } finally {
     deleteModal.loading = false;
-    deleteModal.stage = "result";
   }
 };
 
@@ -337,45 +383,38 @@ const openActiveModal = (event) => {
   activeModal.show = true;
 };
 
-const closeActiveConfirm = () => {
+const closeActiveModal = () => {
   activeModal.show = false;
-  activeModal.nextActive = null;
-};
-
-const closeActiveResult = () => {
-  activeModal.resultShow = false;
   activeModal.nextActive = null;
 };
 
 const handleActiveToggle = async () => {
   if (activeModal.nextActive === null) return;
-
   activeModal.loading = true;
-
   try {
     await facilityStore.updateFacilityActive(facilityId.value, {
       isActive: activeModal.nextActive,
     });
-
     state.isActive = activeModal.nextActive;
     activeModal.show = false;
-    activeModal.resultShow = true;
-    activeModal.resultType = "success";
-    activeModal.resultTitle = activeModal.nextActive
-      ? "시설이 활성화되었습니다."
-      : "시설이 비활성화되었습니다.";
-    activeModal.resultSubtitle = `${state.name} 운영 상태를 변경했습니다.`;
+    openResultModal({
+      type: 'success',
+      title: activeModal.nextActive ? '시설이 활성화되었습니다.' : '시설이 비활성화되었습니다.',
+      itemName: state.name,
+      actionLabel: activeModal.nextActive ? '시설 활성화' : '시설 비활성화',
+      time: getCurrentTimeText(),
+      actor: getCurrentActorName(),
+    })
   } catch (error) {
     activeModal.show = false;
-    activeModal.resultShow = true;
-    activeModal.resultType = "danger";
-    activeModal.resultTitle = "상태 변경에 실패했습니다.";
-    activeModal.resultSubtitle =
-      error.response?.data?.resultMessage ||
-      error.response?.data?.message ||
-      "잠시 후 다시 시도해주세요.";
+    openResultModal({
+      type: 'danger',
+      title: '상태 변경에 실패했습니다.',
+      subtitle: error.response?.data?.resultMessage || error.response?.data?.message || '잠시 후 다시 시도해주세요.',
+    })
   } finally {
     activeModal.loading = false;
+    activeModal.nextActive = null;
   }
 };
 
@@ -455,6 +494,23 @@ onMounted(async () => {
           <template v-else>
             <div class="info-note">GX 시설은 승인형(APPROVAL)으로 고정됩니다.</div>
           </template>
+        </div>
+
+        <div v-if="!isGxType" class="form-group">
+          <label class="form-label">최대 인원</label>
+          <input
+            v-model="state.maxCount"
+            class="form-input"
+            type="number"
+            min="1"
+            placeholder="예: 30"
+          />
+          <p v-if="normalizeReservationType(state.reservationType) === 'COUNT'" class="field-hint">
+            정원형 시설은 동시 이용 가능한 최대 인원을 입력해주세요.
+          </p>
+          <p v-else-if="isSeatReservationType" class="field-hint">
+            좌석형 시설은 좌석 설정 기준으로 예약 가능 여부가 계산됩니다.
+          </p>
         </div>
 
         <div v-if="!isEdit && isSeatReservationType" class="bulk-seat-box">
@@ -645,68 +701,48 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 1단계: 삭제 확인 → ConfirmModal -->
+    <!-- 삭제 확인 모달 -->
     <ConfirmModal
-      :visible="deleteModal.show && deleteModal.stage === 'confirm'"
+      :visible="deleteModal.show"
       title="시설을 삭제하시겠습니까?"
       subtitle="삭제 후에는 관리자 목록에서 더 이상 표시되지 않습니다."
       subtitle-color="#e53e3e"
       item-label="시설명"
-      action-text="운영 시간"
       :item-name="state.name"
-      :action-label="`${state.openTime} ~ ${state.closeTime}`"
       confirm-text="삭제"
       confirm-type="danger"
       :loading="deleteModal.loading"
       @confirm="handleDelete"
-      @cancel="closeDeleteConfirm"
+      @cancel="closeDeleteModal"
     />
 
-    <!-- 2단계: 삭제 결과 → ActionResultModal -->
-    <ActionResultModal
-      :visible="deleteModal.show && deleteModal.stage === 'result'"
-      :type="deleteModal.resultType"
-      :title="deleteModal.resultTitle"
-      :subtitle="deleteModal.resultSubtitle"
-      confirm-text="확인"
-      @close="closeDeleteResult"
-    />
-
+    <!-- 활성/비활성 확인 모달 -->
     <ConfirmModal
       :visible="activeModal.show"
       :title="activeModal.nextActive ? '시설을 활성화하시겠습니까?' : '시설을 비활성화하시겠습니까?'"
-      :subtitle="
-        activeModal.nextActive
-          ? '입주민이 다시 예약 가능한 상태로 전환합니다.'
-          : '예약 접수를 중단하고 비활성 상태로 표시합니다.'
-      "
+      :subtitle="activeModal.nextActive ? '입주민이 다시 예약 가능한 상태로 전환합니다.' : '예약 접수를 중단하고 비활성 상태로 표시합니다.'"
       item-label="시설명"
       :item-name="state.name"
-      :action-label="activeModal.nextActive ? '시설 활성화' : '시설 비활성화'"
-      :action-text="activeModal.nextActive ? '예약을 다시 허용합니다.' : '예약 접수를 중단합니다.'"
       :confirm-text="activeModal.nextActive ? '활성화' : '비활성화'"
       :confirm-type="activeModal.nextActive ? 'primary' : 'danger'"
       :loading="activeModal.loading"
       @confirm="handleActiveToggle"
-      @cancel="closeActiveConfirm"
+      @cancel="closeActiveModal"
     />
 
+    <!-- 처리 결과 모달 (등록/수정/삭제/활성화 공통) -->
     <ActionResultModal
-      :visible="activeModal.resultShow"
-      :type="activeModal.resultType"
-      :title="activeModal.resultTitle"
-      :subtitle="activeModal.resultSubtitle"
+      :visible="resultModal.show"
+      :type="resultModal.type"
+      :title="resultModal.title"
+      :subtitle="resultModal.subtitle"
+      :desc="resultModal.desc"
+      :item-name="resultModal.itemName"
+      :time="resultModal.time"
+      :action-label="resultModal.actionLabel"
+      :actor="resultModal.actor"
       confirm-text="확인"
-      @close="closeActiveResult"
-    />
-
-    <ActionResultModal
-      :visible="submitResultModal.show"
-      :type="submitResultModal.type"
-      :title="submitResultModal.title"
-      :subtitle="submitResultModal.subtitle"
-      confirm-text="확인"
-      @close="closeSubmitResult"
+      @close="handleResultConfirm"
     />
   </div>
 </template>

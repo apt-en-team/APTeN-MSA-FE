@@ -52,8 +52,7 @@ const adminMenuDefinitions = [
     label: 'FACILITY / RESERVATION',
     items: [
       { label: '시설 관리', path: 'facilities', icon: 'facility' },
-      { label: '예약 현황', path: 'reservations', icon: 'calendar' },
-      { label: 'GX 프로그램 관리', path: 'gx-programs', icon: 'gx' },
+      { label: '구독 현황', path: 'reservations', icon: 'calendar' },
     ],
   },
 ]
@@ -388,6 +387,7 @@ watch(
                   <line x1="16" y1="2" x2="16" y2="6" />
                   <line x1="8" y1="2" x2="8" y2="6" />
                   <line x1="3" y1="10" x2="21" y2="10" />
+
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'gx'"
@@ -590,7 +590,7 @@ watch(
           </button>
 
           <button
-            v-if="route.path === '/admin/reservations'"
+            v-if="route.path === '/admin/reservations' || route.path === '/admin/reservations/list'"
             type="button"
             class="admin-layout__action-button"
             @click="goToFacilityStatus"

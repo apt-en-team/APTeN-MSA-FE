@@ -25,7 +25,11 @@ const goBack = () => {
 }
 
 const goToDetail = (programId) => {
-  router.push(`/resident/${route.params.complexId}/facility/gx-programs/${programId}`)
+  const facilityId = route.params.facilityId
+  router.push({
+    path: `/resident/${route.params.complexId}/facility/gx-programs/${programId}`,
+    query: facilityId ? { facilityId } : {},
+  })
 }
 
 const formatDate = (d) => (d ? String(d).replace(/-/g, '.') : '-')

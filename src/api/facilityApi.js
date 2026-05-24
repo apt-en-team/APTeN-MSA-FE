@@ -80,6 +80,66 @@ export const getFacilityBlockTimes = async (facilityId, params) => {
   return unwrapApiData(res)
 }
 
+// 시설 반복 차단 시간 일괄 등록
+export const createFacilityBlockTimeBatch = async (facilityId, body) => {
+  const res = await apiClient.post(`/api/admin/facilities/${facilityId}/block-times/batch`, body)
+  return unwrapApiData(res)
+}
+
+// 시설 반복 차단 일괄 비활성화
+export const deactivateFacilityBlockTimeBatch = async (facilityId, batchId) => {
+  const res = await apiClient.patch(
+    `/api/admin/facilities/${facilityId}/block-times/batch/${batchId}/deactivate`,
+  )
+  return unwrapApiData(res)
+}
+
+// 시설 차단 시간 단건 비활성화
+export const deactivateFacilityBlockTime = async (facilityId, blockTimeId) => {
+  const res = await apiClient.patch(
+    `/api/admin/facilities/${facilityId}/block-times/${blockTimeId}/deactivate`,
+  )
+  return unwrapApiData(res)
+}
+
+// 시설 차단 시간 단건 수정
+export const updateFacilityBlockTime = async (facilityId, blockTimeId, body) => {
+  const res = await apiClient.patch(
+    `/api/admin/facilities/${facilityId}/block-times/${blockTimeId}`,
+    body,
+  )
+  return unwrapApiData(res)
+}
+
+// 정기 휴무 규칙 등록
+export const createClosureRule = async (facilityId, body) => {
+  const res = await apiClient.post(`/api/admin/facilities/${facilityId}/closure-rules`, body)
+  return unwrapApiData(res)
+}
+
+// 정기 휴무 규칙 목록 조회
+export const getClosureRules = async (facilityId) => {
+  const res = await apiClient.get(`/api/admin/facilities/${facilityId}/closure-rules`)
+  return unwrapApiData(res)
+}
+
+// 정기 휴무 규칙 수정
+export const updateClosureRule = async (facilityId, ruleId, body) => {
+  const res = await apiClient.patch(
+    `/api/admin/facilities/${facilityId}/closure-rules/${ruleId}`,
+    body,
+  )
+  return unwrapApiData(res)
+}
+
+// 정기 휴무 규칙 비활성화
+export const deactivateClosureRule = async (facilityId, ruleId) => {
+  const res = await apiClient.patch(
+    `/api/admin/facilities/${facilityId}/closure-rules/${ruleId}/deactivate`,
+  )
+  return unwrapApiData(res)
+}
+
 // 시설 좌석 등록
 export const createFacilitySeat = async (facilityId, body) => {
   const res = await apiClient.post(`/api/admin/facilities/${facilityId}/seats`, body)
@@ -140,6 +200,42 @@ export const getFacilityCountStatus = async (facilityId, params) => {
   return unwrapApiData(res)
 }
 
+// API-651 입주민 시설 구독 해지
+export const cancelFacilitySubscription = async (facilityId) => {
+  const res = await apiClient.post(`/api/facility-subscriptions/${facilityId}/cancel`)
+  return unwrapApiData(res)
+}
+
+// API-652 입주민 나의 구독 목록 조회
+export const getMySubscriptions = async () => {
+  const res = await apiClient.get('/api/facility-subscriptions')
+  return unwrapApiData(res)
+}
+
+// API-653 관리자 구독 목록 조회 (facilityId, status 필터 선택)
+export const getAdminSubscriptions = async (params) => {
+  const res = await apiClient.get('/api/admin/facility-subscriptions', { params })
+  return unwrapApiData(res)
+}
+
+// 관리자 세대별 구독 요약 목록 조회
+export const getAdminHouseholdSubscriptionList = async () => {
+  const res = await apiClient.get('/api/admin/facility-subscriptions/households')
+  return unwrapApiData(res)
+}
+
+// 관리자 세대별 구독 상세 조회
+export const getAdminHouseholdSubscriptionDetail = async (householdId) => {
+  const res = await apiClient.get(`/api/admin/facility-subscriptions/households/${householdId}`)
+  return unwrapApiData(res)
+}
+
+// 관리자 구독 강제 해지
+export const adminCancelSubscription = async (subscriptionId) => {
+  const res = await apiClient.delete(`/api/admin/facility-subscriptions/${subscriptionId}`)
+  return unwrapApiData(res)
+}
+
 export default {
   createFacility,
   getAdminFacilities,
@@ -152,6 +248,14 @@ export default {
   getFacilityPolicies,
   createFacilityBlockTime,
   getFacilityBlockTimes,
+  createFacilityBlockTimeBatch,
+  deactivateFacilityBlockTimeBatch,
+  deactivateFacilityBlockTime,
+  updateFacilityBlockTime,
+  createClosureRule,
+  getClosureRules,
+  updateClosureRule,
+  deactivateClosureRule,
   createFacilitySeat,
   bulkCreateFacilitySeats,
   getFacilitySeats,
@@ -162,4 +266,10 @@ export default {
   getFacilityUsageStatus,
   getFacilitySeatStatus,
   getFacilityCountStatus,
+  cancelFacilitySubscription,
+  getMySubscriptions,
+  getAdminSubscriptions,
+  getAdminHouseholdSubscriptionList,
+  getAdminHouseholdSubscriptionDetail,
+  adminCancelSubscription,
 }

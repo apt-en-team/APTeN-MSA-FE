@@ -6,8 +6,10 @@ import AdminNoticeList from '@/views/admin/community/AdminNoticeList.vue'
 import AdminVoteList from '@/views/admin/community/AdminVoteList.vue'
 import AdminDashboard from '@/views/admin/dashboard/AdminDashboard.vue'
 import AdminFacilityManageView from '@/views/admin/facility/AdminFacilityManageView.vue'
+import AdminFacilityStatusView from '@/views/admin/facility/AdminFacilityStatusView.vue'
 import FacilityFormView from '@/views/admin/facility/FacilityFormView.vue'
 import AdminGxProgramList from '@/views/admin/facility/AdminGxProgramList.vue'
+import AdminSubscriptionView from '@/views/admin/facility/AdminSubscriptionView.vue'
 import AdminReservationList from '@/views/admin/facility/AdminReservationList.vue'
 import AdminHouseholdList from '@/views/admin/household/AdminHouseholdList.vue'
 import AdminParkingDashboard from '@/views/admin/parking/AdminParkingDashboard.vue'
@@ -62,7 +64,9 @@ const adminRoutes = [
       { path: 'facilities', component: AdminFacilityManageView, meta: { ...adminRouteMeta, title: '시설 관리' } },
       { path: 'facilities/create', component: FacilityFormView, meta: { ...adminRouteMeta, title: '시설 등록' } },
       { path: 'facilities/:facilityId/edit', component: FacilityFormView, meta: { ...adminRouteMeta, title: '시설 수정' } },
-      { path: 'reservations', component: AdminReservationList, meta: { ...adminRouteMeta, title: '예약 현황' } },
+      { path: 'reservations', component: AdminSubscriptionView, meta: { ...adminRouteMeta, title: '구독 현황' } },
+      { path: 'reservations/list', component: AdminReservationList, meta: { ...adminRouteMeta, title: '예약 현황' } },
+      { path: 'reservations/facility-status', component: AdminFacilityStatusView, meta: { ...adminRouteMeta, title: '시설별 현황' } },
       { path: 'gx-programs', component: AdminGxProgramList, meta: { ...adminRouteMeta, title: 'GX 프로그램 관리' } },
     ],
   },
