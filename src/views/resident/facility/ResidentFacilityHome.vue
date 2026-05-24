@@ -3,10 +3,7 @@ import { reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import { toList } from '@/utils/apiResponse'
-import {
-  normalizeFacilityStatus,
-  normalizeReservationType,
-} from '@/utils/normalize.js'
+import { normalizeFacilityStatus } from '@/utils/normalize.js'
 import imgReadingroom from '@/assets/images/readingroom.png'
 import imgGolf from '@/assets/images/golf.png'
 import imgPT from '@/assets/images/PT.png'
@@ -41,10 +38,6 @@ const formatTime = (t) => (t ? t.slice(0, 5) : '-')
 
 const normFacilityStatus = (f) => normalizeFacilityStatus(f?.status, f?.isActive)
 
-const reservationTypeLabel = (type) => {
-  const n = normalizeReservationType(type)
-  return { SEAT: '좌석형', COUNT: '정원형', APPROVAL: '승인형' }[n] || type || '-'
-}
 
 // 시설명 + 시설 타입명 기반 이미지 매핑
 const getNameImage = (name) => {
@@ -159,11 +152,6 @@ onMounted(() => {
           </div>
           <div class="card-hours">
             {{ formatTime(f.openTime) }} ~ {{ formatTime(f.closeTime) }}
-          </div>
-          <div class="card-tags">
-            <span class="tag">{{ reservationTypeLabel(f.reservationType) }}</span>
-            <span v-if="f.capacity" class="tag">정원 {{ f.capacity }}명</span>
-            <span v-if="f.totalSeats" class="tag">좌석 {{ f.totalSeats }}개</span>
           </div>
         </div>
 
@@ -309,21 +297,6 @@ onMounted(() => {
   margin-top: 1px;
 }
 
-.card-tags {
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-  margin-top: 3px;
-}
-
-.tag {
-  padding: 2px 7px;
-  background: #f1f5f9;
-  border-radius: 5px;
-  font-size: 11px;
-  color: #718096;
-  font-weight: 600;
-}
 
 /* 시설 상태 뱃지 */
 .status-badge {

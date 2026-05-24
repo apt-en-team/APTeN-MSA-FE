@@ -23,6 +23,17 @@ const goBack = () => {
 
 const formatTime = (t) => (t ? t.slice(0, 5) : '-')
 
+// feeType + baseFee 조합으로 요금 표시 문자열을 만든다.
+const feeLabel = (detail) => {
+  if (detail?.baseFee == null) return null
+  const amt = Number(detail.baseFee)
+  if (amt === 0) return '무료'
+  const formatted = amt.toLocaleString('ko-KR') + '원'
+  if (detail.feeType === 'PER_USE') return `회당 ${formatted}`
+  if (detail.feeType === 'FLAT' || detail.feeType === 'PER_PERSON') return `월 ${formatted}`
+  return formatted
+}
+
 const facilityStatus = computed(() =>
   normalizeFacilityStatus(state.detail?.status, state.detail?.isActive),
 )
@@ -152,6 +163,13 @@ onMounted(() => {
           <span class="info-label">1일 최대 예약</span>
           <span class="info-value">{{ state.detail.maxReservationPerDay }}회</span>
         </div>
+        <template v-if="feeLabel(state.detail)">
+          <div class="info-divider" />
+          <div class="info-row">
+            <span class="info-label">이용 요금</span>
+            <span class="info-value fee-value">{{ feeLabel(state.detail) }}</span>
+          </div>
+        </template>
       </div>
     </template>
 
@@ -335,6 +353,10 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 600;
   color: #1a202c;
+}
+
+.fee-value {
+  color: #4973e5;
 }
 
 .info-divider {

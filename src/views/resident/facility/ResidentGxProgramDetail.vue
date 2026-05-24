@@ -266,6 +266,15 @@ onMounted(() => {
         <h1 class="detail-title">{{ state.detail.programName || state.detail.name }}</h1>
       </div>
 
+      <!-- 프로그램 안내 카드 -->
+      <div class="notice-section">
+        <p class="notice-section-title">프로그램 안내</p>
+        <div class="notice-section-body">
+          <p v-if="state.detail.description" class="notice-section-text">{{ state.detail.description }}</p>
+          <p v-else class="notice-section-empty">등록된 프로그램 안내가 없습니다.</p>
+        </div>
+      </div>
+
       <!-- 프로그램 정보 카드 -->
       <div class="info-card">
         <div class="info-row">
@@ -303,15 +312,6 @@ onMounted(() => {
             </span>
           </div>
         </template>
-      </div>
-
-      <!-- 프로그램 안내 카드 -->
-      <div class="notice-section">
-        <p class="notice-section-title">프로그램 안내</p>
-        <div class="notice-section-body">
-          <p v-if="state.detail.description" class="notice-section-text">{{ state.detail.description }}</p>
-          <p v-else class="notice-section-empty">등록된 프로그램 안내가 없습니다.</p>
-        </div>
       </div>
 
       <!-- 내 신청 현황 (내 예약에서 진입 또는 활성 상태가 있는 경우 표시) -->
