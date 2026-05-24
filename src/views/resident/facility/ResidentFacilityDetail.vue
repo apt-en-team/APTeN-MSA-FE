@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import ResidentModal from '@/components/resident/ResidentModal.vue'
 import { normalizeFacilityStatus, normalizeReservationType } from '@/utils/normalize.js'
-import { cancelFacilitySubscription } from '@/api/facilityApi.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,11 +17,6 @@ const state = reactive({
 
 const approvalModal = reactive({ show: false })
 
-// 해지 확인 모달
-const cancelModal = reactive({ show: false })
-// 해지 결과 모달 (성공/실패)
-const resultModal = reactive({ show: false, type: 'success', title: '', subtitle: '' })
-
 const goBack = () => {
   router.push(`/resident/${route.params.complexId}/facility`)
 }
@@ -35,12 +29,6 @@ const facilityStatus = computed(() =>
 const normalizedResType = computed(() =>
   normalizeReservationType(state.detail?.reservationType),
 )
-// FLAT/PER_PERSON 시설 = 구독형 → 해지 버튼 표시 대상
-const isSubscriptionType = computed(() => {
-  const fee = state.detail?.feeType
-  return fee === 'FLAT' || fee === 'PER_PERSON'
-})
-
 const isGxType = computed(() => {
   const d = state.detail
   if (!d) return false
@@ -56,23 +44,6 @@ const isGxType = computed(() => {
 const reservationTypeLabel = (type) => {
   const n = normalizeReservationType(type)
   return { SEAT: '좌석형', COUNT: '정원형', APPROVAL: '승인형' }[n] || type || '-'
-}
-
-// 해지 확인 → API 호출 → 결과 모달 표시
-const executeCancel = async () => {
-  cancelModal.show = false
-  try {
-    await cancelFacilitySubscription(route.params.facilityId)
-    resultModal.type = 'success'
-    resultModal.title = '구독이 해지되었습니다.'
-    resultModal.subtitle = '다음 달부터 요금이 청구되지 않습니다.'
-  } catch (e) {
-    const msg = e?.response?.data?.resultMessage || '해지 처리 중 오류가 발생했습니다.'
-    resultModal.type = 'danger'
-    resultModal.title = '해지할 수 없습니다.'
-    resultModal.subtitle = msg
-  }
-  resultModal.show = true
 }
 
 const onReserveClick = () => {
@@ -196,15 +167,6 @@ onMounted(() => {
         <template v-else-if="isGxType">GX 신청하기</template>
         <template v-else>예약하기</template>
       </button>
-      <!-- 구독형(FLAT/PER_PERSON) 시설에만 해지 버튼 표시 -->
-      <button
-        v-if="isSubscriptionType"
-        class="btn-cancel"
-        type="button"
-        @click="cancelModal.show = true"
-      >
-        이용 해지하기
-      </button>
     </div>
 
     <!-- 승인형 예약 준비 중 모달 -->
@@ -219,29 +181,6 @@ onMounted(() => {
       @confirm="approvalModal.show = false"
     />
 
-    <!-- 구독 해지 확인 모달 -->
-    <ResidentModal
-      :visible="cancelModal.show"
-      type="warning"
-      title="구독을 해지하시겠습니까?"
-      subtitle="해지 후에는 다음 달부터 요금이 청구되지 않습니다."
-      confirmText="해지하기"
-      confirmType="danger"
-      @close="cancelModal.show = false"
-      @confirm="executeCancel"
-    />
-
-    <!-- 해지 결과 모달 -->
-    <ResidentModal
-      :visible="resultModal.show"
-      :type="resultModal.type"
-      :title="resultModal.title"
-      :subtitle="resultModal.subtitle"
-      confirmText="확인"
-      confirmType="primary"
-      @close="resultModal.show = false"
-      @confirm="resultModal.show = false"
-    />
   </div>
 </template>
 
@@ -439,25 +378,6 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-/* 해지 버튼 — 구독형 시설에만 표시, 예약 버튼 아래 배치 */
-.btn-cancel {
-  width: 100%;
-  height: 44px;
-  margin-top: 8px;
-  background: transparent;
-  color: #e53e3e;
-  border: 1.5px solid #e53e3e;
-  border-radius: 14px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-  transition: background 0.15s, color 0.15s;
-}
-
-.btn-cancel:hover {
-  background: #fff5f5;
-}
 
 /* 상태 */
 .loading-area,

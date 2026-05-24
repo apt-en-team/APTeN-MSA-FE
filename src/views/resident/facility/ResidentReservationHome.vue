@@ -50,8 +50,6 @@ const goToGxDetail = (programId, gxReservationId, status, waitNo) => {
   })
 }
 
-const today = new Date().toISOString().slice(0, 10)
-
 // 일반 예약 필터
 const facilityStatusNorm = (r) => normalizeReservationStatus(r.status)
 const isFacilityPast = (r) => {
@@ -59,12 +57,11 @@ const isFacilityPast = (r) => {
   return s === 'COMPLETED' || s === 'CANCELLED'
 }
 
-// GX 예약 필터
+// GX 예약 필터 — BE 스케줄러가 COMPLETED로 전환한 값을 기준으로 분류한다.
 const gxStatusNorm = (r) => normalizeGxReservationStatus(r.status)
 const isGxPast = (r) => {
   const s = gxStatusNorm(r)
-  if (s === 'CANCELLED' || s === 'REJECTED') return true
-  return r.endDate && String(r.endDate).slice(0, 10) < today
+  return s === 'COMPLETED' || s === 'CANCELLED' || s === 'REJECTED'
 }
 const isGxActive = (r) => {
   const s = gxStatusNorm(r)
@@ -128,9 +125,9 @@ const facilityStatusClass = (s) =>
 
 // GX 예약 상태
 const gxStatusLabel = (s) =>
-  ({ CONFIRMED: '신청완료', WAITING: '대기 중', CANCELLED: '취소됨', REJECTED: '거절됨' }[normalizeGxReservationStatus(s)] || s || '-')
+  ({ CONFIRMED: '신청완료', WAITING: '대기 중', CANCELLED: '취소됨', REJECTED: '거절됨', COMPLETED: '이용완료' }[normalizeGxReservationStatus(s)] || s || '-')
 const gxStatusClass = (s) =>
-  ({ CONFIRMED: 'is-confirmed', WAITING: 'is-waiting', CANCELLED: 'is-cancelled', REJECTED: 'is-cancelled' }[normalizeGxReservationStatus(s)] || '')
+  ({ CONFIRMED: 'is-confirmed', WAITING: 'is-waiting', CANCELLED: 'is-cancelled', REJECTED: 'is-cancelled', COMPLETED: 'is-completed' }[normalizeGxReservationStatus(s)] || '')
 
 const formatDate = (d) => (d ? String(d).slice(0, 10).replace(/-/g, '.') : '-')
 const formatTime = (t) => (t ? String(t).slice(0, 5) : '-')

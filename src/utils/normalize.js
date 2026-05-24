@@ -51,6 +51,7 @@ export const normalizeGxReservationStatus = (value) => {
     WAITING: 'WAITING', '대기': 'WAITING', '대기중': 'WAITING', '대기 중': 'WAITING',
     CANCELLED: 'CANCELLED', '취소': 'CANCELLED', '취소됨': 'CANCELLED',
     REJECTED: 'REJECTED', '거절': 'REJECTED', '거절됨': 'REJECTED',
+    COMPLETED: 'COMPLETED', '이용완료': 'COMPLETED',
   }
   return map[String(value).trim()] ?? value
 }
