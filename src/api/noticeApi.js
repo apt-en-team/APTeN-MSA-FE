@@ -9,13 +9,13 @@ export const createNotice = async (body) => {
 
 // 입주민 공지 목록 조회
 export const getNotices = async (params) => {
-  const res = await apiClient.get('/api/notices', { params })
+  const res = await apiClient.get('/notices', { params })
   return unwrapApiData(res)
 }
 
 // 입주민 공지 상세 조회
 export const getNoticeDetail = async (noticeId) => {
-  const res = await apiClient.get(`/api/notices/${noticeId}`)
+  const res = await apiClient.get(`/notices/${noticeId}`)
   return unwrapApiData(res)
 }
 

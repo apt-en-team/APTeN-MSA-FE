@@ -1,10 +1,21 @@
 <script setup>
 // TODO: USER 전용 모바일 레이아웃입니다.
-import { onMounted, watch } from 'vue'
+import { onMounted, watch, computed } from 'vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 import AppHeader from '@/components/resident/AppHeader.vue'
 import BottomNav from '@/components/resident/BottomNav.vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+
+const hideBottomNav = computed(() => {
+  return route.path.includes('/board/') && route.params.postId
+})
+
+const mainPaddingBottom = computed(() => {
+  return hideBottomNav.value ? '0px' : 'calc(88px + env(safe-area-inset-bottom, 0px))'
+})
 
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
@@ -43,12 +54,12 @@ watch(
   <div class="resident-layout theme-resident theme-page-bg">
     <div class="resident-layout__shell">
       <AppHeader />
-      <main class="resident-layout__main">
+      <main class="resident-layout__main" :style="{ paddingBottom: mainPaddingBottom }">
         <div class="page-container resident-layout__page">
           <RouterView />
         </div>
       </main>
-      <BottomNav />
+      <BottomNav v-if="!hideBottomNav" />
     </div>
   </div>
 </template>
