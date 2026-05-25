@@ -38,6 +38,11 @@ defineProps({
     type: Boolean,
     default: true,
   },
+  // 빨간 경고 문구 — 정보 행 아래에 표시된다.
+  noteText: {
+    type: String,
+    default: '',
+  },
 })
 
 defineEmits(['close', 'confirm'])
@@ -87,12 +92,15 @@ defineEmits(['close', 'confirm'])
             <div
               v-for="row in infoRows"
               :key="row.label"
-              class="resident-modal__info-row"
+              :class="['resident-modal__info-row', row.highlight ? 'is-highlight' : '']"
             >
               <span class="resident-modal__info-label">{{ row.label }}</span>
               <span class="resident-modal__info-value">{{ row.value }}</span>
             </div>
           </div>
+
+          <!-- 빨간 경고 문구 -->
+          <p v-if="noteText" class="resident-modal__note">{{ noteText }}</p>
 
           <!-- 확인 버튼 -->
           <button
@@ -199,6 +207,7 @@ defineEmits(['close', 'confirm'])
   text-align: center;
   margin: 0;
   line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 /* 정보 행 */
@@ -222,6 +231,26 @@ defineEmits(['close', 'confirm'])
   border-bottom: none;
 }
 
+.resident-modal__info-row.is-highlight {
+  background: #eff6ff;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.resident-modal__info-row.is-highlight .resident-modal__info-label {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.resident-modal__info-row.is-highlight .resident-modal__info-value {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 .resident-modal__info-label {
   font-size: 13px;
   color: #94a3b8;
@@ -231,6 +260,16 @@ defineEmits(['close', 'confirm'])
   font-size: 13px;
   font-weight: 600;
   color: #1a202c;
+}
+
+/* 빨간 경고 문구 */
+.resident-modal__note {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e53e3e;
+  text-align: center;
+  margin: 0;
+  line-height: 1.5;
 }
 
 /* 확인 버튼 */

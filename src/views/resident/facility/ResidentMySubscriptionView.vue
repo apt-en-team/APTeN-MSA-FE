@@ -16,7 +16,7 @@ const state = reactive({
 // 상세 모달에 표시할 구독 객체를 보관한다.
 const detailModal = reactive({ show: false, sub: null })
 // 해지 확인 모달
-const cancelModal = reactive({ show: false, facilityId: null, facilityName: '' })
+const cancelModal = reactive({ show: false, facilityId: null, facilityName: '', sub: null })
 const resultModal = reactive({ show: false, type: 'success', title: '', subtitle: '' })
 
 const goToFacility = () => {
@@ -63,6 +63,24 @@ const subDateText = (sub) => {
   return sub.cancelledAt ? `${formatDate(sub.cancelledAt)} 해지` : '-'
 }
 
+// 해지 시 청구 안내 메시지: 오늘 날짜와 cancelCutoffDay를 비교한다.
+const cancelBillingMsg = (sub) => {
+  const day = new Date().getDate()
+  const cutoff = sub?.cancelCutoffDay
+  if (cutoff == null) return '이번 달까지 요금이 정상 청구됩니다.'
+  if (day <= cutoff) return '지금부터 해당 시설 이용은 불가하며, 이번 달 요금은 청구되지 않습니다.'
+  return '이번 달까지는 요금이 정상 청구되며, 이번 달 말까지 시설 이용이 가능합니다.'
+}
+
+// 신청 시 청구 안내 메시지: 오늘 날짜와 subscribeCutoffDay를 비교한다.
+const subscribeBillingMsg = (sub) => {
+  const day = new Date().getDate()
+  const cutoff = sub?.subscribeCutoffDay
+  if (cutoff == null) return '이번 달부터 요금이 청구됩니다.'
+  if (day <= cutoff) return '이번 달부터 요금이 청구됩니다.'
+  return '다음 달부터 요금이 청구됩니다. 지금부터 이용은 가능합니다.'
+}
+
 const activeSubs = computed(() => state.list.filter(s => isActive(s.status)))
 const cancelledSubs = computed(() => state.list.filter(s => !isActive(s.status)))
 
@@ -100,6 +118,7 @@ const onDetailConfirm = () => {
     detailModal.show = false
     cancelModal.facilityId = sub.facilityId
     cancelModal.facilityName = sub.facilityName
+    cancelModal.sub = sub
     cancelModal.show = true
   } else {
     detailModal.show = false
@@ -109,17 +128,19 @@ const onDetailConfirm = () => {
 const openCancelModal = (sub) => {
   cancelModal.facilityId = sub.facilityId
   cancelModal.facilityName = sub.facilityName
+  cancelModal.sub = sub
   cancelModal.show = true
 }
 
 const executeCancel = async () => {
   const facilityId = cancelModal.facilityId
+  const sub = cancelModal.sub
   cancelModal.show = false
   try {
     await cancelFacilitySubscription(facilityId)
     resultModal.type = 'success'
     resultModal.title = '구독이 해지되었습니다.'
-    resultModal.subtitle = '다음 달부터 요금이 청구되지 않습니다.'
+    resultModal.subtitle = cancelBillingMsg(sub)
     await fetchSubscriptions()
   } catch (e) {
     const msg = e?.response?.data?.message || '해지 처리 중 오류가 발생했습니다.'
@@ -241,6 +262,7 @@ onMounted(() => {
       :confirm-text="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? '해지하기' : '닫기'"
       :confirm-type="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? 'danger' : 'primary'"
       :show-cancel="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub)"
+      :note-text="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? '신청 후 해지는 1개월 이후 가능합니다.' : ''"
       cancel-text="닫기"
       @close="detailModal.show = false"
       @confirm="onDetailConfirm"
@@ -251,7 +273,8 @@ onMounted(() => {
       :visible="cancelModal.show"
       type="warning"
       title="구독을 해지하시겠습니까?"
-      :subtitle="`${cancelModal.facilityName} 구독을 해지하면 다음 달부터 요금이 청구되지 않습니다.`"
+      :subtitle="cancelBillingMsg(cancelModal.sub)"
+      note-text="신청 후 해지는 1개월 이후 가능합니다."
       confirm-text="해지하기"
       cancel-text="취소"
       confirm-type="danger"
