@@ -13,7 +13,9 @@ const state = reactive({
   errorMessage: '',
 })
 
-// 해지 대상 facilityId를 보관한다.
+// 상세 모달에 표시할 구독 객체를 보관한다.
+const detailModal = reactive({ show: false, sub: null })
+// 해지 확인 모달
 const cancelModal = reactive({ show: false, facilityId: null, facilityName: '' })
 const resultModal = reactive({ show: false, type: 'success', title: '', subtitle: '' })
 
@@ -63,6 +65,46 @@ const subDateText = (sub) => {
 
 const activeSubs = computed(() => state.list.filter(s => isActive(s.status)))
 const cancelledSubs = computed(() => state.list.filter(s => !isActive(s.status)))
+
+// 요금 포맷 — baseFee가 없으면 '-'
+const formatFee = (sub) => {
+  if (sub?.baseFee == null) return '-'
+  const amount = Number(sub.baseFee).toLocaleString('ko-KR')
+  return isPerUse(sub) ? `₩${amount} / 건` : `₩${amount} / 월`
+}
+
+// 상세 모달 infoRows 생성
+const detailInfoRows = (sub) => {
+  if (!sub) return []
+  const rows = [
+    { label: '상태', value: subStatusLabel(sub) },
+    { label: '요금 방식', value: feeTypeLabel(sub.feeType) },
+    { label: '요금', value: formatFee(sub) },
+    { label: '구독 시작일', value: formatDate(sub.subscribedAt) },
+  ]
+  if (!isActive(sub.status) && sub.cancelledAt) {
+    rows.push({ label: '해지일', value: formatDate(sub.cancelledAt) })
+  }
+  return rows
+}
+
+const openDetailModal = (sub) => {
+  detailModal.sub = sub
+  detailModal.show = true
+}
+
+// 상세 모달 확인 버튼 — ACTIVE + !PER_USE면 해지 확인 모달로 이어진다
+const onDetailConfirm = () => {
+  const sub = detailModal.sub
+  if (sub && isActive(sub.status) && !isPerUse(sub)) {
+    detailModal.show = false
+    cancelModal.facilityId = sub.facilityId
+    cancelModal.facilityName = sub.facilityName
+    cancelModal.show = true
+  } else {
+    detailModal.show = false
+  }
+}
 
 const openCancelModal = (sub) => {
   cancelModal.facilityId = sub.facilityId
@@ -142,53 +184,67 @@ onMounted(() => {
       <!-- 구독 중 -->
       <template v-if="activeSubs.length > 0">
         <p class="section-label">구독 중 ({{ activeSubs.length }})</p>
-        <div
+        <button
           v-for="sub in activeSubs"
           :key="sub.subscriptionId"
           class="sub-card is-active"
+          type="button"
+          @click="openDetailModal(sub)"
         >
           <div class="sub-card__info">
             <div class="sub-card__name">{{ sub.facilityName }}</div>
             <div class="sub-card__meta">
-              <span class="tag">{{ feeTypeLabel(sub.feeType) }}</span>
               <span class="sub-date">{{ subDateText(sub) }}</span>
             </div>
           </div>
           <div class="sub-card__right">
             <span :class="['status-badge', subStatusClass(sub)]">{{ subStatusLabel(sub) }}</span>
-            <button
-              v-if="!isPerUse(sub)"
-              class="btn-cancel"
-              type="button"
-              @click="openCancelModal(sub)"
-            >
-              해지
-            </button>
+            <svg class="sub-card__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
           </div>
-        </div>
+        </button>
       </template>
 
       <!-- 해지된 구독 -->
       <template v-if="cancelledSubs.length > 0">
         <p class="section-label">해지된 구독 ({{ cancelledSubs.length }})</p>
-        <div
+        <button
           v-for="sub in cancelledSubs"
           :key="sub.subscriptionId"
           class="sub-card is-cancelled"
+          type="button"
+          @click="openDetailModal(sub)"
         >
           <div class="sub-card__info">
             <div class="sub-card__name">{{ sub.facilityName }}</div>
             <div class="sub-card__meta">
-              <span class="tag">{{ feeTypeLabel(sub.feeType) }}</span>
               <span class="sub-date">{{ subDateText(sub) }}</span>
             </div>
           </div>
           <div class="sub-card__right">
             <span :class="['status-badge', subStatusClass(sub)]">{{ subStatusLabel(sub) }}</span>
+            <svg class="sub-card__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
           </div>
-        </div>
+        </button>
       </template>
     </div>
+
+    <!-- 구독 상세 모달 -->
+    <ResidentModal
+      :visible="detailModal.show"
+      type="info"
+      :title="detailModal.sub?.facilityName || ''"
+      :info-rows="detailInfoRows(detailModal.sub)"
+      :confirm-text="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? '해지하기' : '닫기'"
+      :confirm-type="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? 'danger' : 'primary'"
+      :show-cancel="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub)"
+      cancel-text="닫기"
+      @close="detailModal.show = false"
+      @confirm="onDetailConfirm"
+    />
 
     <!-- 해지 확인 모달 -->
     <ResidentModal
@@ -279,6 +335,16 @@ onMounted(() => {
   background: #ffffff;
   border-radius: 14px;
   box-shadow: 0 2px 10px rgba(73, 115, 229, 0.07);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: box-shadow 0.15s;
+}
+
+.sub-card:active {
+  box-shadow: 0 1px 4px rgba(73, 115, 229, 0.08);
 }
 
 .sub-card.is-cancelled {
@@ -350,22 +416,10 @@ onMounted(() => {
   color: #94a3b8;
 }
 
-/* 해지 버튼 */
-.btn-cancel {
-  padding: 5px 12px;
-  background: transparent;
-  border: 1.5px solid #e53e3e;
-  color: #e53e3e;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-  transition: background 0.15s, color 0.15s;
-}
-
-.btn-cancel:active {
-  background: #fff5f5;
+.sub-card__chevron {
+  color: #cbd5e1;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 /* 공통 상태 영역 */

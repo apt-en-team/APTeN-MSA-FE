@@ -40,8 +40,10 @@ const complexName = computed(() => {
 const vehicleCount = ref(0)
 const maxVehicleCount = 2 // 최대 등록 가능 대수
 
-// 내 예약 현황 목록
+// 내 예약 현황 목록 (대시보드 표시용 최대 4개)
 const myReservations = ref([])
+// 이용예정 전체 건수 (PageResponse.totalElements)
+const reservationTotal = ref(0)
 
 // 방문차량 현황 (승인 대기 건수)
 const pendingVisitorCount = ref(0)
@@ -94,7 +96,7 @@ const homeSummaryCards = computed(() => {
       label: '예약 현황',
       value: reservationCount.value,
       unit: '건',
-      desc: '이번 주 예약',
+      desc: '이용 예정',
       descClass: '',
       path: `/resident/${route.params.complexId}/reservations`,
       showProgress: false,
@@ -187,8 +189,8 @@ const upcomingReservations = computed(() => myReservations.value)
 // 홈 표시용: 최대 4개
 const dashboardReservations = computed(() => upcomingReservations.value.slice(0, 4))
 
-// 예약현황 카운트는 화면 표시 개수가 아니라 이용예정 전체 개수
-const reservationCount = computed(() => upcomingReservations.value.length)
+// 예약현황 카운트는 화면 표시 개수(최대 4)가 아니라 이용예정 전체 건수
+const reservationCount = computed(() => reservationTotal.value)
 
 // 홈 데이터 전체 로드
 async function loadHomeData() {
@@ -213,6 +215,7 @@ async function loadHomeData() {
     if (reservations.status === 'fulfilled') {
       const data = reservations.value
       myReservations.value = Array.isArray(data) ? data : data?.content ?? []
+      reservationTotal.value = data?.totalElements ?? myReservations.value.length
     }
 
     // 최근 공지사항
