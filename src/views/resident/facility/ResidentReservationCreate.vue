@@ -6,6 +6,7 @@ import { useReservationStore } from '@/stores/useReservationStore.js'
 import ResidentModal from '@/components/resident/ResidentModal.vue'
 import { toList } from '@/utils/apiResponse'
 import { normalizeReservationType } from '@/utils/normalize.js'
+import { getMySubscriptions } from '@/api/facilityApi.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -44,6 +45,7 @@ const state = reactive({
   seatsError: '',
 
   submitting: false,
+  isAlreadySubscribed: false,
 })
 
 const resultModal = reactive({ show: false, success: false, message: '' })
@@ -177,10 +179,10 @@ const isSeatAvailable = (seat) => seat.status === 'AVAILABLE'
 const seatStatusLabel = (status) =>
   ({ AVAILABLE: '예약 가능', RESERVED: '예약됨', HOLDING: '선점됨', BLOCKED: '차단됨' }[status] || '')
 
-// 구독형이면 요금 안내 모달 표시 후 확인 시 예약 실행, 아니면 바로 예약
+// 구독형이고 아직 구독 전이면 요금 안내 모달 표시, 이미 구독 중이면 바로 예약
 const onReserveClick = () => {
   if (!canSubmit.value || state.submitting) return
-  if (isSubscriptionType.value) {
+  if (isSubscriptionType.value && !state.isAlreadySubscribed) {
     billingConfirmModal.show = true
     return
   }
@@ -235,8 +237,22 @@ const onResultClose = () => {
   }
 }
 
+const checkSubscription = async () => {
+  if (!isSubscriptionType.value) return
+  try {
+    const subs = await getMySubscriptions()
+    const facilityId = String(route.params.facilityId)
+    state.isAlreadySubscribed = Array.isArray(subs) && subs.some(
+      (s) => String(s.facilityId) === facilityId && (String(s.status) === 'ACTIVE' || String(s.status) === '구독중'),
+    )
+  } catch {
+    // 구독 조회 실패 시 모달 표시 경로 유지
+  }
+}
+
 onMounted(async () => {
   await fetchFacility()
+  checkSubscription()
   if (!isApproval.value) {
     fetchAvailableTimes()
   }

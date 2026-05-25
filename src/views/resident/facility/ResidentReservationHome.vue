@@ -2,8 +2,6 @@
 import { reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useReservationStore } from '@/stores/useReservationStore.js'
-import { useGxStore } from '@/stores/useGxStore.js'
-import { toList } from '@/utils/apiResponse'
 import { normalizeReservationStatus, normalizeGxReservationStatus } from '@/utils/normalize.js'
 import imgReadingroom from '@/assets/images/readingroom.png'
 import imgGolf from '@/assets/images/golf.png'
@@ -21,14 +19,18 @@ import imgYoga from '@/assets/images/Yoga.png'
 const route = useRoute()
 const router = useRouter()
 const reservationStore = useReservationStore()
-const gxStore = useGxStore()
+
+const PAGE_SIZE = 10
 
 const state = reactive({
-  facilityList: [],
-  gxList: [],
+  list: [],
   activeFilterTab: 'upcoming', // 'upcoming' | 'past'
   loading: false,
+  loadingMore: false,
   errorMessage: '',
+  page: 0,
+  hasNext: false,
+  totalElements: 0,
 })
 
 const goToFacility = () => {
@@ -50,44 +52,11 @@ const goToGxDetail = (programId, gxReservationId, status, waitNo) => {
   })
 }
 
-// 일반 예약 필터
-const facilityStatusNorm = (r) => normalizeReservationStatus(r.status)
-const isFacilityPast = (r) => {
-  const s = facilityStatusNorm(r)
-  return s === 'COMPLETED' || s === 'CANCELLED'
-}
-
-// GX 예약 필터 — BE 스케줄러가 COMPLETED로 전환한 값을 기준으로 분류한다.
+// status code → normalized (GX: "01"=WAITING,"02"=CONFIRMED / Facility: "01"=CONFIRMED)
 const gxStatusNorm = (r) => normalizeGxReservationStatus(r.status)
-const isGxPast = (r) => {
-  const s = gxStatusNorm(r)
-  return s === 'COMPLETED' || s === 'CANCELLED' || s === 'REJECTED'
-}
-const isGxActive = (r) => {
-  const s = gxStatusNorm(r)
-  return s === 'CONFIRMED' || s === 'WAITING'
-}
+const facilityStatusNorm = (r) => normalizeReservationStatus(r.status)
 
-const combinedList = computed(() => {
-  const facility = state.facilityList.map((r) => ({ ...r, _type: 'facility' }))
-  const gx = state.gxList.map((r) => ({ ...r, _type: 'gx' }))
-  return [...facility, ...gx]
-})
-
-const filteredList = computed(() => {
-  const list = combinedList.value
-  if (state.activeFilterTab === 'upcoming') {
-    return list.filter((r) =>
-      r._type === 'facility' ? !isFacilityPast(r) : isGxActive(r),
-    )
-  }
-  if (state.activeFilterTab === 'past') {
-    return list.filter((r) =>
-      r._type === 'facility' ? isFacilityPast(r) : isGxPast(r),
-    )
-  }
-  return list
-})
+const filteredList = computed(() => state.list)
 
 // 예약 카드 이미지
 const getGxImage = (name) => {
@@ -124,8 +93,14 @@ const facilityStatusClass = (s) =>
   ({ CONFIRMED: 'is-confirmed', COMPLETED: 'is-completed', CANCELLED: 'is-cancelled' }[normalizeReservationStatus(s)] || '')
 
 // GX 예약 상태
-const gxStatusLabel = (s) =>
-  ({ CONFIRMED: '신청완료', WAITING: '대기 중', CANCELLED: '취소됨', REJECTED: '거절됨', COMPLETED: '이용완료' }[normalizeGxReservationStatus(s)] || s || '-')
+const gxStatusLabel = (r) => {
+  const s = normalizeGxReservationStatus(typeof r === 'object' ? r?.status : r)
+  if (s === 'WAITING') {
+    const waitNo = typeof r === 'object' ? r?.waitNo : null
+    return waitNo != null ? `대기 ${waitNo}번` : '대기 중'
+  }
+  return { CONFIRMED: '신청완료', CANCELLED: '취소됨', REJECTED: '거절됨', COMPLETED: '이용완료' }[s] || (typeof r === 'string' ? r : '') || '-'
+}
 const gxStatusClass = (s) =>
   ({ CONFIRMED: 'is-confirmed', WAITING: 'is-waiting', CANCELLED: 'is-cancelled', REJECTED: 'is-cancelled', COMPLETED: 'is-completed' }[normalizeGxReservationStatus(s)] || '')
 
@@ -142,33 +117,50 @@ const formatDays = (days) => {
 }
 
 const onCardClick = (item) => {
-  if (item._type === 'gx') {
+  if (item.type === 'GX') {
     goToGxDetail(item.programId, item.gxReservationId, item.status, item.waitNo)
   } else {
-    goToFacilityDetail(item.reservationId ?? item.id)
+    goToFacilityDetail(item.reservationId)
   }
 }
 
-const fetchAll = async () => {
-  state.loading = true
+const phaseParam = () => state.activeFilterTab === 'upcoming' ? 'UPCOMING' : 'PAST'
+
+const fetchPage = async (page) => {
+  const isFirst = page === 0
+  if (isFirst) {
+    state.loading = true
+    state.list = []
+  } else {
+    state.loadingMore = true
+  }
   state.errorMessage = ''
   try {
-    const [facilityRes, gxRes] = await Promise.allSettled([
-      reservationStore.fetchMyReservations(),
-      gxStore.fetchMyGxReservations(),
-    ])
-    state.facilityList = facilityRes.status === 'fulfilled' ? toList(facilityRes.value) : []
-    state.gxList = gxRes.status === 'fulfilled' ? (Array.isArray(gxRes.value) ? gxRes.value : toList(gxRes.value)) : []
-    if (facilityRes.status === 'rejected' && gxRes.status === 'rejected') {
-      state.errorMessage = '예약 목록을 불러오지 못했습니다.'
-    }
+    const res = await reservationStore.fetchMyReservations({ phase: phaseParam(), page, size: PAGE_SIZE })
+    const content = res?.content ?? []
+    state.list = isFirst ? content : [...state.list, ...content]
+    state.page = res?.page ?? page
+    state.hasNext = res?.hasNext ?? false
+    state.totalElements = res?.totalElements ?? 0
+  } catch {
+    if (isFirst) state.errorMessage = '예약 목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
+    state.loadingMore = false
   }
+}
+
+const onTabChange = (tab) => {
+  state.activeFilterTab = tab
+  fetchPage(0)
+}
+
+const loadMore = () => {
+  if (state.hasNext && !state.loadingMore) fetchPage(state.page + 1)
 }
 
 onMounted(() => {
-  fetchAll()
+  fetchPage(0)
 })
 </script>
 
@@ -186,14 +178,14 @@ onMounted(() => {
       <button
         :class="['filter-tab', state.activeFilterTab === 'upcoming' && 'is-active']"
         type="button"
-        @click="state.activeFilterTab = 'upcoming'"
+        @click="onTabChange('upcoming')"
       >
         이용예정
       </button>
       <button
         :class="['filter-tab', state.activeFilterTab === 'past' && 'is-active']"
         type="button"
-        @click="state.activeFilterTab = 'past'"
+        @click="onTabChange('past')"
       >
         지난예약
       </button>
@@ -207,33 +199,32 @@ onMounted(() => {
     <!-- 에러 -->
     <div v-else-if="state.errorMessage" class="error-area">
       <p class="error-text">{{ state.errorMessage }}</p>
-      <button class="btn-retry" type="button" @click="fetchAll">다시 시도</button>
+      <button class="btn-retry" type="button" @click="fetchPage(0)">다시 시도</button>
     </div>
 
     <!-- 목록 -->
     <div v-else class="reservation-list">
-      <!-- 일반 시설 예약 카드 -->
-      <template v-for="r in filteredList" :key="r._type === 'gx' ? `gx-${r.gxReservationId}` : (r.reservationId ?? r.id)">
+      <template v-for="r in filteredList" :key="r.type === 'GX' ? `gx-${r.gxReservationId}` : r.reservationId">
         <!-- GX 예약 카드 -->
         <button
-          v-if="r._type === 'gx'"
+          v-if="r.type === 'GX'"
           class="reservation-card"
           type="button"
           @click="onCardClick(r)"
         >
           <div class="card-thumb">
-            <img :src="getGxImage(r.programName)" :alt="r.programName" class="card-thumb-img" />
+            <img :src="getGxImage(r.name)" :alt="r.name" class="card-thumb-img" />
           </div>
           <div class="card-body">
             <div class="card-top">
               <div class="card-name-row">
                 <span class="gx-type-badge">GX</span>
-                <span class="card-facility-name">{{ r.programName || '-' }}</span>
+                <span class="card-facility-name">{{ r.name || '-' }}</span>
               </div>
-              <span :class="['status-badge', gxStatusClass(r.status)]">{{ gxStatusLabel(r.status) }}</span>
+              <span :class="['status-badge', gxStatusClass(r.status)]">{{ gxStatusLabel(r) }}</span>
             </div>
             <div class="card-info">
-              <span class="card-date">{{ formatDate(r.startDate) }} ~ {{ formatDate(r.endDate) }}</span>
+              <span class="card-date">{{ formatDate(r.reservationDate) }} ~ {{ formatDate(r.endDate) }}</span>
             </div>
             <div class="card-info">
               <span class="card-time">{{ formatTime(r.startTime) }} ~ {{ formatTime(r.endTime) }}</span>
@@ -242,7 +233,6 @@ onMounted(() => {
                 <span class="card-time">{{ formatDays(r.daysOfWeek) }}</span>
               </template>
             </div>
-            <div v-if="gxStatusNorm(r) === 'WAITING' && r.waitNo" class="card-seat">대기 {{ r.waitNo }}번</div>
           </div>
         </button>
 
@@ -255,9 +245,9 @@ onMounted(() => {
         >
           <div class="card-thumb">
             <img
-              v-if="getFacilityReservationImage(r.facilityName)"
-              :src="getFacilityReservationImage(r.facilityName)"
-              :alt="r.facilityName"
+              v-if="getFacilityReservationImage(r.name)"
+              :src="getFacilityReservationImage(r.name)"
+              :alt="r.name"
               class="card-thumb-img"
             />
             <div v-else class="card-thumb-placeholder">
@@ -269,7 +259,7 @@ onMounted(() => {
           </div>
           <div class="card-body">
             <div class="card-top">
-              <span class="card-facility-name">{{ r.facilityName || '-' }}</span>
+              <span class="card-facility-name">{{ r.name || '-' }}</span>
               <span :class="['status-badge', facilityStatusClass(r.status)]">{{ facilityStatusLabel(r.status) }}</span>
             </div>
             <div class="card-info">
@@ -284,9 +274,14 @@ onMounted(() => {
         </button>
       </template>
 
-      <div v-if="filteredList.length === 0" class="empty-area">
+      <div v-if="filteredList.length === 0 && !state.loading" class="empty-area">
         <p>예약 내역이 없습니다.</p>
       </div>
+
+      <!-- 더 보기 -->
+      <button v-if="state.hasNext" class="btn-load-more" type="button" :disabled="state.loadingMore" @click="loadMore">
+        {{ state.loadingMore ? '불러오는 중...' : '더 보기' }}
+      </button>
     </div>
   </div>
 </template>
@@ -525,6 +520,26 @@ onMounted(() => {
   font-size: 14px;
   color: #94a3b8;
   margin: 0;
+}
+
+.btn-load-more {
+  width: 100%;
+  height: 44px;
+  background: #f8faff;
+  color: #4973e5;
+  border: 1.5px solid #d0dcf9;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  margin-top: 4px;
+}
+
+.btn-load-more:disabled {
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
 }
 
 .error-text {
