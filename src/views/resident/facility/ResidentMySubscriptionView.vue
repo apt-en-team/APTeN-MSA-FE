@@ -63,12 +63,12 @@ const subDateText = (sub) => {
   return sub.cancelledAt ? `${formatDate(sub.cancelledAt)} 해지` : '-'
 }
 
-// 해지 시 청구 안내 메시지: 오늘 날짜와 cancelCutoffDay를 비교한다.
+// 해지 시 청구·이용 안내 메시지: 이번 달 이용 이력 + cancelCutoffDay 기준으로 분기한다.
 const cancelBillingMsg = (sub) => {
+  if (!sub?.hasCompletedThisMonth) return '이번 달 요금은 별도 청구되지 않습니다.'
   const day = new Date().getDate()
   const cutoff = sub?.cancelCutoffDay
-  if (cutoff == null) return '이번 달까지 요금이 정상 청구됩니다.'
-  if (day <= cutoff) return '지금부터 해당 시설 이용은 불가하며, 이번 달 요금은 청구되지 않습니다.'
+  if (cutoff != null && day <= cutoff) return '지금부터 해당 시설 이용은 불가하며, 이번 달 요금은 청구되지 않습니다.'
   return '이번 달까지는 요금이 정상 청구되며, 이번 달 말까지 시설 이용이 가능합니다.'
 }
 

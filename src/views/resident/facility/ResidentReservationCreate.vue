@@ -164,7 +164,11 @@ const isSlotSelected = (slot) =>
   state.form.selectedTime?.startTime === slot.startTime &&
   state.form.selectedTime?.endTime === slot.endTime
 
-const isSlotDisabled = (slot) => slot.isReservable === false || slot.availableCount === 0
+const isSlotDisabled = (slot) => {
+  if (slot.isReservable === false) return true
+  if (isCount.value && slot.availableCount === 0) return true
+  return false
+}
 
 const selectSeat = (seat) => {
   if (seat.status !== 'AVAILABLE') return
@@ -195,9 +199,10 @@ const isInGracePeriod = computed(() => {
 })
 
 // 재신청·첫신청 모달에 표시할 요금 청구 시점 안내
+// 재신청이면 cancelledSub, 첫신청이면 시설 상세(state.facility)의 subscribeCutoffDay 사용
 const subscribeBillingNote = computed(() => {
   const day = new Date().getDate()
-  const cutoff = state.cancelledSub?.subscribeCutoffDay ?? null
+  const cutoff = state.cancelledSub?.subscribeCutoffDay ?? state.facility?.subscribeCutoffDay ?? null
   if (cutoff == null) return '이번 달부터 요금이 청구됩니다.'
   if (day <= cutoff) return '이번 달부터 요금이 청구됩니다.'
   return '다음 달부터 요금이 청구됩니다. 지금부터 이용은 가능합니다.'
@@ -446,7 +451,7 @@ onMounted(async () => {
       :visible="billingConfirmModal.show"
       type="info"
       title="구독 신청"
-      subtitle="이 시설은 구독 방식으로 운영됩니다. 예약 후 매월 이용 요금이 청구되며, 해지 전까지 자동 갱신됩니다."
+      :subtitle="`이 시설은 구독 방식으로 운영됩니다.\n${subscribeBillingNote}`"
       note-text="신청 후 해지는 1개월 이후 가능합니다."
       confirmText="신청 후 예약하기"
       confirmType="primary"
