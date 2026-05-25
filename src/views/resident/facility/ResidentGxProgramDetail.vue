@@ -112,7 +112,8 @@ const gxStatusLabel = (s) =>
   ({
     RECRUITING: '모집 중',
     ACTIVE: '진행 중',
-    CLOSED: '마감',
+    WAITING_CLOSED: '모집마감',
+    CLOSED: '종료',
     CANCELLED: '취소됨',
   }[normalizeGxProgramStatus(s)] || s || '')
 
@@ -120,6 +121,7 @@ const gxStatusClass = (s) =>
   ({
     RECRUITING: 'is-open',
     ACTIVE: 'is-active',
+    WAITING_CLOSED: 'is-closed',
     CLOSED: 'is-closed',
     CANCELLED: 'is-cancelled',
   }[normalizeGxProgramStatus(s)] || '')
@@ -146,7 +148,7 @@ const fetchDetail = async () => {
     }
   } catch (e) {
     state.errorMessage =
-      e?.response?.data?.resultMessage || 'GX 프로그램 정보를 불러오지 못했습니다.'
+      e?.response?.data?.message || 'GX 프로그램 정보를 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }
@@ -188,7 +190,6 @@ const onApplyConfirm = async () => {
       resultModal.message = '모집이 마감된 프로그램입니다.'
     } else {
       resultModal.message =
-        e?.response?.data?.resultMessage ||
         e?.response?.data?.message ||
         '신청에 실패했습니다. 다시 시도해 주세요.'
     }
@@ -212,7 +213,7 @@ const onCancelConfirm = async () => {
   } catch (e) {
     resultModal.success = false
     resultModal.message =
-      e?.response?.data?.resultMessage || '취소에 실패했습니다. 다시 시도해 주세요.'
+      e?.response?.data?.message || '취소에 실패했습니다. 다시 시도해 주세요.'
   } finally {
     resultModal.show = true
   }
@@ -266,6 +267,15 @@ onMounted(() => {
         <h1 class="detail-title">{{ state.detail.programName || state.detail.name }}</h1>
       </div>
 
+      <!-- 프로그램 안내 카드 -->
+      <div class="notice-section">
+        <p class="notice-section-title">프로그램 안내</p>
+        <div class="notice-section-body">
+          <p v-if="state.detail.description" class="notice-section-text">{{ state.detail.description }}</p>
+          <p v-else class="notice-section-empty">등록된 프로그램 안내가 없습니다.</p>
+        </div>
+      </div>
+
       <!-- 프로그램 정보 카드 -->
       <div class="info-card">
         <div class="info-row">
@@ -305,15 +315,6 @@ onMounted(() => {
         </template>
       </div>
 
-      <!-- 프로그램 안내 카드 -->
-      <div class="notice-section">
-        <p class="notice-section-title">프로그램 안내</p>
-        <div class="notice-section-body">
-          <p v-if="state.detail.description" class="notice-section-text">{{ state.detail.description }}</p>
-          <p v-else class="notice-section-empty">등록된 프로그램 안내가 없습니다.</p>
-        </div>
-      </div>
-
       <!-- 내 신청 현황 (내 예약에서 진입 또는 활성 상태가 있는 경우 표시) -->
       <div v-if="activeMyStatus && (isMyStatusActive || fromReservations)" class="my-status-card">
         <div class="my-status-header">
@@ -337,7 +338,7 @@ onMounted(() => {
 
       <!-- 마감 안내 -->
       <div
-        v-if="normalizedDetailStatus === 'CLOSED' && !isMyStatusActive"
+        v-if="(normalizedDetailStatus === 'CLOSED' || normalizedDetailStatus === 'WAITING_CLOSED') && !isMyStatusActive"
         class="notice-card is-warning"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -440,7 +441,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 12px 16px 120px;
+  padding: 12px 16px calc(88px + env(safe-area-inset-bottom, 0px) + 16px);
 }
 
 /* 뒤로가기 */
@@ -701,14 +702,7 @@ onMounted(() => {
 
 /* CTA */
 .cta-area {
-  position: fixed;
-  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 430px;
-  padding: 0 16px;
-  z-index: 100;
+  margin-top: 4px;
 }
 
 .btn-apply {

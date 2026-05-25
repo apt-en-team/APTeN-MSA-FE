@@ -28,7 +28,7 @@ async function handleSubmit() {
     await authApi.sendPasswordResetMail({ email: form.email })
     sent.value = true
   } catch (e) {
-    serverError.value = e.response?.data?.resultMessage || '이메일 발송에 실패했습니다.'
+    serverError.value = e.response?.data?.message || '이메일 발송에 실패했습니다.'
   } finally {
     loading.value = false
   }

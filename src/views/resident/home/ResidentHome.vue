@@ -7,7 +7,6 @@ import { FEATURE_CODES, DEFAULT_COMPLEX_FEATURES } from '@/constants/complexFeat
 import { isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
 import {getMyVehicles} from '@/api/vehicleApi'
 import {getMyReservations} from '@/api/reservationApi'
-import {getMyGxReservations} from '@/api/gxApi'
 import {getNotices} from '@/api/noticeApi'
 import {getVisitorVehicles} from '@/api/visitorVehicleApi'
 import { normalizeReservationStatus, normalizeGxReservationStatus } from '@/utils/normalize.js'
@@ -41,9 +40,10 @@ const complexName = computed(() => {
 const vehicleCount = ref(0)
 const maxVehicleCount = 2 // 최대 등록 가능 대수
 
-// 내 예약 현황 목록
+// 내 예약 현황 목록 (대시보드 표시용 최대 4개)
 const myReservations = ref([])
-const myGxReservations = ref([])
+// 이용예정 전체 건수 (PageResponse.totalElements)
+const reservationTotal = ref(0)
 
 // 방문차량 현황 (승인 대기 건수)
 const pendingVisitorCount = ref(0)
@@ -96,7 +96,7 @@ const homeSummaryCards = computed(() => {
       label: '예약 현황',
       value: reservationCount.value,
       unit: '건',
-      desc: '이번 주 예약',
+      desc: '이용 예정',
       descClass: '',
       path: `/resident/${route.params.complexId}/reservations`,
       showProgress: false,
@@ -133,7 +133,7 @@ const homeSummaryCards = computed(() => {
   return cards
 })
 
-// 날짜 포맷 (26.02.15 형식)
+// 날짜 포맷 (26.02.15 형식) — 공지사항 등에 사용
 function formatDate(dateStr) {
   if (!dateStr) return ''
   const date = new Date(dateStr)
@@ -141,6 +141,18 @@ function formatDate(dateStr) {
   const mm = String(date.getMonth() + 1).padStart(2, '0')
   const dd = String(date.getDate()).padStart(2, '0')
   return `${yy}.${mm}.${dd}`
+}
+
+// 날짜 포맷 (2026.05.23 형식) — 예약 카드에 사용
+function formatDateFull(d) {
+  if (!d) return ''
+  return String(d).slice(0, 10).replace(/-/g, '.')
+}
+
+// 시간 포맷 (HH:mm) — LocalTime 직렬화값 앞 5자만 사용
+function formatTimeFull(t) {
+  if (!t) return ''
+  return String(t).slice(0, 5)
 }
 
 // 예약 카드 이미지 헬퍼
@@ -171,48 +183,25 @@ function getFacilityDashboardImage(name) {
   return null
 }
 
-// 이용예정 전체 목록 (종료 상태 제외, 정렬)
-const upcomingReservations = computed(() => {
-  const facilityItems = myReservations.value
-    .filter(r => {
-      const s = normalizeReservationStatus(r.status)
-      return s !== 'COMPLETED' && s !== 'CANCELLED'
-    })
-    .map(r => ({ ...r, _type: 'facility', _sortDate: r.reservationDate }))
-
-  const gxItems = myGxReservations.value
-    .filter(r => {
-      const s = normalizeGxReservationStatus(r.status)
-      return s === 'CONFIRMED' || s === 'WAITING'
-    })
-    .map(r => ({ ...r, _type: 'gx', _sortDate: r.startDate }))
-
-  const combined = [...facilityItems, ...gxItems]
-  combined.sort((a, b) => {
-    if (!a._sortDate) return 1
-    if (!b._sortDate) return -1
-    return String(a._sortDate).localeCompare(String(b._sortDate))
-  })
-  return combined
-})
+// 통합 API가 phase=UPCOMING으로 이미 필터·정렬해서 반환하므로 그대로 사용
+const upcomingReservations = computed(() => myReservations.value)
 
 // 홈 표시용: 최대 4개
 const dashboardReservations = computed(() => upcomingReservations.value.slice(0, 4))
 
-// 예약현황 카운트는 화면 표시 개수가 아니라 이용예정 전체 개수
-const reservationCount = computed(() => upcomingReservations.value.length)
+// 예약현황 카운트는 화면 표시 개수(최대 4)가 아니라 이용예정 전체 건수
+const reservationCount = computed(() => reservationTotal.value)
 
 // 홈 데이터 전체 로드
 async function loadHomeData() {
   loading.value = true
   try {
     // 병렬 요청으로 성능 최적화
-    const [vehicles, reservations, notices_res, visitors, gxRes] = await Promise.allSettled([
+    const [vehicles, reservations, notices_res, visitors] = await Promise.allSettled([
       getMyVehicles(),
-      getMyReservations({size: 10}),
+      getMyReservations({ phase: 'UPCOMING', size: 4 }),
       getNotices({size: 3}),
       getVisitorVehicles({status: 'PENDING', size: 1}),
-      getMyGxReservations(),
     ])
 
     // 차량 건수
@@ -226,11 +215,7 @@ async function loadHomeData() {
     if (reservations.status === 'fulfilled') {
       const data = reservations.value
       myReservations.value = Array.isArray(data) ? data : data?.content ?? []
-    }
-
-    // GX 예약 현황
-    if (gxRes.status === 'fulfilled') {
-      myGxReservations.value = Array.isArray(gxRes.value) ? gxRes.value : []
+      reservationTotal.value = data?.totalElements ?? myReservations.value.length
     }
 
     // 최근 공지사항
@@ -336,18 +321,18 @@ onMounted(() => {
       <ul v-else class="reservation-list">
         <li
           v-for="item in dashboardReservations"
-          :key="item._type === 'gx' ? `gx-${item.gxReservationId}` : `f-${item.reservationId ?? item.reservationUid}`"
+          :key="item.type === 'GX' ? `gx-${item.gxReservationId}` : `f-${item.reservationId}`"
           class="reservation-item"
-          @click="item._type === 'gx'
+          @click="item.type === 'GX'
             ? router.push(`/resident/${route.params.complexId}/facility/gx-programs/${item.programId}?from=reservations&gxReservationId=${item.gxReservationId}&status=${item.status}`)
-            : router.push(`/resident/${route.params.complexId}/reservations/${item.reservationId ?? item.reservationUid}`)"
+            : router.push(`/resident/${route.params.complexId}/reservations/${item.reservationId}`)"
         >
           <!-- 썸네일 -->
           <div class="reservation-item__thumb">
             <img
-              v-if="item._type === 'gx' ? getGxDashboardImage(item.programName) : getFacilityDashboardImage(item.facilityName)"
-              :src="item._type === 'gx' ? getGxDashboardImage(item.programName) : getFacilityDashboardImage(item.facilityName)"
-              :alt="item._type === 'gx' ? item.programName : item.facilityName"
+              v-if="item.type === 'GX' ? getGxDashboardImage(item.name) : getFacilityDashboardImage(item.name)"
+              :src="item.type === 'GX' ? getGxDashboardImage(item.name) : getFacilityDashboardImage(item.name)"
+              :alt="item.name"
               class="reservation-item__thumb-img"
             />
             <div v-else class="reservation-item__thumb-placeholder">
@@ -360,23 +345,30 @@ onMounted(() => {
           <!-- 정보 -->
           <div class="reservation-item__info">
             <span class="reservation-item__name">
-              <span v-if="item._type === 'gx'" class="reservation-item__gx-badge">GX</span>
-              {{ item._type === 'gx' ? item.programName : item.facilityName }}
+              <span v-if="item.type === 'GX'" class="reservation-item__gx-badge">GX</span>
+              {{ item.name }}
             </span>
             <span class="reservation-item__time">
-              <template v-if="item._type === 'gx'">
-                {{ formatDate(item.startDate) }} ~ {{ formatDate(item.endDate) }}
+              <template v-if="item.type === 'GX'">
+                {{ formatDateFull(item.reservationDate) }} ~ {{ formatDateFull(item.endDate) }}
               </template>
               <template v-else>
-                {{ item.startTime }}~{{ item.endTime }} {{ formatDate(item.reservationDate) }}
+                <span class="reservation-item__date">{{ formatDateFull(item.reservationDate) }}</span>
+                <span class="reservation-item__sep"> · </span>
+                {{ formatTimeFull(item.startTime) }} ~ {{ formatTimeFull(item.endTime) }}
               </template>
             </span>
           </div>
           <!-- 상태 뱃지 -->
-          <span :class="['reservation-item__badge', item._type === 'gx' && normalizeGxReservationStatus(item.status) === 'WAITING' ? 'is-waiting' : '']">
-            {{ item._type === 'gx'
-              ? (normalizeGxReservationStatus(item.status) === 'WAITING' ? '대기 중' : '신청완료')
-              : '예약중' }}
+          <span :class="['reservation-item__badge',
+            item.type === 'GX'
+              ? (normalizeGxReservationStatus(item.status) === 'WAITING' ? 'is-waiting' : 'is-confirmed')
+              : ({ CONFIRMED: 'is-confirmed', COMPLETED: 'is-completed', CANCELLED: 'is-cancelled' }[normalizeReservationStatus(item.status)] || 'is-confirmed')]">
+            {{ item.type === 'GX'
+              ? (normalizeGxReservationStatus(item.status) === 'WAITING'
+                  ? (item.waitNo != null ? `대기 ${item.waitNo}번` : '대기 중')
+                  : '신청완료')
+              : ({ CONFIRMED: '예약완료', COMPLETED: '이용완료', CANCELLED: '취소됨' }[normalizeReservationStatus(item.status)] || '예약완료') }}
           </span>
         </li>
       </ul>
@@ -662,6 +654,19 @@ onMounted(() => {
 .reservation-item__time {
   font-size: var(--font-size-label);
   color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.reservation-item__date {
+  color: #4973e5;
+  font-weight: 600;
+}
+
+.reservation-item__sep {
+  color: #cbd5e1;
 }
 
 .reservation-item__badge {
@@ -677,5 +682,15 @@ onMounted(() => {
 .reservation-item__badge.is-waiting {
   color: #c08b2d;
   background: rgba(192, 139, 45, 0.12);
+}
+
+.reservation-item__badge.is-completed {
+  color: #2e7d52;
+  background: rgba(46, 125, 82, 0.1);
+}
+
+.reservation-item__badge.is-cancelled {
+  color: #e53e3e;
+  background: rgba(229, 62, 62, 0.1);
 }
 </style>

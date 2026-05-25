@@ -234,7 +234,7 @@ const validateBulkSeats = () => {
 const handleSubmitError = (error) => {
   const message =
     error.response?.data?.message ||
-    error.response?.data?.resultMessage ||
+    error.response?.data?.message ||
     "저장 중 오류가 발생했습니다.";
 
   const fieldMap = {
@@ -308,7 +308,7 @@ const handleSubmit = async () => {
             type: 'warning',
             title: '시설은 등록되었지만 좌석 일괄 등록에 실패했습니다.',
             subtitle:
-              bulkError.response?.data?.resultMessage ||
+              bulkError.response?.data?.message ||
               bulkError.response?.data?.message ||
               bulkError.message ||
               '상세 화면에서 좌석을 다시 등록해주세요.',
@@ -362,7 +362,7 @@ const handleDelete = async () => {
     openResultModal({
       type: 'danger',
       title: '삭제에 실패했습니다.',
-      subtitle: e.response?.data?.resultMessage || e.response?.data?.message || '잠시 후 다시 시도해주세요.',
+      subtitle: e.response?.data?.message || e.response?.data?.message || '잠시 후 다시 시도해주세요.',
     })
   } finally {
     deleteModal.loading = false;
@@ -410,7 +410,7 @@ const handleActiveToggle = async () => {
     openResultModal({
       type: 'danger',
       title: '상태 변경에 실패했습니다.',
-      subtitle: error.response?.data?.resultMessage || error.response?.data?.message || '잠시 후 다시 시도해주세요.',
+      subtitle: error.response?.data?.message || error.response?.data?.message || '잠시 후 다시 시도해주세요.',
     })
   } finally {
     activeModal.loading = false;

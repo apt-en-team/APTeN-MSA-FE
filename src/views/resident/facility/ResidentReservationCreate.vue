@@ -6,6 +6,7 @@ import { useReservationStore } from '@/stores/useReservationStore.js'
 import ResidentModal from '@/components/resident/ResidentModal.vue'
 import { toList } from '@/utils/apiResponse'
 import { normalizeReservationType } from '@/utils/normalize.js'
+import { getMySubscriptions } from '@/api/facilityApi.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -44,12 +45,16 @@ const state = reactive({
   seatsError: '',
 
   submitting: false,
+  isAlreadySubscribed: false,
+  cancelledSub: null,  // 해지된 구독 (재신청·유예기간 판단용)
 })
 
 const resultModal = reactive({ show: false, success: false, message: '' })
 
-// 구독형 시설 첫 예약 시 요금 안내 확인 모달
+// 구독형 시설 첫 구독 요금 안내 모달
 const billingConfirmModal = reactive({ show: false })
+// 이전 해지 후 재신청 확인 모달
+const resubscribeModal = reactive({ show: false })
 
 const reservationType = computed(() => normalizeReservationType(state.facility?.reservationType))
 const isApproval = computed(() => reservationType.value === 'APPROVAL')
@@ -85,7 +90,7 @@ const fetchFacility = async () => {
     state.facility = res
   } catch (e) {
     state.facilityError =
-      e?.response?.data?.resultMessage || '시설 정보를 불러오지 못했습니다.'
+      e?.response?.data?.message || '시설 정보를 불러오지 못했습니다.'
   } finally {
     state.facilityLoading = false
   }
@@ -107,7 +112,7 @@ const fetchAvailableTimes = async () => {
     state.times = toList(res)
   } catch (e) {
     state.timesError =
-      e?.response?.data?.resultMessage || '예약 가능 시간을 불러오지 못했습니다.'
+      e?.response?.data?.message || '예약 가능 시간을 불러오지 못했습니다.'
   } finally {
     state.timesLoading = false
   }
@@ -128,7 +133,7 @@ const fetchSeats = async () => {
     state.seats = toList(res)
   } catch (e) {
     state.seatsError =
-      e?.response?.data?.resultMessage || '좌석 정보를 불러오지 못했습니다.'
+      e?.response?.data?.message || '좌석 정보를 불러오지 못했습니다.'
   } finally {
     state.seatsLoading = false
   }
@@ -159,7 +164,11 @@ const isSlotSelected = (slot) =>
   state.form.selectedTime?.startTime === slot.startTime &&
   state.form.selectedTime?.endTime === slot.endTime
 
-const isSlotDisabled = (slot) => slot.isReservable === false || slot.availableCount === 0
+const isSlotDisabled = (slot) => {
+  if (slot.isReservable === false) return true
+  if (isCount.value && slot.availableCount === 0) return true
+  return false
+}
 
 const selectSeat = (seat) => {
   if (seat.status !== 'AVAILABLE') return
@@ -177,11 +186,40 @@ const isSeatAvailable = (seat) => seat.status === 'AVAILABLE'
 const seatStatusLabel = (status) =>
   ({ AVAILABLE: '예약 가능', RESERVED: '예약됨', HOLDING: '선점됨', BLOCKED: '차단됨' }[status] || '')
 
-// 구독형이면 요금 안내 모달 표시 후 확인 시 예약 실행, 아니면 바로 예약
+// 해지 후 이번달 요금이 청구 중인 유예기간 여부 (이번달 해지 + 기준일 초과)
+const isInGracePeriod = computed(() => {
+  const sub = state.cancelledSub
+  if (!sub?.cancelledAt) return false
+  const cancelledDate = new Date(sub.cancelledAt)
+  const now = new Date()
+  if (cancelledDate.getFullYear() !== now.getFullYear() || cancelledDate.getMonth() !== now.getMonth()) return false
+  const cutoff = sub.cancelCutoffDay
+  if (cutoff == null) return true  // 기준일 없음 = 항상 당월 청구 = 유예기간
+  return cancelledDate.getDate() > cutoff
+})
+
+// 재신청·첫신청 모달에 표시할 요금 청구 시점 안내
+// 재신청이면 cancelledSub, 첫신청이면 시설 상세(state.facility)의 subscribeCutoffDay 사용
+const subscribeBillingNote = computed(() => {
+  const day = new Date().getDate()
+  const cutoff = state.cancelledSub?.subscribeCutoffDay ?? state.facility?.subscribeCutoffDay ?? null
+  if (cutoff == null) return '이번 달부터 요금이 청구됩니다.'
+  if (day <= cutoff) return '이번 달부터 요금이 청구됩니다.'
+  return '다음 달부터 요금이 청구됩니다. 지금부터 이용은 가능합니다.'
+})
+
+// 구독형 시설 예약 클릭 처리
+// ACTIVE: 바로 예약 / 유예기간: 바로 예약 / 해지 후 완전종료: 재신청 모달 / 신규: 첫구독 안내 모달
 const onReserveClick = () => {
   if (!canSubmit.value || state.submitting) return
   if (isSubscriptionType.value) {
-    billingConfirmModal.show = true
+    if (state.isAlreadySubscribed || isInGracePeriod.value) {
+      submitReservation()
+    } else if (state.cancelledSub) {
+      resubscribeModal.show = true
+    } else {
+      billingConfirmModal.show = true
+    }
     return
   }
   submitReservation()
@@ -221,7 +259,7 @@ const submitReservation = async () => {
   } catch (e) {
     resultModal.success = false
     resultModal.message =
-      e?.response?.data?.resultMessage || '예약에 실패했습니다. 다시 시도해 주세요.'
+      e?.response?.data?.message || '예약에 실패했습니다. 다시 시도해 주세요.'
   } finally {
     state.submitting = false
     resultModal.show = true
@@ -235,8 +273,26 @@ const onResultClose = () => {
   }
 }
 
+const checkSubscription = async () => {
+  if (!isSubscriptionType.value) return
+  try {
+    const subs = await getMySubscriptions()
+    const facilityId = String(route.params.facilityId)
+    const facilitySubList = Array.isArray(subs) ? subs.filter(s => String(s.facilityId) === facilityId) : []
+    state.isAlreadySubscribed = facilitySubList.some(
+      s => String(s.status) === 'ACTIVE' || String(s.status) === '구독중',
+    )
+    state.cancelledSub = facilitySubList.find(
+      s => String(s.status) === 'CANCELLED' || String(s.status) === '해지',
+    ) ?? null
+  } catch {
+    // 구독 조회 실패 시 모달 표시 경로 유지
+  }
+}
+
 onMounted(async () => {
   await fetchFacility()
+  checkSubscription()
   if (!isApproval.value) {
     fetchAvailableTimes()
   }
@@ -390,16 +446,31 @@ onMounted(async () => {
       </button>
     </div>
 
-    <!-- 구독형 요금 안내 확인 모달 (FLAT/PER_PERSON 시설 첫 예약 시) -->
+    <!-- 첫 구독 안내 모달 -->
     <ResidentModal
       :visible="billingConfirmModal.show"
       type="info"
-      title="매월 요금이 청구됩니다"
-      subtitle="이 시설은 구독 방식으로 운영됩니다. 예약 후 매월 이용 요금이 청구되며, 해지 전까지 자동 갱신됩니다."
-      confirmText="예약하기"
+      title="구독 신청"
+      :subtitle="`이 시설은 구독 방식으로 운영됩니다.\n${subscribeBillingNote}`"
+      note-text="신청 후 해지는 1개월 이후 가능합니다."
+      confirmText="신청 후 예약하기"
       confirmType="primary"
       @close="billingConfirmModal.show = false"
       @confirm="() => { billingConfirmModal.show = false; submitReservation() }"
+    />
+
+    <!-- 재신청 확인 모달 -->
+    <ResidentModal
+      :visible="resubscribeModal.show"
+      type="warning"
+      title="재신청하시겠습니까?"
+      :subtitle="`이전에 해지하신 시설입니다.\n${subscribeBillingNote}`"
+      note-text="신청 후 해지는 1개월 이후 가능합니다."
+      confirm-text="재신청하기"
+      cancel-text="취소"
+      confirm-type="primary"
+      @close="resubscribeModal.show = false"
+      @confirm="() => { resubscribeModal.show = false; submitReservation() }"
     />
 
     <!-- 결과 모달 -->

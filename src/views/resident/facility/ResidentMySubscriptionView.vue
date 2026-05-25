@@ -13,8 +13,10 @@ const state = reactive({
   errorMessage: '',
 })
 
-// 해지 대상 facilityId를 보관한다.
-const cancelModal = reactive({ show: false, facilityId: null, facilityName: '' })
+// 상세 모달에 표시할 구독 객체를 보관한다.
+const detailModal = reactive({ show: false, sub: null })
+// 해지 확인 모달
+const cancelModal = reactive({ show: false, facilityId: null, facilityName: '', sub: null })
 const resultModal = reactive({ show: false, type: 'success', title: '', subtitle: '' })
 
 const goToFacility = () => {
@@ -46,26 +48,102 @@ const feeTypeLabel = (t) => {
   return v
 }
 
+const isPerUse = (sub) => String(sub?.feeType || '') === 'PER_USE'
+
+// PER_USE: 이용 중/이용 완료, 나머지: 구독 중/해지
+const subStatusLabel = (sub) => {
+  if (isPerUse(sub)) return isActive(sub.status) ? '이용 중' : '이용 완료'
+  return isActive(sub.status) ? '구독 중' : '해지'
+}
+const subStatusClass = (sub) => (isActive(sub.status) ? 'is-active' : 'is-cancelled')
+
+const subDateText = (sub) => {
+  if (isPerUse(sub)) return sub.subscribedAt ? `${formatDate(sub.subscribedAt)} 이용 등록` : '-'
+  if (isActive(sub.status)) return sub.subscribedAt ? `${formatDate(sub.subscribedAt)} 구독 시작` : '-'
+  return sub.cancelledAt ? `${formatDate(sub.cancelledAt)} 해지` : '-'
+}
+
+// 해지 시 청구·이용 안내 메시지: 이번 달 이용 이력 + cancelCutoffDay 기준으로 분기한다.
+const cancelBillingMsg = (sub) => {
+  if (!sub?.hasCompletedThisMonth) return '이번 달 요금은 별도 청구되지 않습니다.'
+  const day = new Date().getDate()
+  const cutoff = sub?.cancelCutoffDay
+  if (cutoff != null && day <= cutoff) return '지금부터 해당 시설 이용은 불가하며, 이번 달 요금은 청구되지 않습니다.'
+  return '이번 달까지는 요금이 정상 청구되며, 이번 달 말까지 시설 이용이 가능합니다.'
+}
+
+// 신청 시 청구 안내 메시지: 오늘 날짜와 subscribeCutoffDay를 비교한다.
+const subscribeBillingMsg = (sub) => {
+  const day = new Date().getDate()
+  const cutoff = sub?.subscribeCutoffDay
+  if (cutoff == null) return '이번 달부터 요금이 청구됩니다.'
+  if (day <= cutoff) return '이번 달부터 요금이 청구됩니다.'
+  return '다음 달부터 요금이 청구됩니다. 지금부터 이용은 가능합니다.'
+}
+
 const activeSubs = computed(() => state.list.filter(s => isActive(s.status)))
 const cancelledSubs = computed(() => state.list.filter(s => !isActive(s.status)))
+
+// 요금 포맷 — baseFee가 없으면 '-'
+const formatFee = (sub) => {
+  if (sub?.baseFee == null) return '-'
+  const amount = Number(sub.baseFee).toLocaleString('ko-KR')
+  return isPerUse(sub) ? `₩${amount} / 건` : `₩${amount} / 월`
+}
+
+// 상세 모달 infoRows 생성
+const detailInfoRows = (sub) => {
+  if (!sub) return []
+  const rows = [
+    { label: '상태', value: subStatusLabel(sub) },
+    { label: '요금 방식', value: feeTypeLabel(sub.feeType) },
+    { label: '요금', value: formatFee(sub) },
+    { label: '구독 시작일', value: formatDate(sub.subscribedAt) },
+  ]
+  if (!isActive(sub.status) && sub.cancelledAt) {
+    rows.push({ label: '해지일', value: formatDate(sub.cancelledAt) })
+  }
+  return rows
+}
+
+const openDetailModal = (sub) => {
+  detailModal.sub = sub
+  detailModal.show = true
+}
+
+// 상세 모달 확인 버튼 — ACTIVE + !PER_USE면 해지 확인 모달로 이어진다
+const onDetailConfirm = () => {
+  const sub = detailModal.sub
+  if (sub && isActive(sub.status) && !isPerUse(sub)) {
+    detailModal.show = false
+    cancelModal.facilityId = sub.facilityId
+    cancelModal.facilityName = sub.facilityName
+    cancelModal.sub = sub
+    cancelModal.show = true
+  } else {
+    detailModal.show = false
+  }
+}
 
 const openCancelModal = (sub) => {
   cancelModal.facilityId = sub.facilityId
   cancelModal.facilityName = sub.facilityName
+  cancelModal.sub = sub
   cancelModal.show = true
 }
 
 const executeCancel = async () => {
   const facilityId = cancelModal.facilityId
+  const sub = cancelModal.sub
   cancelModal.show = false
   try {
     await cancelFacilitySubscription(facilityId)
     resultModal.type = 'success'
     resultModal.title = '구독이 해지되었습니다.'
-    resultModal.subtitle = '다음 달부터 요금이 청구되지 않습니다.'
+    resultModal.subtitle = cancelBillingMsg(sub)
     await fetchSubscriptions()
   } catch (e) {
-    const msg = e?.response?.data?.resultMessage || '해지 처리 중 오류가 발생했습니다.'
+    const msg = e?.response?.data?.message || '해지 처리 중 오류가 발생했습니다.'
     resultModal.type = 'danger'
     resultModal.title = '해지할 수 없습니다.'
     resultModal.subtitle = msg
@@ -80,7 +158,7 @@ const fetchSubscriptions = async () => {
     const res = await getMySubscriptions()
     state.list = Array.isArray(res) ? res : []
   } catch (e) {
-    state.errorMessage = e?.response?.data?.resultMessage || '구독 목록을 불러오지 못했습니다.'
+    state.errorMessage = e?.response?.data?.message || '구독 목록을 불러오지 못했습니다.'
   } finally {
     state.loading = false
   }
@@ -127,59 +205,76 @@ onMounted(() => {
       <!-- 구독 중 -->
       <template v-if="activeSubs.length > 0">
         <p class="section-label">구독 중 ({{ activeSubs.length }})</p>
-        <div
+        <button
           v-for="sub in activeSubs"
           :key="sub.subscriptionId"
           class="sub-card is-active"
+          type="button"
+          @click="openDetailModal(sub)"
         >
           <div class="sub-card__info">
             <div class="sub-card__name">{{ sub.facilityName }}</div>
             <div class="sub-card__meta">
-              <span class="tag">{{ feeTypeLabel(sub.feeType) }}</span>
-              <span class="sub-date">{{ formatDate(sub.subscribedAt) }} 구독 시작</span>
+              <span class="sub-date">{{ subDateText(sub) }}</span>
             </div>
           </div>
           <div class="sub-card__right">
-            <span class="status-badge is-active">구독 중</span>
-            <button
-              class="btn-cancel"
-              type="button"
-              @click="openCancelModal(sub)"
-            >
-              해지
-            </button>
+            <span :class="['status-badge', subStatusClass(sub)]">{{ subStatusLabel(sub) }}</span>
+            <svg class="sub-card__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
           </div>
-        </div>
+        </button>
       </template>
 
       <!-- 해지된 구독 -->
       <template v-if="cancelledSubs.length > 0">
         <p class="section-label">해지된 구독 ({{ cancelledSubs.length }})</p>
-        <div
+        <button
           v-for="sub in cancelledSubs"
           :key="sub.subscriptionId"
           class="sub-card is-cancelled"
+          type="button"
+          @click="openDetailModal(sub)"
         >
           <div class="sub-card__info">
             <div class="sub-card__name">{{ sub.facilityName }}</div>
             <div class="sub-card__meta">
-              <span class="tag">{{ feeTypeLabel(sub.feeType) }}</span>
-              <span class="sub-date">{{ formatDate(sub.cancelledAt) }} 해지</span>
+              <span class="sub-date">{{ subDateText(sub) }}</span>
             </div>
           </div>
           <div class="sub-card__right">
-            <span class="status-badge is-cancelled">해지</span>
+            <span :class="['status-badge', subStatusClass(sub)]">{{ subStatusLabel(sub) }}</span>
+            <svg class="sub-card__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
           </div>
-        </div>
+        </button>
       </template>
     </div>
+
+    <!-- 구독 상세 모달 -->
+    <ResidentModal
+      :visible="detailModal.show"
+      type="info"
+      :title="detailModal.sub?.facilityName || ''"
+      :info-rows="detailInfoRows(detailModal.sub)"
+      :confirm-text="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? '해지하기' : '닫기'"
+      :confirm-type="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? 'danger' : 'primary'"
+      :show-cancel="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub)"
+      :note-text="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? '신청 후 해지는 1개월 이후 가능합니다.' : ''"
+      cancel-text="닫기"
+      @close="detailModal.show = false"
+      @confirm="onDetailConfirm"
+    />
 
     <!-- 해지 확인 모달 -->
     <ResidentModal
       :visible="cancelModal.show"
       type="warning"
       title="구독을 해지하시겠습니까?"
-      :subtitle="`${cancelModal.facilityName} 구독을 해지하면 다음 달부터 요금이 청구되지 않습니다.`"
+      :subtitle="cancelBillingMsg(cancelModal.sub)"
+      note-text="신청 후 해지는 1개월 이후 가능합니다."
       confirm-text="해지하기"
       cancel-text="취소"
       confirm-type="danger"
@@ -263,6 +358,16 @@ onMounted(() => {
   background: #ffffff;
   border-radius: 14px;
   box-shadow: 0 2px 10px rgba(73, 115, 229, 0.07);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: box-shadow 0.15s;
+}
+
+.sub-card:active {
+  box-shadow: 0 1px 4px rgba(73, 115, 229, 0.08);
 }
 
 .sub-card.is-cancelled {
@@ -334,22 +439,10 @@ onMounted(() => {
   color: #94a3b8;
 }
 
-/* 해지 버튼 */
-.btn-cancel {
-  padding: 5px 12px;
-  background: transparent;
-  border: 1.5px solid #e53e3e;
-  color: #e53e3e;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-  transition: background 0.15s, color 0.15s;
-}
-
-.btn-cancel:active {
-  background: #fff5f5;
+.sub-card__chevron {
+  color: #cbd5e1;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 /* 공통 상태 영역 */

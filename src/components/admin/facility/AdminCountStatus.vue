@@ -172,7 +172,7 @@ const handleCancel = async () => {
     openResultModal({
       type: 'danger',
       title: '취소 처리에 실패했습니다.',
-      subtitle: e?.response?.data?.resultMessage || '잠시 후 다시 시도해주세요.',
+      subtitle: e?.response?.data?.message || '잠시 후 다시 시도해주세요.',
       itemName: targetName,
     })
   }

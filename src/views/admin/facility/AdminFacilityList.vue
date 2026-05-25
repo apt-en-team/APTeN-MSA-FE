@@ -143,13 +143,13 @@ const isSeatFacility = (facility) =>
 
 // ── 표시 헬퍼 ──────────────────────────────────────────────────
 
-// 오늘 차단이 있으면 "점검중" 우선 표시
+// 오늘 차단 유형에 따라 라벨 구분: CLOSURE=휴무, BLOCK=점검중
 const statusLabel = (f) => {
-  if (f?.isTodayBlocked && f?.isActive) return '점검중'
+  if (f?.isTodayBlocked && f?.isActive) return f?.blockType === 'CLOSURE' ? '휴무' : '점검중'
   return f?.isActive ? '운영 중' : '운영 중단'
 }
 const statusClass = (f) => {
-  if (f?.isTodayBlocked && f?.isActive) return 'maintenance'
+  if (f?.isTodayBlocked && f?.isActive) return f?.blockType === 'CLOSURE' ? 'closure' : 'maintenance'
   return f?.isActive ? 'active' : 'inactive'
 }
 const formatTime = (t) => (t ? String(t).slice(0, 5) : '-')
@@ -169,13 +169,15 @@ const timeToMin = (t) => {
   return Number(parts[0]) * 60 + Number(parts[1] || 0)
 }
 
-// 오늘 전체 예약 가능 수: slotMin이 있으면 슬롯×maxCount, 없으면 maxCount
+// 오늘 전체 예약 가능 수: DAY 단위는 maxCount, 시간 단위는 슬롯×maxCount
 const getTotalDailyCapacity = (f) => {
   if (!f.maxCount) return 0
-  if (!f.slotMin) return f.maxCount
+  // DAY 단위 또는 slotMin 없는 시설은 maxCount가 곧 하루 정원이다.
+  if (!f.slotMin || f.usageUnitType === 'DAY') return f.maxCount
   const openMin = timeToMin(f.openTime)
-  const closeMin = timeToMin(f.closeTime)
-  if (closeMin <= openMin) return 0
+  let closeMin = timeToMin(f.closeTime)
+  // 00:00(자정)은 1440분으로 처리한다.
+  if (closeMin <= openMin) closeMin += 1440
   return Math.floor((closeMin - openMin) / f.slotMin) * f.maxCount
 }
 
@@ -214,7 +216,7 @@ const fetchAll = async () => {
   } catch (error) {
     console.error('시설 목록 조회 실패:', error)
     state.errorMessage =
-      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
       error.response?.data?.message ||
       '시설 목록을 불러오지 못했습니다.'
   }
@@ -276,7 +278,7 @@ const fetchSeats = async (facilityId = detailModal.facility?.facilityId) => {
   } catch (error) {
     console.error('시설 좌석 목록 조회 실패:', error)
     seatState.errorMessage =
-      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
       error.response?.data?.message ||
       '좌석 목록을 불러오지 못했습니다.'
   } finally {
@@ -369,7 +371,7 @@ const submitSeatForm = async () => {
     closeSeatFormModal()
   } catch (error) {
     seatFormModal.errorMessage =
-      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
       error.response?.data?.message ||
       '좌석 저장에 실패했습니다.'
     openResultModal({
@@ -497,7 +499,7 @@ onMounted(() => {
                   <template v-if="f.isTodayBlocked && f.isActive">
                     <span class="legend-item">
                       <span class="legend-dot" style="background: #A0AEC0"></span>
-                      점검 중 (예약 차단)
+                      {{ f.blockType === 'CLOSURE' ? '휴무 (예약 차단)' : '점검 중 (예약 차단)' }}
                     </span>
                   </template>
                   <template v-else>
@@ -883,6 +885,7 @@ onMounted(() => {
 .status-badge.active { background: #ebf5ee; color: #4d8b5a; }
 .status-badge.inactive { background: #e0e0e0; color: #4a5568; }
 .status-badge.maintenance { background: #fef3cd; color: #b7791f; }
+.status-badge.closure { background: #f1f5f9; color: #475569; }
 
 /* 점검중 카드 테두리 강조 */
 .facility-card.maintenance-card {

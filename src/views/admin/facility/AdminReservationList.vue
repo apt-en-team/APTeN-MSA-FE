@@ -205,7 +205,7 @@ const fetchList = async () => {
     }
   } catch (error) {
     state.errorMessage =
-      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
       error.response?.data?.message ||
       '예약 목록을 불러오지 못했습니다.'
   } finally {
@@ -259,7 +259,7 @@ const openRowDetail = async (row) => {
     }
   } catch (error) {
     detailModal.errorMessage =
-      error.response?.data?.resultMessage ||
+      error.response?.data?.message ||
       error.response?.data?.message ||
       '예약 상세 조회에 실패했습니다.'
   } finally {
@@ -334,7 +334,7 @@ const handleCancel = async () => {
       type: 'danger',
       title: '취소 처리에 실패했습니다.',
       subtitle:
-        error.response?.data?.resultMessage ||
+        error.response?.data?.message ||
         error.response?.data?.message ||
         '잠시 후 다시 시도해주세요.',
     })
