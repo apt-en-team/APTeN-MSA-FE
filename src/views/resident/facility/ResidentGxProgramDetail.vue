@@ -112,7 +112,8 @@ const gxStatusLabel = (s) =>
   ({
     RECRUITING: '모집 중',
     ACTIVE: '진행 중',
-    CLOSED: '마감',
+    WAITING_CLOSED: '모집마감',
+    CLOSED: '종료',
     CANCELLED: '취소됨',
   }[normalizeGxProgramStatus(s)] || s || '')
 
@@ -120,6 +121,7 @@ const gxStatusClass = (s) =>
   ({
     RECRUITING: 'is-open',
     ACTIVE: 'is-active',
+    WAITING_CLOSED: 'is-closed',
     CLOSED: 'is-closed',
     CANCELLED: 'is-cancelled',
   }[normalizeGxProgramStatus(s)] || '')
@@ -336,7 +338,7 @@ onMounted(() => {
 
       <!-- 마감 안내 -->
       <div
-        v-if="normalizedDetailStatus === 'CLOSED' && !isMyStatusActive"
+        v-if="(normalizedDetailStatus === 'CLOSED' || normalizedDetailStatus === 'WAITING_CLOSED') && !isMyStatusActive"
         class="notice-card is-warning"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

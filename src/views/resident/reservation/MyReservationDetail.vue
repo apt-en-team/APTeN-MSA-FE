@@ -18,7 +18,10 @@ const state = reactive({
 const cancelModal = reactive({ show: false })
 const resultModal = reactive({ show: false, success: false, message: '' })
 
-const isCancellable = computed(() => normalizeReservationStatus(state.detail?.status) === 'CONFIRMED')
+const isCancellable = computed(() =>
+  normalizeReservationStatus(state.detail?.status) === 'CONFIRMED' &&
+  state.detail?.cancelable !== false,
+)
 
 const goBack = () => {
   router.push(`/resident/${route.params.complexId}/reservations`)

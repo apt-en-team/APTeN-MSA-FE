@@ -45,7 +45,7 @@ const formatFee = (fee) => {
 const statusLabel = (status) => {
   const n = normalizeGxProgramStatus(status)
   return (
-    { RECRUITING: '모집 중', CLOSED: '마감', CANCELLED: '취소', ACTIVE: '진행 중' }[n] ||
+    { RECRUITING: '모집 중', WAITING_CLOSED: '모집마감', CLOSED: '종료', CANCELLED: '취소', ACTIVE: '진행 중' }[n] ||
     status ||
     '-'
   )
@@ -56,6 +56,7 @@ const statusClass = (status) => {
   return (
     {
       RECRUITING: 'badge-recruiting',
+      WAITING_CLOSED: 'badge-closed',
       CLOSED: 'badge-closed',
       CANCELLED: 'badge-cancelled',
       ACTIVE: 'badge-active',

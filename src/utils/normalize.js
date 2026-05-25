@@ -37,8 +37,9 @@ export const normalizeGxProgramStatus = (value) => {
   const map = {
     RECRUITING: 'RECRUITING', '모집중': 'RECRUITING', '모집 중': 'RECRUITING',
     OPEN: 'RECRUITING', WAITING_REGISTRATION: 'RECRUITING',
-    CLOSED: 'CLOSED', '마감': 'CLOSED', '모집마감': 'CLOSED',
-    CANCELLED: 'CANCELLED', '취소': 'CANCELLED', '취소됨': 'CANCELLED',
+    WAITING_CLOSED: 'WAITING_CLOSED', '모집마감': 'WAITING_CLOSED',
+    CLOSED: 'CLOSED', '마감': 'CLOSED', '종료': 'CLOSED',
+    CANCELLED: 'CANCELLED', '취소': 'CANCELLED', '취소됨': 'CANCELLED', '프로그램취소': 'CANCELLED',
     ACTIVE: 'ACTIVE', '진행중': 'ACTIVE', '진행 중': 'ACTIVE',
   }
   return map[String(value).trim()] ?? value
@@ -47,7 +48,7 @@ export const normalizeGxProgramStatus = (value) => {
 export const normalizeGxReservationStatus = (value) => {
   if (value == null) return ''
   const map = {
-    CONFIRMED: 'CONFIRMED', '신청완료': 'CONFIRMED', '수강확정': 'CONFIRMED', '승인완료': 'CONFIRMED',
+    CONFIRMED: 'CONFIRMED', '신청완료': 'CONFIRMED', '수강확정': 'CONFIRMED', '승인완료': 'CONFIRMED', '확정': 'CONFIRMED',
     WAITING: 'WAITING', '대기': 'WAITING', '대기중': 'WAITING', '대기 중': 'WAITING',
     CANCELLED: 'CANCELLED', '취소': 'CANCELLED', '취소됨': 'CANCELLED',
     REJECTED: 'REJECTED', '거절': 'REJECTED', '거절됨': 'REJECTED',
