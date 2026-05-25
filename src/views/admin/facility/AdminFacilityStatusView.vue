@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import facilityApi from '@/api/facilityApi'
 import reservationApi from '@/api/reservationApi'
 import { toList } from '@/utils/apiResponse'
@@ -12,12 +13,14 @@ const RESERVATION_TYPE_LABEL = {
   COUNT: '정원형',
 }
 
+const route = useRoute()
+
 const state = reactive({
   activeTab: 'facility',
   selectedDate: new Date().toISOString().slice(0, 10),
 
   facilityList: [],
-  selectedFacilityId: null,
+  selectedFacilityId: route.query.facilityId ?? null,
   loadingFacilities: false,
   facilityError: '',
   seatSummary: { reservedCount: 0, totalCount: 0 },

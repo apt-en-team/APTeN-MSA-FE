@@ -7,10 +7,18 @@ import { FEATURE_CODES } from '@/constants/complexFeatures'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
+import { useReservationStore } from '@/stores/useReservationStore'
+import { getAdminFacilities } from '@/api/facilityApi.js'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
+const reservationStore = useReservationStore()
+
+const todayStr = (() => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})()
 
 // 대시보드 화면 데이터
 const state = reactive({
@@ -19,9 +27,14 @@ const state = reactive({
   pendingApproval: null,
   parkingRate: null,
   todayReservation: null,
+  todayReserved: null,
+  gxWaiting: null,
+  todayCancelled: null,
+  activeCount: null,
   totalHousehold: null,
   visitors: [],
   reservations: [],
+  facilitySummary: [],
   records: [],
   posts: [],
 })
@@ -69,7 +82,11 @@ const dashboardStats = computed(() => {
       label: '오늘 예약',
       value: state.todayReservation ?? '-',
       unit: state.todayReservation === null ? '' : '건',
-      desc: showFacilitySection.value ? '예약 현황 API 연결 예정입니다.' : '기능이 비활성화되었습니다.',
+      desc: showFacilitySection.value
+        ? (state.todayReserved !== null
+            ? `예약 ${state.todayReserved} · 대기 ${state.gxWaiting} · 취소 ${state.todayCancelled}`
+            : '시설 예약 현황')
+        : '기능이 비활성화되었습니다.',
       descClass: 'highlight-green',
       iconClass: 'icon-green',
     },
@@ -99,18 +116,74 @@ async function fetchDashboard() {
   }
 }
 
+const formatTime = (t) => (t ? String(t).slice(0, 5) : '-')
+
+// HH:mm:ss 형식의 시각 문자열을 분 단위 숫자로 변환한다.
+const toMinutes = (t) => {
+  if (!t) return 0
+  const parts = String(t).split(':')
+  return parseInt(parts[0]) * 60 + parseInt(parts[1])
+}
+
+const BAR_COLORS = ['green', 'dark', 'yellow']
+
+// 시설 데이터로 오늘 기준 요약 항목을 만든다. idx로 색상을 고정 할당한다.
+const buildFacilitySummaryItem = (f, idx) => {
+  const openMins = toMinutes(f.openTime)
+  let closeMins = toMinutes(f.closeTime)
+  // 00:00(자정)은 다음날 0시이므로 1440분(24시간)으로 처리한다.
+  if (f.closeTime && closeMins <= openMins) closeMins += 1440
+  const slotMin = f.slotMin || 60
+  const maxCount = f.maxCount || 1
+  // DAY 단위 시설은 하루 전체가 1슬롯이므로 maxCount가 곧 총 정원이다.
+  const totalSlots = f.usageUnitType === 'DAY' || !f.slotMin
+    ? maxCount
+    : (f.openTime && f.closeTime ? Math.floor((closeMins - openMins) / slotMin) * maxCount : 0)
+  const current = f.todayReservedCount || 0
+  const percent = totalSlots > 0 ? Math.round((current / totalSlots) * 100) : 0
+  const isFull = totalSlots > 0 && current >= totalSlots
+  const barColor = BAR_COLORS[idx] ?? 'dark'
+  const slotLabel = f.reservationType === '좌석형' ? '석' : '타임'
+  const hours = (f.openTime && f.closeTime)
+    ? `${formatTime(f.openTime)} ~ ${formatTime(f.closeTime)}`
+    : '-'
+  return { facilityId: f.facilityId, name: f.name, hours, current, totalSlots, percent, isFull, barColor, slotLabel }
+}
+
+const reservationStatusLabel = (s) =>
+  ({ CONFIRMED: '예약완료', COMPLETED: '이용완료', CANCELLED: '취소됨' })[s] || s || '-'
+
+const reservationStatusClass = (s) =>
+  ({ CONFIRMED: 'status-confirmed', COMPLETED: 'status-completed', CANCELLED: 'status-cancelled' })[s] || ''
+
 // 통계 데이터 조회
 async function fetchStats() {
-  // 실제 대시보드 API 연결 전까지 null 값으로 빈 상태를 유지한다.
-  state.pendingApproval = null
-  state.parkingRate = null
-  state.todayReservation = null
-  state.totalHousehold = null
+  if (!showFacilitySection.value) return
+  try {
+    const stats = await reservationStore.fetchAdminReservationStats()
+    state.todayReservation = stats?.todayTotal ?? null
+    state.todayReserved = stats?.todayReserved ?? null
+    state.gxWaiting = stats?.gxWaiting ?? null
+    state.todayCancelled = stats?.todayCancelled ?? null
+    state.activeCount = stats?.activeCount ?? null
+  } catch {
+    // 통계 실패 시 카드는 '-' 유지
+  }
 }
 
 // 최근 목록 조회
 async function fetchRecentItems() {
-  // 실제 최근 목록 API 연결 전까지 빈 배열로 빈 상태를 유지한다.
+  if (showFacilitySection.value) {
+    try {
+      const res = await getAdminFacilities({ size: 20, isActive: true })
+      state.facilitySummary = (res?.content ?? [])
+        .sort((a, b) => (b.todayReservedCount || 0) - (a.todayReservedCount || 0))
+        .slice(0, 3)
+        .map(buildFacilitySummaryItem)
+    } catch {
+      state.facilitySummary = []
+    }
+  }
   state.visitors = []
   state.reservations = []
   state.records = []
@@ -206,7 +279,7 @@ onMounted(() => {
               v-if="showFacilitySection"
               type="button"
               class="panel-more"
-              @click="router.push('/admin/reservations')"
+              @click="router.push('/admin/reservations/list')"
             >
               전체보기 →
             </button>
@@ -223,8 +296,31 @@ onMounted(() => {
             <p class="disabled-desc">이 단지에서는 시설/예약 기능을 사용하지 않습니다.</p>
           </div>
 
-          <div v-else-if="state.reservations.length > 0" class="facility-list">
-            <!-- API 연결 후 시설 예약 현황을 표시합니다. -->
+          <div v-else-if="state.facilitySummary.length > 0" class="facility-list">
+            <div
+              v-for="item in state.facilitySummary"
+              :key="item.facilityId"
+              class="facility-item card-clickable"
+              @click="router.push({ path: '/admin/reservations/facility-status', query: { facilityId: item.facilityId } })"
+            >
+              <div class="facility-bar" :class="'bar-' + item.barColor"></div>
+              <div class="facility-left">
+                <strong class="facility-name">{{ item.name }}</strong>
+                <span class="facility-time">{{ item.hours }}</span>
+              </div>
+              <div class="facility-right">
+                <div class="facility-name-row">
+                  <div class="progress-bar">
+                    <div class="progress-fill" :class="item.barColor" :style="{ width: Math.min(item.percent, 100) + '%' }"></div>
+                  </div>
+                  <span class="facility-count">
+                    <span :class="['count-current', item.isFull ? 'count-full' : '']">{{ item.current }}</span>
+                    / {{ item.totalSlots }} {{ item.slotLabel }}
+                  </span>
+                </div>
+                <span class="facility-percent" :class="item.isFull ? 'text-full' : ''">{{ item.percent }}%</span>
+              </div>
+            </div>
           </div>
 
           <div v-else class="empty-state">
@@ -234,7 +330,7 @@ onMounted(() => {
               <line x1="8" y1="2" x2="8" y2="6" />
               <line x1="3" y1="10" x2="21" y2="10" />
             </svg>
-            <span class="empty-text">조회된 예약 현황이 없습니다.</span>
+            <span class="empty-text">등록된 시설이 없습니다.</span>
           </div>
         </article>
       </section>
@@ -573,4 +669,106 @@ onMounted(() => {
     text-align: left;
   }
 }
+
+.card-clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.card-clickable:hover {
+  background: #f1f4f9 !important;
+}
+
+.facility-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 14px;
+  border-radius: 10px;
+  background: #f9fafb;
+  justify-content: space-between;
+}
+
+.facility-bar {
+  width: 4px;
+  height: 40px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.bar-dark { background: #2B3A55; }
+.bar-green { background: #276749; }
+.bar-yellow { background: #C08B2D; }
+
+.facility-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 80px;
+}
+
+.facility-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1A202C;
+}
+
+.facility-time {
+  font-size: 11px;
+  color: #687282;
+}
+
+.facility-right {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.facility-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 7px;
+  background: #E2E8F0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.progress-fill.dark { background: #2B3A55; }
+.progress-fill.green { background: #4D8B5A; }
+.progress-fill.yellow { background: #C08B2D; }
+
+.facility-count {
+  font-size: 11px;
+  color: #92959D;
+  white-space: nowrap;
+}
+
+.count-current {
+  font-weight: 700;
+  color: #276749;
+}
+
+.count-full { color: #C08B2D !important; }
+
+.facility-percent {
+  font-size: 11px;
+  color: #6B7280;
+  text-align: right;
+}
+
+.text-full { color: #C08B2D !important; }
 </style>

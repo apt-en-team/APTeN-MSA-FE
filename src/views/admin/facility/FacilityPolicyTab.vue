@@ -31,7 +31,8 @@ const state = reactive({
   feeType: 'FLAT',
   includedPersonCount: '',
   extraPersonFee: 0,
-  billingCutoffDay: '',   // 월정산 청구 기준일 (null이면 항상 전액)
+  subscribeCutoffDay: '',  // 신청 기준일 (null이면 항상 당월 청구)
+  cancelCutoffDay: '',     // 해지 기준일 (null이면 항상 당월 청구)
   loading: false,
   submitting: false,
   errorMessage: '',
@@ -131,7 +132,8 @@ const syncPolicyForm = (policy) => {
   state.includedPersonCount = policy?.includedPersonCount ?? ''
   state.extraPersonFee = policy?.extraPersonFee ?? 0
   // null이면 '' 로 초기화해 "기준일 없음(항상 전액)" 상태를 input에서 표현
-  state.billingCutoffDay = policy?.billingCutoffDay ?? ''
+  state.subscribeCutoffDay = policy?.subscribeCutoffDay ?? ''
+  state.cancelCutoffDay = policy?.cancelCutoffDay ?? ''
 }
 
 const fetchPolicyForFacility = async (facilityId) => {
@@ -218,7 +220,8 @@ const handleConfirmSave = async () => {
       : null,
     extraPersonFee: isFlatWithExtra.value ? Number(state.extraPersonFee || 0) : null,
     // 빈 문자열이면 null 전송 → BE에서 항상 전액 청구로 처리
-    billingCutoffDay: state.billingCutoffDay === '' ? null : Number(state.billingCutoffDay),
+    subscribeCutoffDay: state.subscribeCutoffDay === '' ? null : Number(state.subscribeCutoffDay),
+    cancelCutoffDay: state.cancelCutoffDay === '' ? null : Number(state.cancelCutoffDay),
     isActive: true,
   }
 
@@ -349,15 +352,32 @@ onMounted(async () => {
               <span class="detail-value">{{ selectedPolicy.cancelDeadlineHours || '-' }}시간 전</span>
             </div>
             <!-- FLAT/PER_PERSON 요금 방식일 때만 월정산 기준일 표시 -->
-            <div
-              v-if="['FLAT', 'PER_PERSON'].includes(selectedPolicy.feeType)"
-              class="detail-row"
-            >
-              <span class="detail-label">월정산 기준일</span>
-              <span class="detail-value">
-                {{ selectedPolicy.billingCutoffDay != null ? selectedPolicy.billingCutoffDay + '일' : '기준일 없음 (항상 전액)' }}
-              </span>
-            </div>
+            <template v-if="['FLAT', 'PER_PERSON'].includes(selectedPolicy.feeType)">
+              <div class="detail-row">
+                <span class="detail-label">
+                  월정산 기준일 (신청)
+                  <span class="tooltip-wrap">
+                    <span class="tooltip-trigger">!</span>
+                    <span class="tooltip-popup">예) 기준일 20일 → 20일 이하 신청 시 당월부터 청구,<br>21일 이후 신청 시 익월부터 청구</span>
+                  </span>
+                </span>
+                <span class="detail-value">
+                  {{ selectedPolicy.subscribeCutoffDay != null ? selectedPolicy.subscribeCutoffDay + '일' : '없음' }}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">
+                  월정산 기준일 (해지)
+                  <span class="tooltip-wrap">
+                    <span class="tooltip-trigger">!</span>
+                    <span class="tooltip-popup">예) 기준일 10일 → 10일 이하 해지 시 당월 요금 미청구,<br>11일 이후 해지 시 당월까지 청구</span>
+                  </span>
+                </span>
+                <span class="detail-value">
+                  {{ selectedPolicy.cancelCutoffDay != null ? selectedPolicy.cancelCutoffDay + '일' : '없음' }}
+                </span>
+              </div>
+            </template>
             <div
               v-if="['COUNT', 'APPROVAL'].includes(normalizeReservationType(selectedFacility?.reservationType))"
               class="detail-row"
@@ -440,19 +460,46 @@ onMounted(async () => {
             </label>
 
             <!-- FLAT/PER_PERSON 요금 방식일 때만 월정산 기준일 입력 표시 -->
-            <label v-if="['FLAT', 'PER_PERSON'].includes(state.feeType)" class="form-field">
-              <span>월정산 기준일</span>
-              <div class="input-suffix-wrap">
-                <input
-                  v-model="state.billingCutoffDay"
-                  type="number"
-                  min="1"
-                  max="28"
-                  placeholder="없음 (항상 전액)"
-                />
-                <span class="input-suffix">일</span>
-              </div>
-            </label>
+            <template v-if="['FLAT', 'PER_PERSON'].includes(state.feeType)">
+              <label class="form-field">
+                <span class="field-label-row">
+                  월정산 기준일 (신청)
+                  <span class="tooltip-wrap">
+                    <span class="tooltip-trigger">!</span>
+                    <span class="tooltip-popup">예) 기준일 20일 → 20일 이하 신청 시 당월부터 청구,<br>21일 이후 신청 시 익월부터 청구</span>
+                  </span>
+                </span>
+                <div class="input-suffix-wrap">
+                  <input
+                    v-model="state.subscribeCutoffDay"
+                    type="number"
+                    min="1"
+                    max="28"
+                    placeholder="없음"
+                  />
+                  <span class="input-suffix">일</span>
+                </div>
+              </label>
+              <label class="form-field">
+                <span class="field-label-row">
+                  월정산 기준일 (해지)
+                  <span class="tooltip-wrap">
+                    <span class="tooltip-trigger">!</span>
+                    <span class="tooltip-popup">예) 기준일 10일 → 10일 이하 해지 시 당월 요금 미청구,<br>11일 이후 해지 시 당월까지 청구</span>
+                  </span>
+                </span>
+                <div class="input-suffix-wrap">
+                  <input
+                    v-model="state.cancelCutoffDay"
+                    type="number"
+                    min="1"
+                    max="28"
+                    placeholder="없음"
+                  />
+                  <span class="input-suffix">일</span>
+                </div>
+              </label>
+            </template>
 
             <label v-if="showMaxReservationCount" class="form-field">
               <span>최대 예약 인원</span>
@@ -653,10 +700,13 @@ onMounted(async () => {
 .detail-row:last-child { border-bottom: none; }
 
 .detail-label {
-  flex: 0 0 110px;
+  flex: 0 0 140px;
   font-size: 12px;
   color: #687282;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .detail-value {
@@ -781,6 +831,68 @@ onMounted(async () => {
   font-size: 13px;
   background: #F8FAFC;
   border-radius: 10px;
+}
+
+/* ── 툴팁 ── */
+.field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #94a3b8;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: default;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.tooltip-popup {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1E2A3E;
+  color: #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.6;
+  padding: 9px 13px;
+  border-radius: 8px;
+  white-space: nowrap;
+  z-index: 200;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+}
+
+.tooltip-popup::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1E2A3E;
+}
+
+.tooltip-wrap:hover .tooltip-popup {
+  display: block;
 }
 
 /* ── 반응형 ── */

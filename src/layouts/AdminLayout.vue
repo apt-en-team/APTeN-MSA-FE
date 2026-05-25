@@ -615,6 +615,7 @@ watch(
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
+  min-width: 960px;
   background-color: var(--color-bg-app);
   color: var(--color-text-primary);
 }
@@ -622,14 +623,14 @@ watch(
 .admin-layout__sidebar {
   position: sticky;
   top: 0;
+  height: 100vh;
   display: flex;
-  min-height: 100vh;
   flex-direction: column;
   justify-content: space-between;
-  width: 240px;
   background: var(--color-sidebar-bg);
   color: var(--color-sidebar-text);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08);
+  overflow-y: auto;
 }
 
 .admin-layout__brand-panel {
@@ -906,17 +907,7 @@ watch(
   padding-right: 64px;
 }
 
-@media (max-width: 1280px) {
-  .admin-layout {
-    grid-template-columns: 240px minmax(0, 1fr);
-  }
-}
-
 @media (max-width: 1024px) {
-  .admin-layout {
-    grid-template-columns: 224px minmax(0, 1fr);
-  }
-
   .admin-layout__header {
     padding: 0 var(--space-20);
   }

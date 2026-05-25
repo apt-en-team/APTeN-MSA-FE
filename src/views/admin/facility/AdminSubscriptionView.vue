@@ -338,10 +338,10 @@ onMounted(() => fetchList())
               v-for="(m, i) in detailModal.data.members"
               :key="i"
               class="member-chip"
-              :class="{ 'is-primary': m.isPrimary }"
+              :class="{ 'is-primary': m.primary }"
             >
               <span class="member-name">{{ m.name }}</span>
-              <span class="member-role">{{ m.isPrimary ? '세대주' : '세대원' }}</span>
+              <span class="member-role">{{ m.primary ? '세대주' : '세대원' }}</span>
             </div>
             <div v-if="detailModal.data.members.length === 0" class="empty-text">세대원 정보 없음</div>
           </div>
@@ -597,8 +597,8 @@ onMounted(() => fetchList())
 }
 
 .member-chip.is-primary {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: #eef1f7;
+  border-color: #b0bdd4;
 }
 
 .member-name {
@@ -613,7 +613,7 @@ onMounted(() => fetchList())
 }
 
 .member-chip.is-primary .member-role {
-  color: #3b82f6;
+  color: #2b3a55;
 }
 
 /* 구독 목록 */
