@@ -2,8 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
-import apiClient from '@/api/apiClient'
 import ResidentModal from '@/components/resident/ResidentModal.vue'
+import authApi from '@/api/authApi'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -25,8 +25,7 @@ const serverError = ref('')
 // 기존 내 정보 불러오기 — GET /api/users/me
 async function fetchUserInfo() {
   try {
-    const res = await apiClient.get('/api/users/me')
-    const data = res.data.data
+    const data = await authApi.getMyInfo()
     form.value.name = data.name || ''
     form.value.phone = data.phone || ''
   } catch (e) {
@@ -61,7 +60,7 @@ async function handleSubmit() {
   loading.value = true
   serverError.value = ''
   try {
-    await apiClient.patch('/api/users/me', {
+    await authApi.updateMyInfo({
       name: form.value.name,
       phone: form.value.phone,
     })
@@ -69,7 +68,7 @@ async function handleSubmit() {
     authStore.name = form.value.name
     showSuccessModal.value = true
   } catch (e) {
-    serverError.value = e.response?.data?.resultMessage || '수정 중 오류가 발생했습니다.'
+    serverError.value = e.response?.data?.message || '수정 중 오류가 발생했습니다.'
   } finally {
     loading.value = false
   }

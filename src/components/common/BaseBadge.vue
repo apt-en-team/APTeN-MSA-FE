@@ -45,4 +45,14 @@ defineProps({
   background-color: var(--color-bg-muted);
   color: var(--color-neutral);
 }
+
+.base-badge--info {
+  background-color: rgba(73, 115, 229, 0.14);
+  color: #4973E5;
+}
+
+.base-badge--primary {
+  background-color: rgba(124, 92, 219, 0.14);
+  color: #7C5CDB;
+}
 </style>

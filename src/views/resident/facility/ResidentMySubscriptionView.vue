@@ -1,0 +1,484 @@
+<script setup>
+import { reactive, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import ResidentModal from '@/components/resident/ResidentModal.vue'
+import { getMySubscriptions, cancelFacilitySubscription } from '@/api/facilityApi.js'
+
+const route = useRoute()
+const router = useRouter()
+
+const state = reactive({
+  list: [],
+  loading: false,
+  errorMessage: '',
+})
+
+// 상세 모달에 표시할 구독 객체를 보관한다.
+const detailModal = reactive({ show: false, sub: null })
+// 해지 확인 모달
+const cancelModal = reactive({ show: false, facilityId: null, facilityName: '', sub: null })
+const resultModal = reactive({ show: false, type: 'success', title: '', subtitle: '' })
+
+const goToFacility = () => {
+  router.push(`/resident/${route.params.complexId}/facility`)
+}
+
+const formatDate = (d) => (d ? String(d).replaceAll('-', '.') : '-')
+
+// 구독 상태 한글 + 스타일 키 변환 (API가 EnumMapperType @JsonValue 값으로 내려줄 경우 대비)
+const statusLabel = (s) => {
+  if (!s) return '-'
+  const v = String(s)
+  if (v === 'ACTIVE' || v === '구독중') return '구독 중'
+  if (v === 'CANCELLED' || v === '해지') return '해지'
+  return v
+}
+const isActive = (s) => {
+  const v = String(s || '')
+  return v === 'ACTIVE' || v === '구독중'
+}
+
+// feeType 한글 변환
+const feeTypeLabel = (t) => {
+  if (!t) return '-'
+  const v = String(t)
+  if (v === 'FLAT') return '월정액'
+  if (v === 'PER_PERSON') return '인당 정액'
+  if (v === 'PER_USE') return '건당 요금'
+  return v
+}
+
+const isPerUse = (sub) => String(sub?.feeType || '') === 'PER_USE'
+
+// PER_USE: 이용 중/이용 완료, 나머지: 구독 중/해지
+const subStatusLabel = (sub) => {
+  if (isPerUse(sub)) return isActive(sub.status) ? '이용 중' : '이용 완료'
+  return isActive(sub.status) ? '구독 중' : '해지'
+}
+const subStatusClass = (sub) => (isActive(sub.status) ? 'is-active' : 'is-cancelled')
+
+const subDateText = (sub) => {
+  if (isPerUse(sub)) return sub.subscribedAt ? `${formatDate(sub.subscribedAt)} 이용 등록` : '-'
+  if (isActive(sub.status)) return sub.subscribedAt ? `${formatDate(sub.subscribedAt)} 구독 시작` : '-'
+  return sub.cancelledAt ? `${formatDate(sub.cancelledAt)} 해지` : '-'
+}
+
+// 해지 시 청구·이용 안내 메시지: 이번 달 이용 이력 + cancelCutoffDay 기준으로 분기한다.
+const cancelBillingMsg = (sub) => {
+  if (!sub?.hasCompletedThisMonth) return '이번 달 요금은 별도 청구되지 않습니다.'
+  const day = new Date().getDate()
+  const cutoff = sub?.cancelCutoffDay
+  if (cutoff != null && day <= cutoff) return '지금부터 해당 시설 이용은 불가하며, 이번 달 요금은 청구되지 않습니다.'
+  return '이번 달까지는 요금이 정상 청구되며, 이번 달 말까지 시설 이용이 가능합니다.'
+}
+
+// 신청 시 청구 안내 메시지: 오늘 날짜와 subscribeCutoffDay를 비교한다.
+const subscribeBillingMsg = (sub) => {
+  const day = new Date().getDate()
+  const cutoff = sub?.subscribeCutoffDay
+  if (cutoff == null) return '이번 달부터 요금이 청구됩니다.'
+  if (day <= cutoff) return '이번 달부터 요금이 청구됩니다.'
+  return '다음 달부터 요금이 청구됩니다. 지금부터 이용은 가능합니다.'
+}
+
+const activeSubs = computed(() => state.list.filter(s => isActive(s.status)))
+const cancelledSubs = computed(() => state.list.filter(s => !isActive(s.status)))
+
+// 요금 포맷 — baseFee가 없으면 '-'
+const formatFee = (sub) => {
+  if (sub?.baseFee == null) return '-'
+  const amount = Number(sub.baseFee).toLocaleString('ko-KR')
+  return isPerUse(sub) ? `₩${amount} / 건` : `₩${amount} / 월`
+}
+
+// 상세 모달 infoRows 생성
+const detailInfoRows = (sub) => {
+  if (!sub) return []
+  const rows = [
+    { label: '상태', value: subStatusLabel(sub) },
+    { label: '요금 방식', value: feeTypeLabel(sub.feeType) },
+    { label: '요금', value: formatFee(sub) },
+    { label: '구독 시작일', value: formatDate(sub.subscribedAt) },
+  ]
+  if (!isActive(sub.status) && sub.cancelledAt) {
+    rows.push({ label: '해지일', value: formatDate(sub.cancelledAt) })
+  }
+  return rows
+}
+
+const openDetailModal = (sub) => {
+  detailModal.sub = sub
+  detailModal.show = true
+}
+
+// 상세 모달 확인 버튼 — ACTIVE + !PER_USE면 해지 확인 모달로 이어진다
+const onDetailConfirm = () => {
+  const sub = detailModal.sub
+  if (sub && isActive(sub.status) && !isPerUse(sub)) {
+    detailModal.show = false
+    cancelModal.facilityId = sub.facilityId
+    cancelModal.facilityName = sub.facilityName
+    cancelModal.sub = sub
+    cancelModal.show = true
+  } else {
+    detailModal.show = false
+  }
+}
+
+const openCancelModal = (sub) => {
+  cancelModal.facilityId = sub.facilityId
+  cancelModal.facilityName = sub.facilityName
+  cancelModal.sub = sub
+  cancelModal.show = true
+}
+
+const executeCancel = async () => {
+  const facilityId = cancelModal.facilityId
+  const sub = cancelModal.sub
+  cancelModal.show = false
+  try {
+    await cancelFacilitySubscription(facilityId)
+    resultModal.type = 'success'
+    resultModal.title = '구독이 해지되었습니다.'
+    resultModal.subtitle = cancelBillingMsg(sub)
+    await fetchSubscriptions()
+  } catch (e) {
+    const msg = e?.response?.data?.message || '해지 처리 중 오류가 발생했습니다.'
+    resultModal.type = 'danger'
+    resultModal.title = '해지할 수 없습니다.'
+    resultModal.subtitle = msg
+  }
+  resultModal.show = true
+}
+
+const fetchSubscriptions = async () => {
+  state.loading = true
+  state.errorMessage = ''
+  try {
+    const res = await getMySubscriptions()
+    state.list = Array.isArray(res) ? res : []
+  } catch (e) {
+    state.errorMessage = e?.response?.data?.message || '구독 목록을 불러오지 못했습니다.'
+  } finally {
+    state.loading = false
+  }
+}
+
+onMounted(() => {
+  fetchSubscriptions()
+})
+</script>
+
+<template>
+  <div class="my-sub-view">
+    <!-- 메인 탭 -->
+    <div class="main-tabs">
+      <button class="main-tab" type="button" @click="goToFacility">예약하기</button>
+      <button class="main-tab" type="button" @click="router.push(`/resident/${route.params.complexId}/reservations`)">내 예약</button>
+      <button class="main-tab is-active" type="button">나의 구독</button>
+    </div>
+
+    <!-- 로딩 -->
+    <div v-if="state.loading" class="state-area">
+      <p class="state-text">불러오는 중...</p>
+    </div>
+
+    <!-- 오류 -->
+    <div v-else-if="state.errorMessage" class="state-area">
+      <p class="state-text is-error">{{ state.errorMessage }}</p>
+      <button class="btn-retry" type="button" @click="fetchSubscriptions">다시 시도</button>
+    </div>
+
+    <!-- 목록 없음 -->
+    <div v-else-if="state.list.length === 0" class="state-area">
+      <div class="empty-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <rect x="3" y="3" width="18" height="18" rx="3" />
+          <path d="M3 9h18M9 21V9" />
+        </svg>
+      </div>
+      <p class="state-text">구독 중인 시설이 없습니다.</p>
+    </div>
+
+    <!-- 구독 목록 -->
+    <div v-else class="sub-list">
+      <!-- 구독 중 -->
+      <template v-if="activeSubs.length > 0">
+        <p class="section-label">구독 중 ({{ activeSubs.length }})</p>
+        <button
+          v-for="sub in activeSubs"
+          :key="sub.subscriptionId"
+          class="sub-card is-active"
+          type="button"
+          @click="openDetailModal(sub)"
+        >
+          <div class="sub-card__info">
+            <div class="sub-card__name">{{ sub.facilityName }}</div>
+            <div class="sub-card__meta">
+              <span class="sub-date">{{ subDateText(sub) }}</span>
+            </div>
+          </div>
+          <div class="sub-card__right">
+            <span :class="['status-badge', subStatusClass(sub)]">{{ subStatusLabel(sub) }}</span>
+            <svg class="sub-card__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </button>
+      </template>
+
+      <!-- 해지된 구독 -->
+      <template v-if="cancelledSubs.length > 0">
+        <p class="section-label">해지된 구독 ({{ cancelledSubs.length }})</p>
+        <button
+          v-for="sub in cancelledSubs"
+          :key="sub.subscriptionId"
+          class="sub-card is-cancelled"
+          type="button"
+          @click="openDetailModal(sub)"
+        >
+          <div class="sub-card__info">
+            <div class="sub-card__name">{{ sub.facilityName }}</div>
+            <div class="sub-card__meta">
+              <span class="sub-date">{{ subDateText(sub) }}</span>
+            </div>
+          </div>
+          <div class="sub-card__right">
+            <span :class="['status-badge', subStatusClass(sub)]">{{ subStatusLabel(sub) }}</span>
+            <svg class="sub-card__chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </button>
+      </template>
+    </div>
+
+    <!-- 구독 상세 모달 -->
+    <ResidentModal
+      :visible="detailModal.show"
+      type="info"
+      :title="detailModal.sub?.facilityName || ''"
+      :info-rows="detailInfoRows(detailModal.sub)"
+      :confirm-text="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? '해지하기' : '닫기'"
+      :confirm-type="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? 'danger' : 'primary'"
+      :show-cancel="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub)"
+      :note-text="detailModal.sub && isActive(detailModal.sub.status) && !isPerUse(detailModal.sub) ? '신청 후 해지는 1개월 이후 가능합니다.' : ''"
+      cancel-text="닫기"
+      @close="detailModal.show = false"
+      @confirm="onDetailConfirm"
+    />
+
+    <!-- 해지 확인 모달 -->
+    <ResidentModal
+      :visible="cancelModal.show"
+      type="warning"
+      title="구독을 해지하시겠습니까?"
+      :subtitle="cancelBillingMsg(cancelModal.sub)"
+      note-text="신청 후 해지는 1개월 이후 가능합니다."
+      confirm-text="해지하기"
+      cancel-text="취소"
+      confirm-type="danger"
+      @close="cancelModal.show = false"
+      @confirm="executeCancel"
+    />
+
+    <!-- 해지 결과 모달 -->
+    <ResidentModal
+      :visible="resultModal.show"
+      :type="resultModal.type"
+      :title="resultModal.title"
+      :subtitle="resultModal.subtitle"
+      confirm-text="확인"
+      :show-cancel="false"
+      @close="resultModal.show = false"
+      @confirm="resultModal.show = false"
+    />
+  </div>
+</template>
+
+<style scoped>
+.my-sub-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 16px;
+}
+
+/* 메인 탭 */
+.main-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  background: #e2e8f0;
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+
+.main-tab {
+  height: 40px;
+  border: none;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: #718096;
+  transition: background 0.15s, color 0.15s;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.main-tab.is-active {
+  background: #4973e5;
+  color: #ffffff;
+}
+
+/* 섹션 레이블 */
+.section-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  margin: 0 0 8px 2px;
+}
+
+/* 구독 목록 */
+.sub-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 구독 카드 */
+.sub-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(73, 115, 229, 0.07);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: box-shadow 0.15s;
+}
+
+.sub-card:active {
+  box-shadow: 0 1px 4px rgba(73, 115, 229, 0.08);
+}
+
+.sub-card.is-cancelled {
+  opacity: 0.6;
+}
+
+.sub-card__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sub-card__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a202c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sub-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  padding: 2px 7px;
+  background: #f1f5f9;
+  border-radius: 5px;
+  font-size: 11px;
+  color: #718096;
+  font-weight: 600;
+}
+
+.sub-date {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.sub-card__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 상태 뱃지 */
+.status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.status-badge.is-active {
+  background: #e6f4ec;
+  color: #2e7d52;
+}
+
+.status-badge.is-cancelled {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.sub-card__chevron {
+  color: #cbd5e1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* 공통 상태 영역 */
+.state-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 16px;
+  gap: 12px;
+}
+
+.state-text {
+  font-size: 14px;
+  color: #94a3b8;
+  margin: 0;
+  text-align: center;
+}
+
+.state-text.is-error {
+  color: #e53e3e;
+}
+
+.empty-icon {
+  color: #cbd5e1;
+}
+
+.btn-retry {
+  padding: 8px 20px;
+  background: #4973e5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+</style>

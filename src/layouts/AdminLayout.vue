@@ -36,6 +36,8 @@ const adminMenuDefinitions = [
       { label: '방문차량 목록', path: 'visitor-vehicles', icon: 'visitor-car' },
       { label: '입출차 기록', path: 'parking-logs', icon: 'log' },
       { label: '주차 현황', path: 'parking/dashboard', icon: 'parking' },
+      { label: '주차 통계', path: 'parking/statistics', icon: 'chart' },
+      { label: '주차 구역 관리', path: 'parking/zones', icon: 'layers' },
     ],
   },
   {
@@ -49,8 +51,7 @@ const adminMenuDefinitions = [
     label: 'FACILITY / RESERVATION',
     items: [
       { label: '시설 관리', path: 'facilities', icon: 'facility' },
-      { label: '예약 현황', path: 'reservations', icon: 'calendar' },
-      { label: 'GX 프로그램 관리', path: 'gx-programs', icon: 'gx' },
+      { label: '구독 현황', path: 'reservations', icon: 'calendar' },
     ],
   },
 ]
@@ -82,7 +83,8 @@ function isAdminMenuVisible(path) {
     return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.FACILITY)
   }
 
-  if (['parking-logs', 'parking/dashboard'].includes(path)) {
+  // 주차 관련 메뉴는 단지의 주차 기능이 켜진 경우에만 노출
+  if (['parking-logs', 'parking/dashboard', 'parking/statistics', 'parking/zones'].includes(path)) {
     return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.PARKING_STATUS)
   }
 
@@ -114,7 +116,21 @@ const userRole = computed(() => authStore.role || 'ADMIN')
 const userSubtext = computed(() => {
   return authStore.userInfo?.email || authStore.user?.email || userRole.value
 })
-const currentPageTitle = computed(() => route.meta?.title || '관리자 화면')
+
+// 시설 관리 화면의 탭별 페이지 제목 매핑이다.
+const facilityTabTitles = {
+  gx: '시설 관리 / GX 프로그램',
+  policy: '시설 관리 / 시설 정책',
+  'block-time': '시설 관리 / 차단 시간 목록',
+}
+
+// 현재 페이지 제목을 계산한다. 시설 관리는 탭에 따라 제목이 달라진다.
+const currentPageTitle = computed(() => {
+  if (route.path === '/admin/facilities' && facilityTabTitles[route.query.tab]) {
+    return facilityTabTitles[route.query.tab]
+  }
+  return route.meta?.title || '관리자 화면'
+})
 
 // 상단 헤더에 표시할 오늘 날짜 문자열을 계산한다.
 const todayStr = computed(() => {
@@ -179,14 +195,36 @@ const canRegisterAdmin = computed(() => {
   return isAdminManagePage && allowedRole
 })
 
-// 경로별 액션 버튼은 현재 페이지와 권한 기준으로 계산한다.
+// 입출차 기록 화면에서 기록 등록 버튼을 표시할지 판단한다.
+const canRegisterParkingLog = computed(() => route.path === '/admin/parking-logs')
+
+// 주차 구역 관리 화면에서 구역 등록 버튼을 표시할지 판단한다.
+const canRegisterParkingZone = computed(() => route.path === '/admin/parking/zones')
+
+// 센서 관리 화면에서 센서 등록 버튼을 표시할지 판단한다.
+const canRegisterSensor = computed(() => route.path === '/admin/parking/sensors')
+
+// 헤더 공통 버튼 노출 여부를 계산한다.
 const headerActions = computed(() => {
   return {
     showAlert: true,
     showComplexSelector: isMasterUser.value,
     showAdminRegister: canRegisterAdmin.value,
+    showParkingLogCreate: canRegisterParkingLog.value,
+    showParkingZoneCreate: canRegisterParkingZone.value,
+    showSensorCreate: canRegisterSensor.value,
   }
 })
+
+// 시설 등록 화면으로 이동한다.
+const goFacilityCreate = () => {
+  router.push('/admin/facilities/create')
+}
+
+// 시설별 예약 현황 화면으로 이동한다.
+const goToFacilityStatus = () => {
+  router.push('/admin/reservations/facility-status')
+}
 
 // 사이드바 아이콘 키에 맞는 SVG를 렌더링한다.
 function getMenuIconPath(icon) {
@@ -248,12 +286,7 @@ watch(
               <span class="admin-layout__nav-icon" aria-hidden="true">
                 <svg
                   v-if="getMenuIconPath(menu.icon) === 'grid'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <rect x="3" y="3" width="7" height="7" />
                   <rect x="14" y="3" width="7" height="7" />
@@ -262,36 +295,21 @@ watch(
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'account'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <path d="M20 21a8 8 0 0 0-16 0" />
                   <circle cx="12" cy="7" r="4" />
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'home'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                   <polyline points="9 22 9 12 15 12 15 22" />
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'bill'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <path d="M14 2H6a2 2 0 0 0-2 2v16l4-2 4 2 4-2 4 2V8z" />
                   <line x1="8" y1="7" x2="16" y2="7" />
@@ -299,12 +317,7 @@ watch(
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'car'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <path d="M14 16H9m10 0h2l-1.34-4.69A3 3 0 0 0 16.78 9H7.22a3 3 0 0 0-2.88 2.31L3 16h2" />
                   <circle cx="6.5" cy="16.5" r="2.5" />
@@ -312,12 +325,7 @@ watch(
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'visitor-car'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <path d="M14 16H9m10 0h2l-1.34-4.69A3 3 0 0 0 16.78 9H7.22a3 3 0 0 0-2.88 2.31L3 16h2" />
                   <circle cx="6.5" cy="16.5" r="2.5" />
@@ -326,12 +334,7 @@ watch(
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'log'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <line x1="16" y1="13" x2="8" y2="13" />
@@ -339,24 +342,14 @@ watch(
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'parking'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <rect x="3" y="3" width="18" height="18" rx="2" />
                   <path d="M9 17V7h5a3 3 0 0 1 0 6H9" />
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'chart'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <line x1="18" y1="20" x2="18" y2="10" />
                   <line x1="12" y1="20" x2="12" y2="4" />
@@ -364,36 +357,21 @@ watch(
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'notice'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'vote'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <circle cx="12" cy="12" r="9" />
                   <path d="m9 12 2 2 4-4" />
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'facility'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <path d="M3 21h18" />
                   <path d="M5 21V7l7-4 7 4v14" />
@@ -402,32 +380,32 @@ watch(
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'calendar'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <rect x="3" y="4" width="18" height="18" rx="2" />
                   <line x1="16" y1="2" x2="16" y2="6" />
                   <line x1="8" y1="2" x2="8" y2="6" />
                   <line x1="3" y1="10" x2="21" y2="10" />
+
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'gx'"
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 >
                   <rect x="3" y="4" width="18" height="18" rx="2" />
                   <line x1="8" y1="2" x2="8" y2="6" />
                   <line x1="16" y1="2" x2="16" y2="6" />
                   <line x1="3" y1="10" x2="21" y2="10" />
                   <path d="m9 15 2 2 4-4" />
+                </svg>
+                <svg
+                  v-else-if="getMenuIconPath(menu.icon) === 'layers'"
+                  width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round"
+                >
+                  <path d="m12 2-10 5 10 5 10-5-10-5z" />
+                  <path d="m2 17 10 5 10-5" />
+                  <path d="m2 12 10 5 10-5" />
                 </svg>
               </span>
               {{ menu.label }}
@@ -483,6 +461,7 @@ watch(
           >
             단지 선택
           </button>
+
           <button
             v-if="headerActions.showAdminRegister"
             type="button"
@@ -490,6 +469,132 @@ watch(
             @click="handleActionClick"
           >
             + 관리자 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/households'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 세대 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/bills'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 비용 확정
+          </button>
+
+          <button
+            v-if="route.path === '/admin/vehicles'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 차량 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/visitor-vehicles'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 방문차량 등록
+          </button>
+
+          <button
+            v-if="headerActions.showParkingLogCreate"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 기록 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/parking/dashboard'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 주차 구역 등록
+          </button>
+
+          <button
+            v-if="headerActions.showParkingZoneCreate"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 구역 등록
+          </button>
+
+          <button
+            v-if="headerActions.showSensorCreate"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 센서 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/notices'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 공지 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/votes'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 투표 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/facilities' && (!route.query.tab || route.query.tab === 'list')"
+            type="button"
+            class="admin-layout__action-button"
+            @click="goFacilityCreate"
+          >
+            + 시설 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/facilities' && route.query.tab === 'gx'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 프로그램 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/facilities' && route.query.tab === 'block-time'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleActionClick"
+          >
+            + 차단 시간 등록
+          </button>
+
+          <button
+            v-if="route.path === '/admin/reservations' || route.path === '/admin/reservations/list'"
+            type="button"
+            class="admin-layout__action-button"
+            @click="goToFacilityStatus"
+          >
+            시설별 현황 →
           </button>
         </div>
       </header>
@@ -509,6 +614,7 @@ watch(
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
+  min-width: 960px;
   background-color: var(--color-bg-app);
   color: var(--color-text-primary);
 }
@@ -516,14 +622,14 @@ watch(
 .admin-layout__sidebar {
   position: sticky;
   top: 0;
+  height: 100vh;
   display: flex;
-  min-height: 100vh;
   flex-direction: column;
   justify-content: space-between;
-  width: 240px;
   background: var(--color-sidebar-bg);
   color: var(--color-sidebar-text);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08);
+  overflow-y: auto;
 }
 
 .admin-layout__brand-panel {
@@ -800,17 +906,7 @@ watch(
   padding-right: 64px;
 }
 
-@media (max-width: 1280px) {
-  .admin-layout {
-    grid-template-columns: 240px minmax(0, 1fr);
-  }
-}
-
 @media (max-width: 1024px) {
-  .admin-layout {
-    grid-template-columns: 224px minmax(0, 1fr);
-  }
-
   .admin-layout__header {
     padding: 0 var(--space-20);
   }

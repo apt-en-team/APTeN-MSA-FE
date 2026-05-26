@@ -1,5 +1,5 @@
 // GX 상태를 관리하는 store입니다.
-import { defineStore } from 'pinia'
+import { acceptHMRUpdate, defineStore } from 'pinia'
 import gxApi from '@/api/gxApi'
 
 export const useGxStore = defineStore('gx', {
@@ -8,8 +8,11 @@ export const useGxStore = defineStore('gx', {
     error: null,
     gxPrograms: [],
     gxProgramDetail: null,
+    gxReservation: null,
+    gxReservationDetail: null,
     gxStatus: null,
     gxWaitingStatus: null,
+    adminGxProgramReservations: null,
   }),
   getters: {
     hasGxProgramDetail: (state) => !!state.gxProgramDetail,
@@ -22,9 +25,11 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.getAdminGxPrograms(params)
         this.gxPrograms = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -37,9 +42,11 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.getAdminGxProgramDetail(id)
         this.gxProgramDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -52,9 +59,11 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.createGxProgram(body)
         this.gxProgramDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -67,9 +76,11 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.updateGxProgram(id, body)
         this.gxProgramDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -82,9 +93,26 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.cancelGxProgram(id, body)
         this.gxProgramDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 내 GX 예약 목록 조회
+    async fetchMyGxReservations() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await gxApi.getMyGxReservations()
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -97,9 +125,10 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.getGxPrograms(params)
         this.gxPrograms = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -112,9 +141,10 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.getGxProgramDetail(id)
         this.gxProgramDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -126,10 +156,11 @@ export const useGxStore = defineStore('gx', {
       this.error = null
       try {
         const res = await gxApi.createGxReservation(body)
-        this.gxProgramDetail = res
+        this.gxReservation = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -142,9 +173,10 @@ export const useGxStore = defineStore('gx', {
       try {
         const res = await gxApi.getGxWaitingStatus(id)
         this.gxWaitingStatus = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -156,10 +188,42 @@ export const useGxStore = defineStore('gx', {
       this.error = null
       try {
         const res = await gxApi.cancelGxReservation(id)
-        this.gxProgramDetail = res
+        this.gxReservation = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 GX 예약 단건 상세 조회
+    async fetchAdminGxReservationDetail(id) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await gxApi.getAdminGxReservationDetail(id)
+        this.gxReservationDetail = res
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 GX 예약 강제 취소
+    async cancelAdminGxReservation(id) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await gxApi.cancelAdminGxReservation(id)
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -171,10 +235,10 @@ export const useGxStore = defineStore('gx', {
       this.error = null
       try {
         const res = await gxApi.approveGxReservation(id)
-        this.gxProgramDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -186,10 +250,10 @@ export const useGxStore = defineStore('gx', {
       this.error = null
       try {
         const res = await gxApi.rejectGxReservation(id, body)
-        this.gxProgramDetail = res
+        return res
       } catch (e) {
-        console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -239,5 +303,25 @@ export const useGxStore = defineStore('gx', {
         this.loading = false
       }
     },
+
+    // 관리자 GX 신청자 목록 조회
+    async fetchAdminGxProgramReservations(programId, params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await gxApi.getAdminGxProgramReservations(programId, params)
+        this.adminGxProgramReservations = res
+        return res
+      } catch (e) {
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
   },
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useGxStore, import.meta.hot))
+}

@@ -46,7 +46,7 @@ const handleOverlayClick = () => {
           <strong class="base-modal__title">{{ title }}</strong>
           <p v-if="subtitle" class="base-modal__subtitle">{{ subtitle }}</p>
         </div>
-        <button type="button" class="base-modal__close" @click="emit('close')">닫기</button>
+        <button type="button" class="base-modal__close" @click="emit('close')">X</button>
       </div>
       <div class="base-modal__body modal-section">
         <slot>Modal Content</slot>

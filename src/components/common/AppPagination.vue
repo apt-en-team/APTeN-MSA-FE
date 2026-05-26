@@ -75,7 +75,6 @@ const displayedPages = computed(() => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 20px;
-  border-top: 1px solid #E2E8F0;
 }
 
 .pagination-info,

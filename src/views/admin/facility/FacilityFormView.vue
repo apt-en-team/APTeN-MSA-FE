@@ -1,0 +1,1182 @@
+<script setup>
+import { onMounted, reactive, computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useFacilityStore } from "@/stores/useFacilityStore.js";
+import { useAuthStore } from "@/stores/useAuthStore.js";
+import ConfirmModal from "@/components/common/ConfirmModal.vue";
+import ActionResultModal from "@/components/common/ActionResultModal.vue";
+
+const route = useRoute();
+const router = useRouter();
+const facilityStore = useFacilityStore();
+const authStore = useAuthStore();
+
+// 처리 시각 텍스트
+const getCurrentTimeText = () =>
+  new Date().toLocaleString('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
+
+// 처리자명
+const getCurrentActorName = () =>
+  authStore.userInfo?.name || authStore.user?.name || authStore.name || '관리자'
+
+// 라우트 파라미터에서 facilityId 추출 (등록/수정 모드 구분)
+const facilityId = computed(() => route.params.facilityId || route.params.id || "");
+const isEdit = computed(() => !!facilityId.value);
+
+const reservationTypeOptions = [
+  { value: "SEAT", label: "좌석형" },
+  { value: "COUNT", label: "정원형" },
+  { value: "APPROVAL", label: "승인형" },
+];
+
+const normalizeReservationType = (value) => {
+  const normalizedValue = String(value || "").trim();
+  if (normalizedValue === "좌석형") return "SEAT";
+  if (normalizedValue === "정원형") return "COUNT";
+  if (normalizedValue === "승인형") return "APPROVAL";
+  return normalizedValue || "COUNT";
+};
+
+// 활성 타입만 선택지에 노출
+const facilityTypeOptions = computed(() =>
+  facilityStore.facilityTypes.filter((type) => type?.isActive !== false)
+);
+
+// 선택된 typeId에 해당하는 typeCode 도출 (GX 판별에 사용)
+const selectedTypeCode = computed(() => {
+  return facilityStore.facilityTypes.find(
+    (t) => String(t.typeId) === String(state.typeId)
+  )?.typeCode || "";
+});
+
+// GX 타입 여부 (typeCode 기반)
+const isGxType = computed(() => selectedTypeCode.value === "GX");
+const isSeatReservationType = computed(() => normalizeReservationType(state.reservationType) === "SEAT" && !isGxType.value);
+const state = reactive({
+  typeId: "",
+  name: "",
+  description: "",
+  reservationType: "COUNT",
+  maxCount: "",
+  openTime: "09:00",
+  closeTime: "22:00",
+  isActive: true,
+  createdAt: null,
+  submitting: false,
+
+  typeIdError: "",
+  nameError: "",
+  reservationTypeError: "",
+  openTimeError: "",
+  closeTimeError: "",
+  serverError: "",
+
+  bulkSeatPrefix: "",
+  bulkSeatStartNo: "",
+  bulkSeatEndNo: "",
+  bulkSeatNamePattern: "{label} 좌석",
+  bulkSeatIsActive: true,
+  bulkSeatError: "",
+});
+
+// 삭제 확인 모달
+const deleteModal = reactive({
+  show: false,
+  loading: false,
+})
+
+// 활성/비활성 확인 모달
+const activeModal = reactive({
+  show: false,
+  loading: false,
+  nextActive: null,
+})
+
+// 처리 결과 모달 (등록/수정/삭제/활성화 공통 — 규칙 패턴)
+const resultModal = reactive({
+  show: false,
+  type: 'success',
+  title: '',
+  subtitle: '',
+  desc: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
+})
+
+const openResultModal = ({
+  type = 'success', title, subtitle = '', desc = '',
+  itemName = '', time = '', actionLabel = '', actor = '', afterConfirm = null,
+} = {}) => {
+  Object.assign(resultModal, { show: true, type, title, subtitle, desc, itemName, time, actionLabel, actor, afterConfirm })
+}
+
+const handleResultConfirm = async () => {
+  const callback = resultModal.afterConfirm
+  resultModal.show = false
+  resultModal.afterConfirm = null
+  if (typeof callback === 'function') await callback()
+}
+
+const getTypeNameById = (typeId) =>
+  facilityStore.facilityTypes.find((type) => String(type.typeId) === String(typeId))?.typeName || "";
+
+const getReservationTypeLabel = (type) =>
+  reservationTypeOptions.find((item) => item.value === type)?.label || type || "-";
+
+const resetErrors = () => {
+  state.typeIdError = "";
+  state.nameError = "";
+  state.reservationTypeError = "";
+  state.openTimeError = "";
+  state.closeTimeError = "";
+  state.serverError = "";
+  state.bulkSeatError = "";
+};
+
+// 시설 상세 응답 데이터를 폼 state에 매핑 (필드명 차이 흡수)
+const syncForm = (data) => {
+  state.typeId = String(data.typeId ?? data.facilityTypeId ?? data.type?.id ?? "");
+  state.name = data.name ?? "";
+  state.description = data.description ?? "";
+  state.reservationType = normalizeReservationType(data.reservationType);
+  state.maxCount = data.maxCount != null ? data.maxCount : "";
+  state.openTime = data.openTime?.slice(0, 5) ?? "09:00";
+  state.closeTime = data.closeTime?.slice(0, 5) ?? "22:00";
+  state.isActive = data.isActive ?? data.active ?? true;
+  state.createdAt = data.createdAt ?? null;
+};
+
+const fetchFacility = async () => {
+  try {
+    const detail = await facilityStore.fetchAdminFacilityDetail(facilityId.value);
+    syncForm(detail);
+  } catch (e) {
+    console.error("시설 조회 실패", e);
+    state.serverError = e.response?.data?.message ?? e.message ?? "시설 조회에 실패했습니다.";
+  }
+};
+
+const validateForm = () => {
+  resetErrors();
+
+  if (!state.typeId) {
+    state.typeIdError = "시설 타입을 선택해주세요.";
+    return false;
+  }
+
+  if (!state.name) {
+    state.nameError = "시설명을 입력해주세요.";
+    return false;
+  }
+
+  if (!state.reservationType) {
+    state.reservationTypeError = "예약 방식을 선택해주세요.";
+    return false;
+  }
+
+  if (!state.openTime) {
+    state.openTimeError = "운영 시작 시간을 입력해주세요.";
+    return false;
+  }
+
+  if (!state.closeTime) {
+    state.closeTimeError = "운영 종료 시간을 입력해주세요.";
+    return false;
+  }
+
+  return true;
+};
+
+const hasBulkSeatInput = () =>
+  !!(
+    String(state.bulkSeatPrefix || "").trim() ||
+    state.bulkSeatStartNo ||
+    state.bulkSeatEndNo
+  );
+
+const validateBulkSeats = () => {
+  state.bulkSeatError = "";
+
+  if (!isSeatReservationType.value || !hasBulkSeatInput()) return true;
+
+  if (!String(state.bulkSeatPrefix || "").trim() || !state.bulkSeatStartNo || !state.bulkSeatEndNo) {
+    state.bulkSeatError = "접두어, 시작 번호, 끝 번호를 모두 입력해주세요.";
+    return false;
+  }
+
+  const startNo = Number(state.bulkSeatStartNo);
+  const endNo = Number(state.bulkSeatEndNo);
+
+  if (!Number.isInteger(startNo) || !Number.isInteger(endNo) || startNo < 1 || endNo < 1) {
+    state.bulkSeatError = "좌석 번호는 1 이상의 정수로 입력해주세요.";
+    return false;
+  }
+
+  if (startNo > endNo) {
+    state.bulkSeatError = "끝 번호는 시작 번호보다 크거나 같아야 합니다.";
+    return false;
+  }
+
+  if (endNo - startNo + 1 > 100) {
+    state.bulkSeatError = "좌석은 한 번에 최대 100개까지 등록할 수 있습니다.";
+    return false;
+  }
+
+  return true;
+};
+
+const handleSubmitError = (error) => {
+  const message =
+    error.response?.data?.message ||
+    error.response?.data?.message ||
+    "저장 중 오류가 발생했습니다.";
+
+  const fieldMap = {
+    "시설 타입을 선택해주세요": "typeIdError",
+    "시설명을 입력해주세요": "nameError",
+    "시설 타입을 찾을 수 없습니다": "typeIdError",
+    "시설을 찾을 수 없습니다": "serverError",
+  };
+
+  const field = fieldMap[message] || "serverError";
+  state[field] = message;
+};
+
+const handleSubmit = async () => {
+  if (!validateForm()) return;
+  if (!validateBulkSeats()) return;
+
+  try {
+    state.submitting = true;
+
+    const submitData = {
+      typeId: state.typeId,
+      name: String(state.name).trim(),
+      description: String(state.description || "").trim(),
+      // GX는 APPROVAL 고정, SEAT/COUNT/APPROVAL 그대로 전송
+      reservationType: isGxType.value ? "APPROVAL" : state.reservationType,
+      maxCount: state.maxCount !== "" && state.maxCount != null ? Number(state.maxCount) : null,
+      openTime: state.openTime,
+      closeTime: state.closeTime,
+      isActive: !!state.isActive,
+    };
+
+    if (isEdit.value) {
+      await facilityStore.updateFacility(facilityId.value, submitData);
+      openResultModal({
+        type: 'success',
+        title: '시설이 수정되었습니다.',
+        itemName: state.name,
+        actionLabel: '시설 수정',
+        time: getCurrentTimeText(),
+        actor: getCurrentActorName(),
+        afterConfirm: () => router.push('/admin/facilities'),
+      })
+    } else {
+      const created = await facilityStore.createFacility(submitData);
+      const createdFacilityId = created?.facilityId ?? created?.id;
+
+      if (isSeatReservationType.value && hasBulkSeatInput()) {
+        try {
+          if (!createdFacilityId) throw new Error("생성된 시설 ID를 확인할 수 없습니다.");
+
+          await facilityStore.bulkCreateFacilitySeats(createdFacilityId, {
+            prefix: String(state.bulkSeatPrefix || "").trim(),
+            startNo: Number(state.bulkSeatStartNo),
+            endNo: Number(state.bulkSeatEndNo),
+            seatNamePattern: String(state.bulkSeatNamePattern || "{label} 좌석").trim(),
+            isActive: !!state.bulkSeatIsActive,
+          });
+
+          openResultModal({
+            type: 'success',
+            title: '시설과 좌석이 등록되었습니다.',
+            itemName: state.name,
+            actionLabel: '시설 및 좌석 일괄 등록',
+            time: getCurrentTimeText(),
+            actor: getCurrentActorName(),
+            afterConfirm: () => router.push('/admin/facilities'),
+          })
+        } catch (bulkError) {
+          openResultModal({
+            type: 'warning',
+            title: '시설은 등록되었지만 좌석 일괄 등록에 실패했습니다.',
+            subtitle:
+              bulkError.response?.data?.message ||
+              bulkError.response?.data?.message ||
+              bulkError.message ||
+              '상세 화면에서 좌석을 다시 등록해주세요.',
+            itemName: state.name,
+            afterConfirm: () => router.push('/admin/facilities'),
+          })
+        }
+      } else {
+        openResultModal({
+          type: 'success',
+          title: '시설이 등록되었습니다.',
+          itemName: state.name,
+          actionLabel: '시설 등록',
+          time: getCurrentTimeText(),
+          actor: getCurrentActorName(),
+          afterConfirm: () => router.push('/admin/facilities'),
+        })
+      }
+    }
+  } catch (error) {
+    handleSubmitError(error);
+  } finally {
+    state.submitting = false;
+  }
+};
+
+const openDeleteModal = () => {
+  deleteModal.show = true;
+};
+
+const closeDeleteModal = () => {
+  deleteModal.show = false;
+};
+
+const handleDelete = async () => {
+  deleteModal.loading = true;
+  try {
+    await facilityStore.deleteFacility(facilityId.value);
+    deleteModal.show = false;
+    openResultModal({
+      type: 'success',
+      title: '시설이 삭제되었습니다.',
+      itemName: state.name,
+      actionLabel: '시설 삭제',
+      time: getCurrentTimeText(),
+      actor: getCurrentActorName(),
+      afterConfirm: () => router.push('/admin/facilities'),
+    })
+  } catch (e) {
+    deleteModal.show = false;
+    openResultModal({
+      type: 'danger',
+      title: '삭제에 실패했습니다.',
+      subtitle: e.response?.data?.message || e.response?.data?.message || '잠시 후 다시 시도해주세요.',
+    })
+  } finally {
+    deleteModal.loading = false;
+  }
+};
+
+const handleActiveChange = (event) => {
+  if (!isEdit.value) {
+    state.isActive = event.target.checked;
+    return;
+  }
+
+  openActiveModal(event);
+};
+
+const openActiveModal = (event) => {
+  activeModal.nextActive = event.target.checked;
+  activeModal.show = true;
+};
+
+const closeActiveModal = () => {
+  activeModal.show = false;
+  activeModal.nextActive = null;
+};
+
+const handleActiveToggle = async () => {
+  if (activeModal.nextActive === null) return;
+  activeModal.loading = true;
+  try {
+    await facilityStore.updateFacilityActive(facilityId.value, {
+      isActive: activeModal.nextActive,
+    });
+    state.isActive = activeModal.nextActive;
+    activeModal.show = false;
+    openResultModal({
+      type: 'success',
+      title: activeModal.nextActive ? '시설이 활성화되었습니다.' : '시설이 비활성화되었습니다.',
+      itemName: state.name,
+      actionLabel: activeModal.nextActive ? '시설 활성화' : '시설 비활성화',
+      time: getCurrentTimeText(),
+      actor: getCurrentActorName(),
+    })
+  } catch (error) {
+    activeModal.show = false;
+    openResultModal({
+      type: 'danger',
+      title: '상태 변경에 실패했습니다.',
+      subtitle: error.response?.data?.message || error.response?.data?.message || '잠시 후 다시 시도해주세요.',
+    })
+  } finally {
+    activeModal.loading = false;
+    activeModal.nextActive = null;
+  }
+};
+
+onMounted(async () => {
+  if (!facilityStore.facilityTypes.length) await facilityStore.fetchFacilityTypes();
+  if (isEdit.value) await fetchFacility();
+});
+</script>
+
+<template>
+  <div class="facility-form-view">
+    <div class="form-layout">
+      <!-- 왼쪽: 입력폼 -->
+      <div class="form-section">
+        <h2 class="form-title">시설 정보 {{ isEdit ? "수정" : "입력" }}</h2>
+        <p class="form-desc">모든 * 항목은 필수 입력입니다.</p>
+
+        <div v-if="state.serverError" class="server-error">{{ state.serverError }}</div>
+
+        <div class="form-group">
+          <label class="form-label">시설 타입 *</label>
+          <select
+            v-model="state.typeId"
+            class="form-select"
+            :class="{ 'input-error': state.typeIdError }"
+            @change="state.typeIdError = ''"
+          >
+            <option :value="null" disabled>타입 선택</option>
+              <option v-for="t in facilityTypeOptions" :key="t.typeId" :value="t.typeId">
+                {{ t.typeName }}
+              </option>
+            </select>
+          <span v-if="state.typeIdError" class="error-msg">{{ state.typeIdError }}</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">시설명 *</label>
+          <input
+            v-model="state.name"
+            class="form-input"
+            :class="{ 'input-error': state.nameError }"
+            placeholder="예: 헬스장"
+          />
+          <span v-if="state.nameError" class="error-msg">{{ state.nameError }}</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">시설 설명</label>
+          <textarea
+            v-model="state.description"
+            class="form-textarea"
+            placeholder="시설에 대한 간단한 설명을 입력해주세요."
+            rows="4"
+          />
+        </div>
+
+        <div v-if="isGxType" class="form-group">
+          <div class="info-note">
+            GX 시설의 요금, 정원, 대기 허용 여부는 GX 프로그램에서 관리합니다.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">예약 방식 *</label>
+          <template v-if="!isGxType">
+            <select
+              v-model="state.reservationType"
+              class="form-select"
+              :class="{ 'input-error': state.reservationTypeError }"
+            >
+              <option v-for="type in reservationTypeOptions" :key="type.value" :value="type.value">
+                {{ type.label }}
+              </option>
+            </select>
+            <span v-if="state.reservationTypeError" class="error-msg">{{ state.reservationTypeError }}</span>
+          </template>
+          <template v-else>
+            <div class="info-note">GX 시설은 승인형(APPROVAL)으로 고정됩니다.</div>
+          </template>
+        </div>
+
+        <div v-if="!isGxType" class="form-group">
+          <label class="form-label">최대 인원</label>
+          <input
+            v-model="state.maxCount"
+            class="form-input"
+            type="number"
+            min="1"
+            placeholder="예: 30"
+          />
+          <p v-if="normalizeReservationType(state.reservationType) === 'COUNT'" class="field-hint">
+            정원형 시설은 동시 이용 가능한 최대 인원을 입력해주세요.
+          </p>
+          <p v-else-if="isSeatReservationType" class="field-hint">
+            좌석형 시설은 좌석 설정 기준으로 예약 가능 여부가 계산됩니다.
+          </p>
+        </div>
+
+        <div v-if="!isEdit && isSeatReservationType" class="bulk-seat-box">
+          <div class="bulk-seat-box__header">
+            <div>
+              <h3 class="bulk-seat-box__title">좌석 일괄 등록</h3>
+              <p class="bulk-seat-box__desc">
+                선택사항입니다. 접두어와 번호 범위를 입력하면 시설 생성 후 좌석을 자동 생성합니다.
+              </p>
+            </div>
+            <label class="bulk-seat-box__toggle">
+              <input v-model="state.bulkSeatIsActive" type="checkbox" />
+              <span>활성</span>
+            </label>
+          </div>
+
+          <div class="form-row bulk-seat-box__row">
+            <div class="form-group">
+              <label class="form-label">접두어</label>
+              <input
+                v-model="state.bulkSeatPrefix"
+                class="form-input"
+                placeholder="예: W"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">시작 번호</label>
+              <input
+                v-model="state.bulkSeatStartNo"
+                class="form-input"
+                type="number"
+                min="1"
+                placeholder="예: 1"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">끝 번호</label>
+              <input
+                v-model="state.bulkSeatEndNo"
+                class="form-input"
+                type="number"
+                min="1"
+                placeholder="예: 12"
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">좌석명 형식</label>
+            <input
+              v-model="state.bulkSeatNamePattern"
+              class="form-input"
+              placeholder="{label} 좌석"
+            />
+          </div>
+
+          <p class="bulk-seat-box__guide">
+            예: W, 1~12 입력 시 W-1 좌석부터 W-12 좌석까지 자동 생성됩니다.
+          </p>
+          <p v-if="state.bulkSeatError" class="error-msg">{{ state.bulkSeatError }}</p>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">운영 시작 *</label>
+            <input
+              v-model="state.openTime"
+              class="form-input"
+              :class="{ 'input-error': state.openTimeError }"
+              type="time"
+            />
+            <span v-if="state.openTimeError" class="error-msg">{{ state.openTimeError }}</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">운영 종료 *</label>
+            <input
+              v-model="state.closeTime"
+              class="form-input"
+              :class="{ 'input-error': state.closeTimeError }"
+              type="time"
+            />
+            <span v-if="state.closeTimeError" class="error-msg">{{ state.closeTimeError }}</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">운영 여부</label>
+          <div class="toggle-wrap">
+            <label class="toggle">
+              <input type="checkbox" :checked="state.isActive" @change="handleActiveChange" />
+              <span class="slider"></span>
+            </label>
+            <span class="toggle-label" :class="{ active: state.isActive }">
+              {{ state.isActive ? "운영 중" : "운영 중단" }}
+            </span>
+          </div>
+          <p class="toggle-desc">
+            {{
+              state.isActive
+                ? "활성화 시 예약이 가능합니다."
+                : "비활성화 시 예약이 불가합니다."
+            }}
+          </p>
+        </div>
+
+        <div class="form-actions">
+          <button v-if="isEdit" class="btn-delete" @click="openDeleteModal">삭제</button>
+          <div class="form-actions-right">
+            <button class="btn-cancel" @click="router.push('/admin/facilities')">
+              취소
+            </button>
+            <button class="btn-submit" @click="handleSubmit">
+              {{ isEdit ? "수정완료" : "등록하기" }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 미리보기 -->
+      <div class="preview-section">
+        <div class="preview-box">
+          <h3 class="preview-title">{{ isEdit ? "현재 정보" : "미리보기" }}</h3>
+          <div class="preview-card">
+            <div class="preview-card-header">
+              <div class="card-icon">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                  <rect x="14" y="14" width="7" height="7" />
+                </svg>
+              </div>
+              <div class="preview-name-wrap">
+                <span class="preview-name">{{ state.name || "시설명" }}</span>
+                <span class="preview-id">facility_id #{{ facilityId || "-" }}</span>
+              </div>
+              <span :class="['status-badge', state.isActive ? 'active' : 'inactive']">
+                {{ state.isActive ? "운영 중" : "중단" }}
+              </span>
+            </div>
+            <div class="preview-divider"></div>
+            <div class="preview-info">
+              <div class="preview-row">
+                <span>시설 타입</span><span>{{ getTypeNameById(state.typeId) || "-" }}</span>
+              </div>
+              <div class="preview-row">
+                <span>예약 방식</span><span>{{ getReservationTypeLabel(state.reservationType) }}</span>
+              </div>
+              <div class="preview-row">
+                <span>운영 시간</span
+                ><span>{{ state.openTime }} ~ {{ state.closeTime }}</span>
+              </div>
+              <div class="preview-row">
+                <span>등록일</span
+                ><span>{{
+                  state.createdAt ? state.createdAt.slice(0, 10).replace(/-/g, ".") : "-"
+                }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-box">
+          <h3 class="guide-title">{{ isEdit ? "수정 주의사항" : "등록 안내" }}</h3>
+          <div class="guide-divider"></div>
+          <ul class="guide-list">
+            <template v-if="!isEdit">
+              <li>등록 즉시 시설 목록에 반영됩니다.</li>
+              <li>운영 시간은 HH:MM 형식으로 입력하세요.</li>
+              <li>운영 여부는 언제든지 변경 가능합니다.</li>
+              <li>요금, 정원, 예약 단위는 시설 정책 또는 GX 프로그램에서 관리합니다.</li>
+            </template>
+            <template v-else>
+              <li>수정 내용은 즉시 시설 정보에 반영됩니다.</li>
+              <li>운영 시간 변경 시 예약 가능 시간에 영향을 줄 수 있습니다.</li>
+              <li>요금, 정원, 예약 단위는 이 화면에서 수정하지 않습니다.</li>
+              <li>이미 생성된 예약은 자동으로 취소되지 않습니다.</li>
+            </template>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- 삭제 확인 모달 -->
+    <ConfirmModal
+      :visible="deleteModal.show"
+      title="시설을 삭제하시겠습니까?"
+      subtitle="삭제 후에는 관리자 목록에서 더 이상 표시되지 않습니다."
+      subtitle-color="#e53e3e"
+      item-label="시설명"
+      :item-name="state.name"
+      confirm-text="삭제"
+      confirm-type="danger"
+      :loading="deleteModal.loading"
+      @confirm="handleDelete"
+      @cancel="closeDeleteModal"
+    />
+
+    <!-- 활성/비활성 확인 모달 -->
+    <ConfirmModal
+      :visible="activeModal.show"
+      :title="activeModal.nextActive ? '시설을 활성화하시겠습니까?' : '시설을 비활성화하시겠습니까?'"
+      :subtitle="activeModal.nextActive ? '입주민이 다시 예약 가능한 상태로 전환합니다.' : '예약 접수를 중단하고 비활성 상태로 표시합니다.'"
+      item-label="시설명"
+      :item-name="state.name"
+      :confirm-text="activeModal.nextActive ? '활성화' : '비활성화'"
+      :confirm-type="activeModal.nextActive ? 'primary' : 'danger'"
+      :loading="activeModal.loading"
+      @confirm="handleActiveToggle"
+      @cancel="closeActiveModal"
+    />
+
+    <!-- 처리 결과 모달 (등록/수정/삭제/활성화 공통) -->
+    <ActionResultModal
+      :visible="resultModal.show"
+      :type="resultModal.type"
+      :title="resultModal.title"
+      :subtitle="resultModal.subtitle"
+      :desc="resultModal.desc"
+      :item-name="resultModal.itemName"
+      :time="resultModal.time"
+      :action-label="resultModal.actionLabel"
+      :actor="resultModal.actor"
+      confirm-text="확인"
+      @close="handleResultConfirm"
+    />
+  </div>
+</template>
+
+<style scoped>
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.info-note {
+  padding: 10px 14px;
+  background: #f0f4ff;
+  border: 1px solid #c3d0f0;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #2b3a55;
+}
+
+.bulk-seat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.bulk-seat-box__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bulk-seat-box__title {
+  margin: 0 0 4px;
+  color: #1a202c;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.bulk-seat-box__desc,
+.bulk-seat-box__guide {
+  margin: 0;
+  color: #687282;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bulk-seat-box__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #4a5568;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bulk-seat-box__row {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.facility-form-view {
+  font-family: "Noto Sans KR", sans-serif;
+  color: #333;
+}
+.form-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+}
+
+.form-section {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 32px;
+}
+.form-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a202c;
+  margin-bottom: 4px;
+}
+.form-desc {
+  font-size: 12px;
+  color: #a0aec0;
+  margin-bottom: 28px;
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+.form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a5568;
+}
+.form-input {
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  width: 100%;
+  font-family: "Noto Sans KR", sans-serif;
+}
+.form-input:focus {
+  border-color: #2b3a55;
+}
+.form-select {
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 10px 32px 10px 14px;
+  font-size: 13px;
+  color: #333;
+  background: #fff
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23A0AEC0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
+    no-repeat right 12px center;
+  appearance: none;
+  outline: none;
+  width: 100%;
+  font-family: "Noto Sans KR", sans-serif;
+}
+.form-textarea {
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  resize: none;
+  width: 100%;
+  font-family: "Noto Sans KR", sans-serif;
+}
+.form-textarea:focus {
+  border-color: #2b3a55;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.input-suffix-wrap {
+  position: relative;
+}
+.input-suffix {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #a0aec0;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.error-msg {
+  font-size: 11px;
+  color: #e53e3e;
+  margin-top: 2px;
+}
+.field-hint {
+  margin: 5px 0 0;
+  color: #7b8ea8;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.input-error {
+  border-color: #e53e3e !important;
+}
+.server-error {
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #e53e3e;
+  margin-bottom: 20px;
+}
+
+.toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #e2e8f0;
+  border-radius: 24px;
+  transition: background 0.3s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: left 0.1s;
+}
+input:checked + .slider {
+  background: #4d8b5a;
+}
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+.toggle-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #718096;
+}
+.toggle-label.active {
+  color: #4d8b5a;
+}
+.toggle-desc {
+  font-size: 12px;
+  color: #a0aec0;
+  margin-top: 4px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e2e8f0;
+}
+.form-actions-right {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+.btn-cancel {
+  padding: 10px 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 13px;
+  color: #718096;
+  cursor: pointer;
+  font-family: "Noto Sans KR", sans-serif;
+}
+.btn-cancel:hover {
+  background: #f5f6f8;
+}
+.btn-submit {
+  padding: 10px 28px;
+  background: #2b3a55;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: "Noto Sans KR", sans-serif;
+}
+.btn-submit:hover {
+  background: #1e2a3e;
+}
+.btn-delete {
+  padding: 10px 24px;
+  background: #fee2e2;
+  color: #e53e3e;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: "Noto Sans KR", sans-serif;
+}
+.btn-delete:hover {
+  background: #fecaca;
+}
+
+.preview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.preview-box {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 20px;
+}
+.preview-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a202c;
+  margin-bottom: 14px;
+}
+.preview-card {
+  padding: 4px;
+}
+.preview-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.card-icon {
+  width: 32px;
+  height: 32px;
+  background: #f0f4ff;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2b3a55;
+  flex-shrink: 0;
+}
+.preview-name-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.preview-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a202c;
+}
+.preview-id {
+  font-size: 11px;
+  color: #a0aec0;
+  margin-top: 2px;
+}
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  width: fit-content;
+}
+.status-badge.active {
+  background: #c6f6d5;
+  color: #276749;
+}
+.status-badge.inactive {
+  background: #f5f5f5;
+  color: #718096;
+}
+.preview-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin-bottom: 12px;
+}
+.preview-info {
+  display: flex;
+  flex-direction: column;
+}
+.preview-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+.preview-row:last-child {
+  border-bottom: none;
+}
+.preview-row span:first-child {
+  color: #718096;
+}
+.preview-row span:last-child {
+  font-weight: 600;
+  color: #1a202c;
+}
+
+.guide-box {
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 20px;
+}
+.guide-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a202c;
+  margin-bottom: 12px;
+}
+.guide-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin-bottom: 12px;
+}
+.guide-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.guide-list li {
+  font-size: 12px;
+  color: #718096;
+  padding-left: 14px;
+  position: relative;
+}
+.guide-list li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #ed8936;
+}
+</style>

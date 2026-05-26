@@ -1,7 +1,8 @@
-// 공통 axios 인스턴스를 생성합니다.
+// 공통 axios 인스턴스. 모든 API 요청은 이 인스턴스만 사용한다.
 import axios from 'axios'
 
-const apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000'
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+
 const SELECTED_COMPLEX_STORAGE_KEY = 'apt_selected_complex'
 const LEGACY_SELECTED_COMPLEX_STORAGE_KEY = 'selectedComplex'
 
@@ -42,7 +43,7 @@ function getStoredSelectedComplex() {
   }
 }
 
-// 요청 interceptor에서 accessToken을 Authorization 헤더에 추가합니다.
+// 요청 인터셉터: accessToken을 Authorization 헤더에 자동 첨부
 apiClient.interceptors.request.use(
   (config) => {
     const accessToken = localStorage.getItem('accessToken')
@@ -55,18 +56,25 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${accessToken}`
     }
 
+    // 로그인 사용자 권한 헤더 주입
+    if (userInfo?.role) {
+      config.headers = config.headers || {}
+      config.headers['X-User-Role'] = String(userInfo.role)
+    }
+
+    // X-User-Id 헤더 주입
     if (userInfo?.userId) {
       config.headers = config.headers || {}
       config.headers['X-User-Id'] = String(userInfo.userId)
     }
 
-
+    // X-Complex-Id 헤더 주입
     if (userInfo?.complexId) {
       config.headers = config.headers || {}
       config.headers['X-Complex-Id'] = String(userInfo.complexId)
     }
 
-    // MASTER가 공통 관리자 API를 호출할 때만 선택 단지 ID header를 추가합니다.
+    // MASTER가 관리자 API 또는 board/notice API 호출할 때 선택 단지 ID 헤더 추가
     if (userInfo?.role === 'MASTER' && selectedComplex?.complexId) {
       const isMasterPath = requestUrl.startsWith('/api/admin/') && !requestUrl.startsWith('/api/admin/master/')
       const isBoardPath = requestUrl.startsWith('/boards/') || requestUrl.startsWith('/notices/') || requestUrl.startsWith('/api/admin/boards/') || requestUrl.startsWith('/api/admin/notices/')
@@ -77,11 +85,12 @@ apiClient.interceptors.request.use(
     }
 
     return config
+    
   },
   (error) => Promise.reject(error),
 )
 
-// 응답 interceptor에서 refresh와 권한 오류를 공통 처리합니다.
+// 응답 인터셉터: 401이면 refresh, 403이면 forbidden 페이지로
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -89,11 +98,11 @@ apiClient.interceptors.response.use(
     const status = error.response?.status
 
     if (status === 401 && originalRequest && !originalRequest._retry) {
-
-      // 로그인 API 자체의 401은 인터셉터에서 처리하지 않는다
-      if (originalRequest.url?.includes('/api/auth/login')) {
+      // 로그인 API의 401은 비밀번호 오류이므로 인터셉터에서 처리하지 않는다.
+      if (originalRequest.url?.includes('/auth/login')) {
         return Promise.reject(error)
       }
+
       const refreshToken = localStorage.getItem('refreshToken')
 
       if (!refreshToken) {
@@ -105,20 +114,21 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true
 
       try {
-        const refreshResponse = await axios.post(`${apiBaseURL}/api/auth/token/refresh`, {
-          refreshToken,
-        })
+        // refresh는 apiClient 대신 raw axios로 호출.
+        // apiClient를 쓰면 이 응답 인터셉터에 재진입해 무한루프가 날 수 있다.
+        const refreshResponse = await axios.post(
+          `${apiBaseURL}/auth/token/refresh`,
+          { refreshToken },
+        )
 
-        const nextAccessToken = refreshResponse.data?.accessToken
-        const nextRefreshToken = refreshResponse.data?.refreshToken
+        // 백엔드 ResultResponse 래퍼 구조 대응.
+        // 응답 형태: { success, code, message, data: { accessToken, refreshToken } }
+        const tokenData = refreshResponse.data?.data
+        const nextAccessToken = tokenData?.accessToken
+        const nextRefreshToken = tokenData?.refreshToken
 
-        if (nextAccessToken) {
-          localStorage.setItem('accessToken', nextAccessToken)
-        }
-
-        if (nextRefreshToken) {
-          localStorage.setItem('refreshToken', nextRefreshToken)
-        }
+        if (nextAccessToken) localStorage.setItem('accessToken', nextAccessToken)
+        if (nextRefreshToken) localStorage.setItem('refreshToken', nextRefreshToken)
 
         originalRequest.headers = originalRequest.headers || {}
         originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`
