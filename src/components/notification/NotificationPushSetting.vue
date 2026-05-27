@@ -1,17 +1,38 @@
 <script setup>
 import { ref } from 'vue'
-import { isFcmEnabled, requestPermission, registerToken } from '@/services/fcmService'
+import { deregisterToken, getRegisteredToken, isFcmEnabled, requestPermission, registerToken } from '@/services/fcmService'
 
 // FCM 활성 여부 (env 기반)
 const fcmEnabled = isFcmEnabled()
 
 // 권한 요청 진행 상태
 const requesting = ref(false)
+const registered = ref(resolveRegistered())
 const inlineMessage = ref('')
 const inlineType = ref('') // 'success' | 'error'
 
-// 푸시 알림 허용하기 — HTTPS + VITE_FCM_ENABLED=true 환경에서만 동작
-async function handleEnablePush() {
+function hasGrantedNotificationPermission() {
+  return typeof Notification !== 'undefined' && Notification.permission === 'granted'
+}
+
+function resolveRegistered() {
+  // 권한만 granted여도 서버 등록에 성공한 로컬 토큰이 없으면 실제 푸시 ON 상태로 보지 않는다
+  return fcmEnabled && hasGrantedNotificationPermission() && Boolean(getRegisteredToken())
+}
+
+// 푸시 토글은 OFF→ON이면 권한/토큰 등록, ON→OFF면 서버 토큰 비활성화를 실행한다
+async function handleTogglePush() {
+  if (!fcmEnabled || requesting.value) return
+
+  if (registered.value) {
+    await disablePush()
+    return
+  }
+
+  await enablePush()
+}
+
+async function enablePush() {
   requesting.value = true
   inlineMessage.value = ''
 
@@ -19,17 +40,42 @@ async function handleEnablePush() {
     const { granted } = await requestPermission()
 
     if (!granted) {
+      registered.value = false
       inlineMessage.value = '브라우저 알림 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해 주세요.'
       inlineType.value = 'error'
       return
     }
 
-    await registerToken()
-    inlineMessage.value = '푸시 알림이 활성화되었습니다.'
-    inlineType.value = 'success'
+    const token = await registerToken()
+    registered.value = Boolean(token) && resolveRegistered()
   } catch (e) {
     console.error(e)
+    registered.value = false
     inlineMessage.value = '푸시 알림 등록 중 오류가 발생했습니다.'
+    inlineType.value = 'error'
+  } finally {
+    requesting.value = false
+  }
+}
+
+async function disablePush() {
+  requesting.value = true
+  inlineMessage.value = ''
+
+  try {
+    const token = getRegisteredToken()
+    if (!token) {
+      // 로컬 토큰이 없으면 서버에서 지울 대상도 없으므로 OFF 상태만 정리한다
+      registered.value = false
+      return
+    }
+
+    await deregisterToken(token)
+    registered.value = false
+  } catch (e) {
+    console.error(e)
+    registered.value = true
+    inlineMessage.value = '푸시 알림 해제 중 오류가 발생했습니다.'
     inlineType.value = 'error'
   } finally {
     requesting.value = false
@@ -39,114 +85,126 @@ async function handleEnablePush() {
 
 <template>
   <section class="push-setting">
-    <h3 class="push-setting__title">푸시 알림</h3>
-
-    <!-- HTTP 환경 또는 FCM 비활성 시 안내 표시 -->
-    <div v-if="!fcmEnabled" class="push-setting__notice">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="push-setting__notice-icon">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="12" />
-        <line x1="12" y1="16" x2="12.01" y2="16" />
-      </svg>
-      <p class="push-setting__notice-text">
-        현재 환경에서는 푸시 알림이 비활성화되어 있습니다.<br>
-        HTTPS 배포 환경에서 지원됩니다.
+    <div class="push-setting__copy">
+      <h3 class="push-setting__title">푸시 알림</h3>
+      <p class="push-setting__desc">앱 밖에서도 알림을 받습니다.</p>
+      <p v-if="!fcmEnabled" class="push-setting__notice-text">
+        지원되는 환경에서 사용할 수 있습니다.
       </p>
     </div>
 
-    <!-- HTTPS 환경(FCM 활성)에서 표시 -->
-    <div v-else class="push-setting__active">
-      <p class="push-setting__desc">
-        기기에 푸시 알림을 허용하면 앱을 열지 않아도 새 알림을 받을 수 있습니다.
-      </p>
-
+    <div class="push-setting__action">
       <button
         type="button"
-        class="push-setting__btn"
-        :disabled="requesting"
-        @click="handleEnablePush"
+        role="switch"
+        :aria-checked="registered"
+        class="push-setting__toggle"
+        :class="{ 'is-on': registered }"
+        :disabled="!fcmEnabled || requesting"
+        @click="handleTogglePush"
       >
-        {{ requesting ? '처리 중...' : '푸시 알림 허용하기' }}
+        <span class="push-setting__toggle-thumb" />
       </button>
-
-      <!-- 인라인 결과 메시지 -->
-      <p
-        v-if="inlineMessage"
-        class="push-setting__inline-msg"
-        :class="inlineType === 'success' ? 'is-success' : 'is-error'"
-      >
-        {{ inlineMessage }}
-      </p>
     </div>
+
+    <!-- 인라인 결과 메시지 -->
+    <p
+      v-if="inlineMessage"
+      class="push-setting__inline-msg"
+      :class="inlineType === 'success' ? 'is-success' : 'is-error'"
+    >
+      {{ inlineMessage }}
+    </p>
   </section>
 </template>
 
 <style scoped>
 .push-setting {
-  margin-top: 24px;
-  padding: 20px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-12);
-  background: var(--color-card-bg);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  background: #FFFFFF;
+}
+
+.push-setting__copy {
+  min-width: 0;
 }
 
 .push-setting__title {
-  margin: 0 0 14px;
-  font-size: 14px;
+  margin: 0;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 15px;
   font-weight: 700;
   color: var(--color-text-primary);
 }
 
-.push-setting__notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 12px 14px;
-  border-radius: var(--radius-8);
-  background: rgba(245, 166, 35, 0.08);
-  border: 1px solid rgba(245, 166, 35, 0.24);
-}
-
-.push-setting__notice-icon {
-  flex-shrink: 0;
-  color: var(--color-warning);
-  margin-top: 1px;
+.push-setting__desc {
+  margin: 4px 0 0;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.45;
 }
 
 .push-setting__notice-text {
-  margin: 0;
-  color: var(--color-text-secondary);
+  margin: 6px 0 0;
+  font-family: 'Noto Sans KR', sans-serif;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.45;
+  color: var(--color-warning);
 }
 
-.push-setting__desc {
-  margin: 0 0 14px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
+.push-setting__action {
+  display: flex;
+  justify-content: flex-end;
 }
 
-.push-setting__btn {
-  height: 36px;
-  padding: 0 18px;
+.push-setting__toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 24px;
   border: none;
-  border-radius: var(--radius-8);
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-  font-size: 13px;
-  font-weight: 600;
+  border-radius: 12px;
+  background: #CBD5E1;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: background 0.2s, opacity 0.15s;
 }
 
-.push-setting__btn:disabled {
+.push-setting__toggle.is-on {
+  background: var(--resident-primary, #4973E5);
+}
+
+.push-setting__toggle:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
+.push-setting__toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.28);
+  transition: transform 0.2s;
+}
+
+.push-setting__toggle.is-on .push-setting__toggle-thumb {
+  transform: translateX(20px);
+}
+
 .push-setting__inline-msg {
-  margin: 10px 0 0;
+  grid-column: 1 / -1;
+  margin: 0;
+  font-family: 'Noto Sans KR', sans-serif;
   font-size: 12px;
   line-height: 1.5;
 }

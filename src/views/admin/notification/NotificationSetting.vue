@@ -30,7 +30,8 @@ onMounted(async () => {
 async function handleToggle(category) {
   try {
     category.enabled = !category.enabled
-    await notificationStore.updateSettings({ categories: notificationStore.settings })
+    // store에서 백엔드 PATCH DTO에 맞게 category/enabled만 추려서 전송한다
+    await notificationStore.updateSettings(notificationStore.settings)
   } catch {
     category.enabled = !category.enabled
     showResult('danger', '설정 저장 실패', '알림 설정을 저장하는 중 오류가 발생했습니다.')

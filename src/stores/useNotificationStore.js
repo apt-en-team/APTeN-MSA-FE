@@ -130,7 +130,18 @@ export const useNotificationStore = defineStore('notification', {
       this.loading = true
       this.error = null
       try {
-        const res = await notificationApi.updateNotificationSettings(payload)
+        // GET 응답에는 화면 표시용 code/value가 섞여 있으므로 PATCH에는 category/enabled만 보낸다
+        const sourceSettings = Array.isArray(payload)
+          ? payload
+          : (payload?.settings ?? payload?.categories ?? this.settings)
+        const requestPayload = {
+          settings: sourceSettings.map((item) => ({
+            category: item.category,
+            enabled: Boolean(item.enabled),
+          })),
+        }
+
+        const res = await notificationApi.updateNotificationSettings(requestPayload)
         if (res) {
           this.settings = Array.isArray(res) ? res : (res?.categories ?? res?.settings ?? this.settings)
         }

@@ -33,7 +33,8 @@
       "Bash(git -C /Users/soyoung/KDT/TimeProject/APTeN-MSA-FE diff .env.example Dockerfile package.json vite.config.js)",
       "Bash(grep -rn \"'/api/\\\\|\\\\`/api/\" /Users/soyoung/KDT/TimeProject/APTeN-MSA-FE/src/api/ --include=\"*.js\")",
       "Bash(grep -n \"'/api/\\\\|\\\\`/api/\" /Users/soyoung/KDT/TimeProject/APTeN-MSA-FE/src/views/resident/mypage/ResidentMyPage.vue /Users/soyoung/KDT/TimeProject/APTeN-MSA-FE/src/views/resident/mypage/ChangePassword.vue)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(./gradlew :notification-service:build)"
     ],
     "additionalDirectories": [
       "/Users/soyoung/KDT/TimeProject/APTeN-MSA-BE"
