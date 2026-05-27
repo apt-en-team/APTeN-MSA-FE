@@ -3,6 +3,11 @@
 // 현재 HTTP 환경에서는 권한 요청/토큰 발급을 시도하지 않는다.
 
 import notificationApi from '@/api/notificationApi'
+import { useNotificationStore } from '@/stores/useNotificationStore'
+
+const FCM_TOKEN_STORAGE_KEY = 'apten_fcm_token'
+const FCM_SW_PATH = '/firebase-messaging-sw.js'
+const FCM_SW_SCOPE = '/firebase-cloud-messaging-push-scope'
 
 // FCM 사용 가능 여부 — env 값과 브라우저 지원 여부를 함께 확인
 export function isFcmEnabled() {
@@ -14,14 +19,42 @@ export function isFcmEnabled() {
 // Firebase 앱 초기화 (HTTPS 활성화 후 사용)
 let firebaseApp = null
 let messaging = null
+let serviceWorkerRegistration = null
+let foregroundListenerStarted = false
+
+function isSecureRuntime() {
+  return window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+}
+
+function buildFirebaseConfig() {
+  return {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  }
+}
+
+function hasFirebaseConfig(config) {
+  return Boolean(config.apiKey && config.messagingSenderId && config.appId)
+}
+
+function buildServiceWorkerUrl(config) {
+  const params = new URLSearchParams()
+  Object.entries(config).forEach(([key, value]) => {
+    if (value) params.set(key, value)
+  })
+  return `${FCM_SW_PATH}?${params.toString()}`
+}
 
 async function initFirebase() {
-  if (!isFcmEnabled()) return null
+  if (!isFcmEnabled() || !isSecureRuntime()) return null
   if (messaging) return messaging
 
-  // Firebase env 값이 없으면 초기화 생략
-  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY
-  if (!apiKey) {
+  const config = buildFirebaseConfig()
+  if (!hasFirebaseConfig(config)) {
     console.warn('[FCM] Firebase 환경값 없음 — 초기화 생략')
     return null
   }
@@ -30,14 +63,7 @@ async function initFirebase() {
     const { initializeApp } = await import('firebase/app')
     const { getMessaging } = await import('firebase/messaging')
 
-    firebaseApp = initializeApp({
-      apiKey,
-      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: import.meta.env.VITE_FIREBASE_APP_ID,
-    })
+    firebaseApp = initializeApp(config)
 
     messaging = getMessaging(firebaseApp)
     return messaging
@@ -47,9 +73,103 @@ async function initFirebase() {
   }
 }
 
+async function registerServiceWorker() {
+  if (!isFcmEnabled() || !isSecureRuntime()) return null
+  if (serviceWorkerRegistration) return serviceWorkerRegistration
+
+  const config = buildFirebaseConfig()
+  if (!hasFirebaseConfig(config)) return null
+
+  try {
+    // public service worker는 env를 직접 못 읽으므로 공개 Firebase 설정을 query로 넘긴다
+    serviceWorkerRegistration = await navigator.serviceWorker.register(buildServiceWorkerUrl(config), {
+      // VitePWA의 루트 service worker와 scope가 겹치지 않게 FCM 전용 scope를 사용한다
+      scope: FCM_SW_SCOPE,
+    })
+    // 기존 등록이 남아 있을 수 있어 최신 firebase-messaging-sw.js를 한번 더 확인한다
+    await serviceWorkerRegistration.update()
+    console.log('[FCM] service worker registered', {
+      scope: serviceWorkerRegistration.scope,
+      scriptURL: serviceWorkerRegistration.active?.scriptURL || serviceWorkerRegistration.installing?.scriptURL,
+    })
+    return serviceWorkerRegistration
+  } catch (e) {
+    console.error('[FCM] service worker 등록 실패', e)
+    return null
+  }
+}
+
+function getBrowserType() {
+  const ua = navigator.userAgent || ''
+  if (ua.includes('Edg/')) return 'Edge'
+  if (ua.includes('Chrome/')) return 'Chrome'
+  if (ua.includes('Safari/') && !ua.includes('Chrome/')) return 'Safari'
+  if (ua.includes('Firefox/')) return 'Firefox'
+  return 'Unknown'
+}
+
+function buildTokenPayload(token) {
+  return {
+    token,
+    deviceType: 'WEB',
+    browserType: getBrowserType(),
+    appVersion: import.meta.env.VITE_APP_VERSION || import.meta.env.VITE_APP_BUILD_VERSION || 'web',
+  }
+}
+
+function isFcmTokenNotFoundError(error) {
+  const status = error?.response?.status
+  const code = error?.response?.data?.code || error?.response?.data?.errorCode
+  return status === 404 || code === 'FCM_TOKEN_NOT_FOUND'
+}
+
+function toNotificationPayload(payload) {
+  return {
+    notificationId: Number(payload.data?.notificationId) || undefined,
+    title: payload.notification?.title || payload.data?.title || '',
+    content: payload.notification?.body || payload.data?.content || '',
+    linkPath: payload.data?.linkPath || null,
+    type: payload.data?.type || null,
+    createdAt: payload.data?.createdAt || new Date().toISOString(),
+  }
+}
+
+async function startForegroundListener(msg) {
+  if (foregroundListenerStarted) return
+
+  const { onMessage } = await import('firebase/messaging')
+  onMessage(msg, (payload) => {
+    console.log('[FCM] foreground message received', payload)
+
+    const store = useNotificationStore()
+    // 앱이 켜져 있을 때는 native 알림보다 기존 배지/드롭다운 상태를 먼저 동기화한다
+    store.handleIncomingNotification(toNotificationPayload(payload))
+    store.fetchUnreadCount()
+  })
+
+  foregroundListenerStarted = true
+  console.log('[FCM] foreground listener registered')
+}
+
+export async function startForegroundMessageListener() {
+  if (!isFcmEnabled() || !isSecureRuntime()) return false
+  if (!getRegisteredToken()) return false
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false
+
+  const msg = await initFirebase()
+  if (!msg) return false
+
+  // getToken에 사용한 것과 같은 firebase-messaging-sw.js registration을 유지한다
+  const swRegistration = await registerServiceWorker()
+  if (!swRegistration) return false
+
+  await startForegroundListener(msg)
+  return true
+}
+
 // 브라우저 알림 권한 요청 (HTTPS 환경에서만 동작)
 export async function requestPermission() {
-  if (!isFcmEnabled()) {
+  if (!isFcmEnabled() || !isSecureRuntime()) {
     return { granted: false, reason: 'disabled' }
   }
 
@@ -64,33 +184,85 @@ export async function requestPermission() {
 
 // FCM 토큰 발급 후 서버에 등록 (HTTPS 환경에서만 동작)
 export async function registerToken() {
-  if (!isFcmEnabled()) {
+  if (!isFcmEnabled() || !isSecureRuntime()) {
     throw new Error('FCM 비활성 환경')
   }
+
+  localStorage.removeItem(FCM_TOKEN_STORAGE_KEY)
 
   const msg = await initFirebase()
   if (!msg) throw new Error('Firebase 초기화 실패')
 
+  const swRegistration = await registerServiceWorker()
+  if (!swRegistration) throw new Error('FCM service worker 등록 실패')
+
   const { getToken } = await import('firebase/messaging')
   const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY
 
-  const token = await getToken(msg, { vapidKey })
+  const token = await getToken(msg, { vapidKey, serviceWorkerRegistration: swRegistration })
   if (!token) throw new Error('FCM 토큰 발급 실패')
 
-  // 서버에 토큰 등록
-  await notificationApi.registerFcmToken({ token })
-  return token
+  try {
+    // 서버 등록까지 성공해야 푸시 토글을 ON으로 볼 수 있으므로 저장은 가장 마지막에 한다
+    await notificationApi.registerFcmToken(buildTokenPayload(token))
+    localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token)
+    await startForegroundListener(msg)
+    return token
+  } catch (e) {
+    // 서버 등록 실패 시 권한이 granted여도 실제 수신 준비가 끝난 상태가 아니므로 OFF로 되돌린다
+    localStorage.removeItem(FCM_TOKEN_STORAGE_KEY)
+    throw e
+  }
 }
 
 // FCM 토큰 해제
 export async function deregisterToken(token) {
-  if (!token) return
-  await notificationApi.deleteFcmToken({ token })
+  const targetToken = token || localStorage.getItem(FCM_TOKEN_STORAGE_KEY)
+  if (!targetToken) {
+    // 저장된 토큰이 없으면 서버에서 비활성화할 대상도 없으므로 로컬 상태만 OFF로 정리한다
+    localStorage.removeItem(FCM_TOKEN_STORAGE_KEY)
+    return
+  }
+
+  try {
+    const msg = await initFirebase()
+    if (msg) {
+      const { deleteToken } = await import('firebase/messaging')
+      await deleteToken(msg)
+    }
+  } catch (e) {
+    console.warn('[FCM] 브라우저 토큰 삭제 실패 — 서버 토큰 해제는 계속 진행', e)
+  }
+
+  try {
+    await notificationApi.deleteFcmToken({ token: targetToken })
+  } catch (e) {
+    if (!isFcmTokenNotFoundError(e)) throw e
+    // 서버에 토큰 row가 없으면 로컬 토큰이 오래된 상태이므로 삭제 성공처럼 정리한다
+    console.warn('[FCM] 서버에 등록된 토큰 없음 — 로컬 토큰만 정리', e)
+  } finally {
+    localStorage.removeItem(FCM_TOKEN_STORAGE_KEY)
+  }
 }
 
 // FCM 토큰 갱신
 export async function refreshToken(oldToken, newToken) {
-  await notificationApi.updateFcmToken({ oldToken, newToken })
+  await notificationApi.updateFcmToken({
+    oldToken,
+    newToken,
+    deviceType: 'WEB',
+    browserType: getBrowserType(),
+    appVersion: import.meta.env.VITE_APP_VERSION || import.meta.env.VITE_APP_BUILD_VERSION || 'web',
+  })
+  localStorage.setItem(FCM_TOKEN_STORAGE_KEY, newToken)
+}
+
+export function getRegisteredToken() {
+  return localStorage.getItem(FCM_TOKEN_STORAGE_KEY)
+}
+
+export function hasRegisteredToken() {
+  return Boolean(localStorage.getItem(FCM_TOKEN_STORAGE_KEY))
 }
 
 export default {
@@ -99,4 +271,7 @@ export default {
   registerToken,
   deregisterToken,
   refreshToken,
+  getRegisteredToken,
+  hasRegisteredToken,
+  startForegroundMessageListener,
 }

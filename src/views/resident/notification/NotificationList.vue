@@ -1,10 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import NotificationItem from '@/components/notification/NotificationItem.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const notificationStore = useNotificationStore()
+const route = useRoute()
+const router = useRouter()
 
 // 에러 결과 모달
 const resultModal = ref({ visible: false, type: 'danger', title: '', subtitle: '' })
@@ -40,6 +43,11 @@ async function handleMarkAllAsRead() {
 function handleReadError(msg) {
   showError(msg)
 }
+
+// 현재 입주민 단지 context를 유지한 채 알림 설정 화면으로 이동한다
+function goSettings() {
+  router.push(`/resident/${route.params.complexId}/notifications/settings`)
+}
 </script>
 
 <template>
@@ -47,15 +55,29 @@ function handleReadError(msg) {
     <!-- 헤더 -->
     <div class="notif-list-page__header">
       <h1 class="notif-list-page__title">알림</h1>
-      <button
-        v-if="notificationStore.hasUnread"
-        type="button"
-        class="notif-list-page__read-all-btn"
-        :disabled="notificationStore.loading"
-        @click="handleMarkAllAsRead"
-      >
-        전체 읽음
-      </button>
+      <div class="notif-list-page__actions">
+        <button
+          v-if="notificationStore.hasUnread"
+          type="button"
+          class="notif-list-page__read-all-btn"
+          :disabled="notificationStore.loading"
+          @click="handleMarkAllAsRead"
+        >
+          전체 읽음
+        </button>
+        <button
+          type="button"
+          class="notif-list-page__settings-btn"
+          aria-label="알림 설정"
+          title="알림 설정"
+          @click="goSettings"
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
+            <path d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a1.94 1.94 0 0 1-2.74 2.74l-.06-.06A1.6 1.6 0 0 0 15.21 19a1.6 1.6 0 0 0-.96 1.46v.17a1.94 1.94 0 0 1-3.88 0v-.09A1.6 1.6 0 0 0 9.34 19a1.6 1.6 0 0 0-1.77.32l-.06.06a1.94 1.94 0 0 1-2.74-2.74l.06-.06A1.6 1.6 0 0 0 5.15 15a1.6 1.6 0 0 0-1.46-.96h-.17a1.94 1.94 0 0 1 0-3.88h.09A1.6 1.6 0 0 0 5.15 9a1.6 1.6 0 0 0-.32-1.77l-.06-.06a1.94 1.94 0 0 1 2.74-2.74l.06.06A1.6 1.6 0 0 0 9.34 5a1.6 1.6 0 0 0 .96-1.46v-.17a1.94 1.94 0 0 1 3.88 0v.09A1.6 1.6 0 0 0 15.21 5a1.6 1.6 0 0 0 1.77-.32l.06-.06a1.94 1.94 0 0 1 2.74 2.74l-.06.06A1.6 1.6 0 0 0 19.4 9c.15.5.55.88 1.04.96h.17a1.94 1.94 0 0 1 0 3.88h-.09A1.6 1.6 0 0 0 19.4 15Z" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- 로딩 (초기 로드) -->
@@ -123,6 +145,12 @@ function handleReadError(msg) {
   color: var(--color-text-primary);
 }
 
+.notif-list-page__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .notif-list-page__read-all-btn {
   height: 32px;
   padding: 0 14px;
@@ -133,6 +161,33 @@ function handleReadError(msg) {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.notif-list-page__settings-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  background: var(--color-card-bg);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.notif-list-page__settings-btn svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.notif-list-page__settings-btn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-primary);
 }
 
 .notif-list-page__read-all-btn:disabled {
