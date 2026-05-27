@@ -72,7 +72,7 @@ const quickMenus = computed(() => [
 // 내 계정 정보 조회 — GET /api/users/me
 async function fetchUserInfo() {
   try {
-    const res = await apiClient.get('/api/users/me')
+    const res = await apiClient.get('/users/me')
     const data = res.data.data
     userInfo.name = data.name
     userInfo.complexId = data.complexId
@@ -102,7 +102,7 @@ async function confirmWithdraw() {
     return
   }
   try {
-    await apiClient.delete('/api/users/me', { data: { password: withdrawPassword.value } })
+    await apiClient.delete('/users/me', { data: { password: withdrawPassword.value } })
     showWithdrawModal.value = false
     authStore.logout()
     router.push('/login')

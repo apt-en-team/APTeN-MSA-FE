@@ -3,43 +3,43 @@ import { unwrapApiData } from '@/utils/apiResponse'
 
 // 챗봇 질의
 export const queryChatbot = async (body) => {
-  const res = await apiClient.post('/api/chatbot/query', body)
+  const res = await apiClient.post('/chatbot/query', body)
   return unwrapApiData(res)
 }
 
 // 챗봇 FAQ 조회
 export const getChatbotFaqs = async (params) => {
-  const res = await apiClient.get('/api/chatbot/faqs', { params })
+  const res = await apiClient.get('/chatbot/faqs', { params })
   return unwrapApiData(res)
 }
 
 // 챗봇 추천 질문 조회
 export const getChatbotSuggestions = async (params) => {
-  const res = await apiClient.get('/api/chatbot/suggestions', { params })
+  const res = await apiClient.get('/chatbot/suggestions', { params })
   return unwrapApiData(res)
 }
 
 // 챗봇 문의 이력 조회
 export const getChatbotHistory = async (params) => {
-  const res = await apiClient.get('/api/chatbot/history', { params })
+  const res = await apiClient.get('/chatbot/history', { params })
   return unwrapApiData(res)
 }
 
 // 관리자 FAQ 등록
 export const createAdminFaq = async (body) => {
-  const res = await apiClient.post('/api/admin/chatbot/faqs', body)
+  const res = await apiClient.post('/admin/chatbot/faqs', body)
   return unwrapApiData(res)
 }
 
 // 관리자 FAQ 수정
 export const updateAdminFaq = async (faqUid, body) => {
-  const res = await apiClient.patch(`/api/admin/chatbot/faqs/${faqUid}`, body)
+  const res = await apiClient.patch(`/admin/chatbot/faqs/${faqUid}`, body)
   return unwrapApiData(res)
 }
 
 // 관리자 FAQ 삭제
 export const deleteAdminFaq = async (faqUid) => {
-  const res = await apiClient.delete(`/api/admin/chatbot/faqs/${faqUid}`)
+  const res = await apiClient.delete(`/admin/chatbot/faqs/${faqUid}`)
   return unwrapApiData(res)
 }
 

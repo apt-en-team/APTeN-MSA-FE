@@ -91,7 +91,7 @@ export const deleteAdminPost = async (postId) => {
 
 // 관리자 게시글 상세 조회
 export const getAdminPostDetail = async (postId) => {
-  const res = await apiClient.get(`/api/admin/boards/posts/${postId}`)
+  const res = await apiClient.get(`/admin/boards/posts/${postId}`)
   return unwrapApiData(res)
 }
 
@@ -103,7 +103,7 @@ export const deleteAdminComment = async (commentId) => {
 
 // 게시판 통계 조회
 export const getBoardStatistics = async (params) => {
-  const res = await apiClient.get('/api/admin/boards/statistics', { params })
+  const res = await apiClient.get('/admin/boards/statistics', { params })
   return unwrapApiData(res)
 }
 
