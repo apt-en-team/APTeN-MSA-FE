@@ -1,7 +1,12 @@
 // 공통 axios 인스턴스. 모든 API 요청은 이 인스턴스만 사용한다.
 import axios from 'axios'
 
-const apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000'
+const rawApiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000'
+
+// 각 API 파일이 이미 /api/... 경로를 사용하므로 baseURL에는 /api가 붙지 않게 정리한다.
+const apiBaseURL = rawApiBaseURL
+  .replace(/\/api\/?$/, '')
+  .replace(/\/$/, '')
 
 const SELECTED_COMPLEX_STORAGE_KEY = 'apt_selected_complex'
 const LEGACY_SELECTED_COMPLEX_STORAGE_KEY = 'selectedComplex'
@@ -117,7 +122,7 @@ apiClient.interceptors.response.use(
         // refresh는 apiClient 대신 raw axios로 호출.
         // apiClient를 쓰면 이 응답 인터셉터에 재진입해 무한루프가 날 수 있다.
         const refreshResponse = await axios.post(
-          `${apiBaseURL}/auth/token/refresh`,
+          `${apiBaseURL}/api/auth/token/refresh`,
           { refreshToken },
         )
 
