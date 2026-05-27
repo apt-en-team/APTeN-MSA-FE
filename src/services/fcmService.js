@@ -9,6 +9,11 @@ const FCM_TOKEN_STORAGE_KEY = 'apten_fcm_token'
 const FCM_SW_PATH = '/firebase-messaging-sw.js'
 const FCM_SW_SCOPE = '/firebase-cloud-messaging-push-scope'
 
+function tokenPrefix(token) {
+  if (!token) return '(없음)'
+  return token.substring(0, 25) + '...'
+}
+
 // FCM 사용 가능 여부 — env 값과 브라우저 지원 여부를 함께 확인
 export function isFcmEnabled() {
   const envEnabled = import.meta.env.VITE_FCM_ENABLED === 'true'
@@ -91,6 +96,7 @@ async function registerServiceWorker() {
     console.log('[FCM] service worker registered', {
       scope: serviceWorkerRegistration.scope,
       scriptURL: serviceWorkerRegistration.active?.scriptURL || serviceWorkerRegistration.installing?.scriptURL,
+      state: serviceWorkerRegistration.active?.state,
     })
     return serviceWorkerRegistration
   } catch (e) {
@@ -152,16 +158,20 @@ async function startForegroundListener(msg) {
 }
 
 export async function startForegroundMessageListener() {
-  if (!isFcmEnabled() || !isSecureRuntime()) return false
-  if (!getRegisteredToken()) return false
+  if (!isFcmEnabled() || !isSecureRuntime()) {
+    console.debug('[FCM] foreground listener 생략 — FCM 비활성 또는 비보안 환경')
+    return false
+  }
+  if (foregroundListenerStarted) return true
+
+  const localToken = getRegisteredToken()
+  if (!localToken) return false
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false
+
+  console.log('[FCM] foreground listener 시작 - 로컬 토큰 prefix=', tokenPrefix(localToken))
 
   const msg = await initFirebase()
   if (!msg) return false
-
-  // getToken에 사용한 것과 같은 firebase-messaging-sw.js registration을 유지한다
-  const swRegistration = await registerServiceWorker()
-  if (!swRegistration) return false
 
   await startForegroundListener(msg)
   return true
@@ -199,14 +209,27 @@ export async function registerToken() {
   const { getToken } = await import('firebase/messaging')
   const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY
 
+  // [진단] getToken 직전 — Firebase config와 SW 상태 확인
+  const diagConfig = buildFirebaseConfig()
+  console.log('[FCM] getToken 직전 config. projectId=', diagConfig.projectId,
+    'messagingSenderId=', diagConfig.messagingSenderId,
+    'appId prefix=', diagConfig.appId ? diagConfig.appId.substring(0, 20) + '...' : '(없음)')
+  console.log('[FCM] vapidKey prefix=', vapidKey ? vapidKey.substring(0, 15) + '...' : '(없음)')
+  console.log('[FCM] SW scope=', swRegistration.scope)
+  console.log('[FCM] SW scriptURL=', swRegistration.active?.scriptURL?.substring(0, 80) || swRegistration.installing?.scriptURL?.substring(0, 80) || '(없음)')
+  console.log('[FCM] SW state=', swRegistration.active?.state || 'no active worker')
+
   const token = await getToken(msg, { vapidKey, serviceWorkerRegistration: swRegistration })
   if (!token) throw new Error('FCM 토큰 발급 실패')
+  console.log('[FCM] 토큰 발급 완료 prefix=', tokenPrefix(token))
 
   try {
     // 서버 등록까지 성공해야 푸시 토글을 ON으로 볼 수 있으므로 저장은 가장 마지막에 한다
+    console.log('[FCM] 서버 등록 요청 prefix=', tokenPrefix(token))
     await notificationApi.registerFcmToken(buildTokenPayload(token))
     localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token)
-    await startForegroundListener(msg)
+    console.log('[FCM] localStorage 저장 완료 prefix=', tokenPrefix(token))
+    await startForegroundMessageListener()
     return token
   } catch (e) {
     // 서버 등록 실패 시 권한이 granted여도 실제 수신 준비가 끝난 상태가 아니므로 OFF로 되돌린다
@@ -275,3 +298,4 @@ export default {
   hasRegisteredToken,
   startForegroundMessageListener,
 }
+
