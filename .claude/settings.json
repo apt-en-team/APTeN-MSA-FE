@@ -27,7 +27,10 @@
       "Bash(git -C /Users/soyoung/KDT/TimeProject/APTeN-MSA-FE status --short)",
       "Bash(git -C /Users/soyoung/KDT/TimeProject/APTeN-MSA-BE status --short)",
       "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"DESCRIBE user_cache;\")",
-      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"DESCRIBE facility_usage_monthly;\")"
+      "Bash(/usr/local/mysql/bin/mysql -h 112.222.157.157 -P 5013 -u green3 -pfigma502 my_facility -e \"DESCRIBE facility_usage_monthly;\")",
+      "Bash(npm install *)",
+      "Bash(git -C /Users/soyoung/KDT/TimeProject/APTeN-MSA-FE branch --show-current)",
+      "Bash(git -C /Users/soyoung/KDT/TimeProject/APTeN-MSA-FE diff .env.example Dockerfile package.json vite.config.js)"
     ],
     "additionalDirectories": [
       "/Users/soyoung/KDT/TimeProject/APTeN-MSA-BE"

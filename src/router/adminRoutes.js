@@ -62,6 +62,18 @@ const adminRoutes = [
       { path: 'boards/:postId', component: () => import('@/views/admin/community/AdminBoardDetail.vue'), meta: { ...adminRouteMeta, title: '게시글 상세' } },
       { path: 'notices/:noticeId', component: () => import('@/views/admin/community/AdminBoardDetail.vue'), meta: { ...adminRouteMeta, title: '공지 상세' } },
 
+      // 알림 — ADMIN/MANAGER만 (MASTER는 라우터 canAccess를 통과하지만 UI에서 배제)
+      {
+        path: 'notifications',
+        component: () => import('@/views/admin/notification/NotificationList.vue'),
+        meta: { ...adminRouteMeta, roles: ['ADMIN', 'MANAGER'], title: '알림' },
+      },
+      {
+        path: 'notifications/settings',
+        component: () => import('@/views/admin/notification/NotificationSetting.vue'),
+        meta: { ...adminRouteMeta, roles: ['ADMIN', 'MANAGER'], title: '알림 설정' },
+      },
+
       // 시설 / 예약 관리
       { path: 'facilities', component: AdminFacilityManageView, meta: { ...adminRouteMeta, title: '시설 관리' } },
       { path: 'facilities/create', component: FacilityFormView, meta: { ...adminRouteMeta, title: '시설 등록' } },

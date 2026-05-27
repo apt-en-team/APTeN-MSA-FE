@@ -81,6 +81,11 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'notifications/settings',
+        component: () => import('@/views/resident/notification/NotificationSetting.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'facility',
         component: ResidentFacilityHome,
         meta: { requiresAuth: true, roles: ['USER'] },
