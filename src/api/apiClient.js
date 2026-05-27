@@ -1,7 +1,7 @@
 // 공통 axios 인스턴스. 모든 API 요청은 이 인스턴스만 사용한다.
 import axios from 'axios'
 
-const apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000'
 
 const SELECTED_COMPLEX_STORAGE_KEY = 'apt_selected_complex'
 const LEGACY_SELECTED_COMPLEX_STORAGE_KEY = 'selectedComplex'
