@@ -60,7 +60,7 @@ function formatDate(isoString) {
     <div class="notif-item__body">
       <!-- 타입 라벨 + 제목 -->
       <div class="notif-item__header">
-        <span v-if="notification.type" class="notif-item__type">{{ notification.type }}</span>
+        <span v-if="notification.targetTypeValue" class="notif-item__type">{{ notification.targetTypeValue }}</span>
         <strong class="notif-item__title">{{ notification.title }}</strong>
       </div>
 

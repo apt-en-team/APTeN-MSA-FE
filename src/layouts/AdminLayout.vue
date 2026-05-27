@@ -10,6 +10,7 @@ import { useNotificationStore } from '@/stores/useNotificationStore'
 import NotificationBadge from '@/components/notification/NotificationBadge.vue'
 import NotificationDropdown from '@/components/notification/NotificationDropdown.vue'
 import notificationSocketService from '@/services/notificationSocketService'
+import { startForegroundMessageListener } from '@/services/fcmService'
 
 const route = useRoute()
 const router = useRouter()
@@ -261,6 +262,8 @@ onMounted(() => {
   if (showNotification.value) {
     notificationStore.fetchUnreadCount()
     notificationSocketService.connect()
+    // 설정 화면에서 토큰 등록을 마친 관리자도 새로고침 후 foreground FCM을 받을 수 있게 한다.
+    startForegroundMessageListener().catch((error) => console.error('[FCM] foreground listener 초기화 실패', error))
   }
 })
 

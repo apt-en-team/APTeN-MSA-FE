@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import NotificationPushSetting from '@/components/notification/NotificationPushSetting.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
@@ -18,16 +18,27 @@ onMounted(async () => {
   await notificationStore.fetchSettings()
 })
 
-// 토글 변경 시 즉시 저장
-async function handleToggle(category) {
-  try {
-    // 로컬에서 먼저 반영 (낙관적 업데이트)
-    category.enabled = !category.enabled
+const receiveAllEnabled = computed(() => {
+  const settings = notificationStore.settings
+  return settings.length > 0 && settings.every((category) => category.enabled)
+})
 
-    await notificationStore.updateSettings({ categories: notificationStore.settings })
+// 전체 토글 하나로 모든 알림 category를 같은 ON/OFF 값으로 저장한다
+async function handleToggleAll() {
+  const nextEnabled = !receiveAllEnabled.value
+  const previousSettings = notificationStore.settings.map((category) => ({ ...category }))
+
+  try {
+    // 화면은 단순하게 보여도 백엔드는 category별 설정을 유지하므로 전체 category를 한 번에 바꾼다
+    notificationStore.settings.forEach((category) => {
+      category.enabled = nextEnabled
+    })
+
+    // store에서 백엔드 PATCH DTO에 맞게 category/enabled만 추려서 전송한다
+    await notificationStore.updateSettings(notificationStore.settings)
   } catch {
     // 실패 시 원복
-    category.enabled = !category.enabled
+    notificationStore.settings = previousSettings
     showResult('danger', '설정 저장 실패', '알림 설정을 저장하는 중 오류가 발생했습니다.')
   }
 }
@@ -42,36 +53,24 @@ async function handleToggle(category) {
       불러오는 중...
     </div>
 
-    <!-- 카테고리별 ON/OFF 설정 -->
+    <!-- 전체 알림 ON/OFF 설정 -->
     <div v-else class="notif-setting-page__section">
-      <p class="notif-setting-page__section-label">수신 알림 종류</p>
+      <div class="notif-setting-page__copy">
+        <span class="notif-setting-page__name">알림 받기</span>
+        <span class="notif-setting-page__desc">앱 안에서 알림을 받습니다.</span>
+      </div>
 
-      <ul class="notif-setting-page__list">
-        <li
-          v-for="category in notificationStore.settings"
-          :key="category.category ?? category.type"
-          class="notif-setting-page__item"
-        >
-          <div class="notif-setting-page__item-copy">
-            <span class="notif-setting-page__item-name">{{ category.label ?? category.category }}</span>
-            <span v-if="category.description" class="notif-setting-page__item-desc">
-              {{ category.description }}
-            </span>
-          </div>
-
-          <!-- 토글 스위치 -->
-          <button
-            type="button"
-            role="switch"
-            :aria-checked="category.enabled"
-            class="notif-setting-page__toggle"
-            :class="{ 'is-on': category.enabled }"
-            @click="handleToggle(category)"
-          >
-            <span class="notif-setting-page__toggle-thumb" />
-          </button>
-        </li>
-      </ul>
+      <button
+        type="button"
+        role="switch"
+        :aria-checked="receiveAllEnabled"
+        class="notif-setting-page__toggle"
+        :class="{ 'is-on': receiveAllEnabled }"
+        :disabled="notificationStore.loading || notificationStore.settings.length === 0"
+        @click="handleToggleAll"
+      >
+        <span class="notif-setting-page__toggle-thumb" />
+      </button>
     </div>
 
     <!-- FCM 푸시 설정 (HTTPS 활성화 후 동작) -->
@@ -90,7 +89,8 @@ async function handleToggle(category) {
 
 <style scoped>
 .notif-setting-page__title {
-  margin: 0 0 24px;
+  margin: 0 0 16px;
+  font-family: 'Noto Sans KR', sans-serif;
   font-size: 20px;
   font-weight: 800;
   color: var(--color-text-primary);
@@ -104,60 +104,37 @@ async function handleToggle(category) {
 }
 
 .notif-setting-page__section {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-12);
-  background: var(--color-card-bg);
-  overflow: hidden;
-}
-
-.notif-setting-page__section-label {
-  margin: 0;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--color-border);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-text-secondary);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.notif-setting-page__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.notif-setting-page__item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  background: #FFFFFF;
 }
 
-.notif-setting-page__item:last-child {
-  border-bottom: none;
-}
-
-.notif-setting-page__item-copy {
+.notif-setting-page__copy {
   flex: 1;
   min-width: 0;
 }
 
-.notif-setting-page__item-name {
+.notif-setting-page__name {
   display: block;
-  font-size: 14px;
-  font-weight: 600;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--color-text-primary);
 }
 
-.notif-setting-page__item-desc {
+.notif-setting-page__desc {
   display: block;
-  margin-top: 2px;
-  font-size: 12px;
+  margin-top: 4px;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
   color: var(--color-text-secondary);
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 /* 토글 스위치 */
@@ -168,13 +145,18 @@ async function handleToggle(category) {
   height: 24px;
   border: none;
   border-radius: 12px;
-  background: var(--color-bg-muted);
+  background: #CBD5E1;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, opacity 0.15s;
 }
 
 .notif-setting-page__toggle.is-on {
   background: var(--resident-primary, #4973E5);
+}
+
+.notif-setting-page__toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .notif-setting-page__toggle-thumb {
@@ -184,8 +166,8 @@ async function handleToggle(category) {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  background: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.28);
   transition: transform 0.2s;
 }
 

@@ -8,6 +8,7 @@ import AppHeader from '@/components/resident/AppHeader.vue'
 import BottomNav from '@/components/resident/BottomNav.vue'
 import { useRoute } from 'vue-router'
 import notificationSocketService from '@/services/notificationSocketService'
+import { startForegroundMessageListener } from '@/services/fcmService'
 
 const route = useRoute()
 
@@ -47,6 +48,8 @@ onMounted(() => {
   // 미읽음 수 조회 및 WebSocket 연결
   notificationStore.fetchUnreadCount()
   notificationSocketService.connect()
+  // 이미 푸시 토큰을 등록한 사용자는 설정 화면을 다시 열지 않아도 foreground 수신을 준비한다.
+  startForegroundMessageListener().catch((error) => console.error('[FCM] foreground listener 초기화 실패', error))
 })
 
 onUnmounted(() => {
