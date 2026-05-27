@@ -2,7 +2,6 @@ import AdminLayout from '@/layouts/AdminLayout.vue'
 import AdminAccountManage from '@/views/admin/account/AdminAccountManage.vue'
 import AdminBillList from '@/views/admin/bill/AdminBillList.vue'
 import AdminBoardStatistics from '@/views/admin/community/AdminBoardStatistics.vue'
-import AdminNoticeList from '@/views/admin/community/AdminNoticeList.vue'
 import AdminVoteList from '@/views/admin/community/AdminVoteList.vue'
 import AdminDashboard from '@/views/admin/dashboard/AdminDashboard.vue'
 import AdminFacilityManageView from '@/views/admin/facility/AdminFacilityManageView.vue'
@@ -56,9 +55,12 @@ const adminRoutes = [
       { path: 'parking/sensors', component: AdminSensorList, meta: { ...adminRouteMeta, title: '센서 관리' } },
 
       // 커뮤니티 관리
-      { path: 'notices', component: AdminNoticeList, meta: { ...adminRouteMeta, title: '공지사항 관리' } },
+      { path: 'boards/statistics', component: AdminBoardStatistics, meta: { ...adminRouteMeta, title: '게시판 관리' } },
       { path: 'votes', component: AdminVoteList, meta: { ...adminRouteMeta, title: '투표 관리' } },
-      { path: 'boards/statistics', component: AdminBoardStatistics, meta: { ...adminRouteMeta, title: '게시판 통계' } },
+      { path: 'notices/create', component: () => import('@/views/admin/community/AdminNoticePost.vue'), meta: { ...adminRouteMeta, title: '공지사항 작성' } },
+      { path: 'notices/:noticeId/edit', component: () => import('@/views/admin/community/AdminNoticePost.vue'), meta: { ...adminRouteMeta, title: '공지사항 수정' } },
+      { path: 'boards/:postId', component: () => import('@/views/admin/community/AdminBoardDetail.vue'), meta: { ...adminRouteMeta, title: '게시글 상세' } },
+      { path: 'notices/:noticeId', component: () => import('@/views/admin/community/AdminBoardDetail.vue'), meta: { ...adminRouteMeta, title: '공지 상세' } },
 
       // 시설 / 예약 관리
       { path: 'facilities', component: AdminFacilityManageView, meta: { ...adminRouteMeta, title: '시설 관리' } },

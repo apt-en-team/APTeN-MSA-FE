@@ -55,9 +55,11 @@ export const useBoardStore = defineStore('board', {
       try {
         const res = await boardApi.createPost(body)
         this.postDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }

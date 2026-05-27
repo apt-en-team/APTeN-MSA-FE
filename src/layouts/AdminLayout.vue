@@ -43,8 +43,7 @@ const adminMenuDefinitions = [
   {
     label: 'COMMUNITY',
     items: [
-      { label: '게시판 통계', path: 'boards/statistics', icon: 'chart' },
-      { label: '공지사항 관리', path: 'notices', icon: 'notice' },
+      { label: '게시판 관리', path: 'boards/statistics', icon: 'chart' },
       { label: '투표 관리', path: 'votes', icon: 'vote' },
     ],
   },

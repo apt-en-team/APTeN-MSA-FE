@@ -62,19 +62,30 @@ apiClient.interceptors.request.use(
       config.headers['X-User-Role'] = String(userInfo.role)
     }
 
-    // MASTER가 공통 관리자 API를 호출할 때만 선택 단지 ID 헤더 추가.
-    // master 전용 API(/api/admin/master/*)는 단지 무관하므로 제외.
-    // env baseURL이 게이트웨이 루트이므로 config.url은 /api/admin/...에서 시작한다.
-    const isCommonAdminApi =
-      requestUrl.startsWith('/api/admin/') &&
-      !requestUrl.startsWith('/api/admin/master/')
-
-    if (userInfo?.role === 'MASTER' && selectedComplex?.complexId && isCommonAdminApi) {
+    // X-User-Id 헤더 주입
+    if (userInfo?.userId) {
       config.headers = config.headers || {}
-      config.headers['X-Selected-Complex-Id'] = String(selectedComplex.complexId)
+      config.headers['X-User-Id'] = String(userInfo.userId)
+    }
+
+    // X-Complex-Id 헤더 주입
+    if (userInfo?.complexId) {
+      config.headers = config.headers || {}
+      config.headers['X-Complex-Id'] = String(userInfo.complexId)
+    }
+
+    // MASTER가 관리자 API 또는 board/notice API 호출할 때 선택 단지 ID 헤더 추가
+    if (userInfo?.role === 'MASTER' && selectedComplex?.complexId) {
+      const isMasterPath = requestUrl.startsWith('/api/admin/') && !requestUrl.startsWith('/api/admin/master/')
+      const isBoardPath = requestUrl.startsWith('/boards/') || requestUrl.startsWith('/notices/') || requestUrl.startsWith('/api/admin/boards/') || requestUrl.startsWith('/api/admin/notices/')
+      if (isMasterPath || isBoardPath) {
+        config.headers = config.headers || {}
+        config.headers['X-Selected-Complex-Id'] = String(selectedComplex.complexId)
+      }
     }
 
     return config
+    
   },
   (error) => Promise.reject(error),
 )
