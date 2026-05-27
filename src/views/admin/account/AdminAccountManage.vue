@@ -1,6 +1,6 @@
 <script setup>
 // 선택된 단지의 관리자와 스태프 계정을 관리하는 공통 관리자 화면
-import { computed, inject, onMounted, onUnmounted, reactive } from 'vue'
+import { computed, inject, onMounted, onUnmounted, reactive, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import BaseModal from '@/components/common/BaseModal.vue'
 import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
@@ -18,59 +18,61 @@ const authStore = useAuthStore()
 const complexStore = useComplexStore()
 const registerOpenModal = inject('registerOpenModal', null)
 
+// 목록, 필터, 페이지네이션 상태
 const state = reactive({
   listLoading: false,
   errorMessage: '',
   detailWarning: '',
-  filters: {
-    keyword: '',
-    role: '',
-    active: 'active',
-  },
-  pagination: {
-    currentPage: 1,
-    pageSize: 10,
-  },
-  modals: {
-    create: false,
-    edit: false,
-    createConfirm: false,
-    editConfirm: false,
-    deleteConfirm: false,
-  },
-  createSubmitting: false,
-  editSubmitting: false,
-  deleteSubmitting: false,
-  createErrorMessage: '',
-  editErrorMessage: '',
-  createForm: {
-    name: '',
-    email: '',
-    password: '',
-    phone: '',
-    adminRole: '01',
-  },
-  editForm: {
-    userId: '',
-    name: '',
-    email: '',
-    phone: '',
-    adminRole: '01',
-    isActive: true,
-  },
-  selectedAdmin: null,
-  resultModal: {
-    visible: false,
-    type: 'success',
-    title: '',
-    subtitle: '',
-    desc: '',
-    itemName: '',
-    time: '',
-    actionLabel: '',
-    actor: '',
-    afterConfirm: null,
-  },
+  list: [],
+  keyword: '',
+  role: '',
+  status: 'active',
+  currentPage: 1,
+  size: 10,
+  maxPage: 1,
+  totalElements: 0,
+  submitting: false,
+})
+
+// 상세 모달 상태
+const detailModal = reactive({
+  show: false,
+  admin: null,
+})
+
+// 등록/수정 공용 폼 모달 상태
+const formModal = reactive({
+  show: false,
+  mode: 'create',
+  adminId: '',
+  name: '',
+  email: '',
+  password: '',
+  phone: '',
+  role: '01',
+  status: 'ACTIVE',
+  error: '',
+})
+
+// 확인 모달 상태
+const confirmModal = reactive({
+  show: false,
+  target: null,
+  type: '',
+})
+
+// 결과 모달 상태
+const resultModal = reactive({
+  show: false,
+  type: 'success',
+  title: '',
+  subtitle: '',
+  desc: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
 })
 
 // 권한 필터 select에 사용할 옵션 목록이다.
@@ -151,19 +153,14 @@ const currentComplex = computed(() => {
   }
 })
 
-// store의 관리자 목록을 항상 배열로 정리해 사용한다.
-const adminList = computed(() => {
-  return Array.isArray(complexStore.complexAdmins) ? complexStore.complexAdmins : []
-})
-
 // 검색어와 권한, 활성 여부 필터를 현재 목록에 적용한다.
 const filteredAdmins = computed(() => {
-  return adminList.value.filter((admin) => {
-    const keyword = state.filters.keyword.trim().toLowerCase()
-    const roleMatched = !state.filters.role || String(admin?.adminRole || '') === state.filters.role
+  return state.list.filter((admin) => {
+    const keyword = state.keyword.trim().toLowerCase()
+    const roleMatched = !state.role || String(admin?.adminRole || '') === state.role
     const activeMatched =
-      !state.filters.active ||
-      (state.filters.active === 'active' ? !!admin?.isActive : !admin?.isActive)
+      !state.status ||
+      (state.status === 'active' ? !!admin?.isActive : !admin?.isActive)
 
     const keywordMatched =
       !keyword ||
@@ -183,13 +180,13 @@ const filteredAdmins = computed(() => {
 
 // 필터 결과 기준 전체 페이지 수를 계산한다.
 const totalPages = computed(() => {
-  return Math.max(1, Math.ceil(filteredAdmins.value.length / state.pagination.pageSize))
+  return Math.max(1, Math.ceil(filteredAdmins.value.length / state.size))
 })
 
 // 필터된 목록 기준으로 현재 페이지에 표시할 행만 잘라낸다.
 const pagedAdmins = computed(() => {
-  const startIndex = (state.pagination.currentPage - 1) * state.pagination.pageSize
-  const pagedRows = filteredAdmins.value.slice(startIndex, startIndex + state.pagination.pageSize)
+  const startIndex = (state.currentPage - 1) * state.size
+  const pagedRows = filteredAdmins.value.slice(startIndex, startIndex + state.size)
 
   return pagedRows.map((admin, index) => ({
     ...admin,
@@ -204,11 +201,11 @@ const pagedAdmins = computed(() => {
 
 // 요약 카드에 표시할 운영 상태와 인원 수를 계산한다.
 const summaryItems = computed(() => {
-  const managerCount = adminList.value.filter((admin) => {
+  const managerCount = state.list.filter((admin) => {
     return String(admin?.adminRole || '') === '01' || admin?.adminRoleName === '매니저'
   }).length
 
-  const staffCount = adminList.value.filter((admin) => {
+  const staffCount = state.list.filter((admin) => {
     return String(admin?.adminRole || '') === '02' || admin?.adminRoleName === '스태프'
   }).length
 
@@ -222,7 +219,7 @@ const summaryItems = computed(() => {
     },
     {
       label: '총 관리자 인원',
-      value: adminList.value.length,
+      value: state.list.length,
       unit: '명',
       desc: '현재 단지 소속 관리자 수',
       descClass: '',
@@ -242,6 +239,53 @@ const summaryItems = computed(() => {
       descClass: '',
     },
   ]
+})
+
+// 확인 모달에 표시할 대상 관리자
+const confirmTarget = computed(() => {
+  if (confirmModal.type === 'delete') {
+    return confirmModal.target || {}
+  }
+
+  return {
+    name: formModal.name,
+    email: formModal.email,
+    adminRole: formModal.role,
+    adminRoleName: getComplexAdminRoleLabel(formModal.role),
+  }
+})
+
+// 확인 모달 제목
+const confirmTitle = computed(() => {
+  if (confirmModal.type === 'create') return '관리자 계정을 등록하시겠습니까?'
+  if (confirmModal.type === 'update') return '관리자 계정 정보를 수정하시겠습니까?'
+  return '관리자 계정을 삭제하시겠습니까?'
+})
+
+// 확인 모달 설명
+const confirmSubtitle = computed(() => {
+  if (confirmModal.type === 'create') return '선택한 단지에 새로운 관리자 또는 스태프 계정을 생성합니다.'
+  if (confirmModal.type === 'update') return '이름, 연락처, 권한, 활성 상태 변경 내용을 저장합니다.'
+  return '삭제 후에는 관리자 목록에서 더 이상 표시되지 않습니다.'
+})
+
+// 확인 모달 버튼 문구
+const confirmText = computed(() => {
+  if (confirmModal.type === 'create') return '등록'
+  if (confirmModal.type === 'update') return '수정'
+  return '관리자 삭제'
+})
+
+// 확인 모달 액션 문구
+const confirmActionText = computed(() => {
+  if (confirmModal.type === 'create') return '관리자 계정 생성'
+  if (confirmModal.type === 'update') return '관리자 계정 수정'
+  return '관리자 삭제'
+})
+
+// 확인 모달 강조 타입
+const confirmType = computed(() => {
+  return confirmModal.type === 'delete' ? 'danger' : 'primary'
 })
 
 // API 실패 응답에서 사용자에게 보여줄 메시지를 꺼낸다.
@@ -284,52 +328,40 @@ function openResultModal({
   actor = '',
   afterConfirm = null,
 }) {
-  state.resultModal.visible = true
-  state.resultModal.type = type
-  state.resultModal.title = title
-  state.resultModal.subtitle = subtitle
-  state.resultModal.desc = desc
-  state.resultModal.itemName = itemName
-  state.resultModal.time = time
-  state.resultModal.actionLabel = actionLabel
-  state.resultModal.actor = actor
-  state.resultModal.afterConfirm = afterConfirm
+  resultModal.show = true
+  resultModal.type = type
+  resultModal.title = title
+  resultModal.subtitle = subtitle
+  resultModal.desc = desc
+  resultModal.itemName = itemName
+  resultModal.time = time
+  resultModal.actionLabel = actionLabel
+  resultModal.actor = actor
+  resultModal.afterConfirm = afterConfirm
 }
 
 // ActionResultModal 확인 후 후속 처리 콜백을 실행한다.
 async function handleResultConfirm() {
-  const callback = state.resultModal.afterConfirm
-  state.resultModal.visible = false
-  state.resultModal.afterConfirm = null
+  const callback = resultModal.afterConfirm
+  resultModal.show = false
+  resultModal.afterConfirm = null
 
   if (typeof callback === 'function') {
     await callback()
   }
 }
 
-// 등록 모달을 닫을 때 폼과 에러 상태를 초기화한다.
-function resetCreateForm() {
-  state.createForm.name = ''
-  state.createForm.email = ''
-  state.createForm.password = ''
-  state.createForm.phone = ''
-  state.createForm.adminRole = '01'
-  state.createErrorMessage = ''
-  state.createSubmitting = false
-}
-
-// 수정 모달을 닫을 때 폼과 에러 상태를 초기화한다.
-function resetEditForm() {
-  state.editForm.userId = ''
-  state.editForm.name = ''
-  state.editForm.email = ''
-  state.editForm.phone = ''
-  state.editForm.adminRole = '01'
-  state.editForm.isActive = true
-  state.selectedAdmin = null
-  state.editErrorMessage = ''
-  state.editSubmitting = false
-  state.deleteSubmitting = false
+// 폼 모달 초기화
+function resetFormModal() {
+  formModal.mode = 'create'
+  formModal.adminId = ''
+  formModal.name = ''
+  formModal.email = ''
+  formModal.password = ''
+  formModal.phone = ''
+  formModal.role = '01'
+  formModal.status = 'ACTIVE'
+  formModal.error = ''
 }
 
 // 현재 모드에 맞는 단지 컨텍스트를 복구한다.
@@ -384,8 +416,8 @@ async function restoreComplexContext() {
   }
 }
 
-// 현재 모드에 맞는 관리자/스태프 목록을 조회한다.
-async function loadAdmins() {
+// 관리자 목록 조회
+async function fetchAdminList() {
   state.listLoading = true
   state.errorMessage = ''
 
@@ -393,223 +425,268 @@ async function loadAdmins() {
     // MASTER는 선택 단지 header를 통해, 일반 관리자는 내 단지 기준으로 같은 공통 API를 사용한다.
     if (isMasterUser.value && !complexStore.selectedComplex?.complexId) {
       state.errorMessage = '관리할 단지를 먼저 선택해주세요.'
-        complexStore.complexAdmins = []
+      state.list = []
+      state.totalElements = 0
       return
     }
 
-    await complexStore.fetchMyComplexAdmins()
+    const admins = await complexStore.fetchMyComplexAdmins()
+    state.list = Array.isArray(admins) ? admins : []
+    state.totalElements = state.list.length
+    state.maxPage = Math.max(1, Math.ceil(state.totalElements / state.size))
   } catch (error) {
     console.error(error)
-    complexStore.complexAdmins = []
+    state.list = []
+    state.totalElements = 0
     state.errorMessage = '관리자 목록을 불러오지 못했습니다.'
   } finally {
     state.listLoading = false
   }
 }
 
+// 검색 실행
+function doSearch() {
+  state.currentPage = 1
+}
+
 // 필터 초기화
 function resetFilters() {
-  state.filters.keyword = ''
-  state.filters.role = ''
-  state.filters.active = 'active'
-  state.pagination.currentPage = 1
+  state.keyword = ''
+  state.role = ''
+  state.status = 'active'
+  state.currentPage = 1
 }
 
 // 페이지 변경 처리
-function handlePageChange(page) {
-  state.pagination.currentPage = page
+function goToPage(page) {
+  state.currentPage = page
 }
 
-// 신규 등록 모달을 열기 전에 폼 상태를 초기화한다.
+// 상세 모달 열기
+function openDetailModal(admin) {
+  detailModal.admin = admin
+  detailModal.show = true
+}
+
+// 상세 모달 닫기
+function closeDetailModal() {
+  detailModal.show = false
+  detailModal.admin = null
+}
+
+// 신규 등록 모달 열기
 function openCreateModal() {
-  resetCreateForm()
-  state.modals.create = true
+  resetFormModal()
+  formModal.mode = 'create'
+  formModal.show = true
 }
 
-// 신규 등록 모달을 닫을 때 관련 상태를 함께 정리한다.
-function closeCreateModal() {
-  state.modals.create = false
-  state.modals.createConfirm = false
-  resetCreateForm()
-}
-
-// 목록에서 선택한 관리자 정보를 수정 모달 초기값으로 복사한다.
+// 수정 모달 열기
 function openEditModal(admin) {
-  state.selectedAdmin = admin
-  state.editForm.userId = String(admin?.userId || '')
-  state.editForm.name = admin?.name || ''
-  state.editForm.email = admin?.email || ''
-  state.editForm.phone = admin?.phone || admin?.contact || ''
-  state.editForm.adminRole = admin?.adminRole || '01'
-  state.editForm.isActive = !!admin?.isActive
-  state.editErrorMessage = ''
-  state.modals.edit = true
+  resetFormModal()
+  formModal.mode = 'edit'
+  formModal.adminId = String(admin?.userId || '')
+  formModal.name = admin?.name || ''
+  formModal.email = admin?.email || ''
+  formModal.phone = admin?.phone || admin?.contact || ''
+  formModal.role = admin?.adminRole || '01'
+  formModal.status = admin?.isActive ? 'ACTIVE' : 'INACTIVE'
+  formModal.show = true
 }
 
-// 수정 모달을 닫을 때 수정/삭제 관련 상태를 함께 정리한다.
-function closeEditModal() {
-  state.modals.edit = false
-  state.modals.editConfirm = false
-  state.modals.deleteConfirm = false
-  resetEditForm()
+// 등록/수정 모달 닫기
+function closeFormModal() {
+  formModal.show = false
+  closeConfirmModal()
+  resetFormModal()
 }
 
-// 등록 전 ConfirmModal을 연다.
-function openCreateConfirm() {
-  state.modals.createConfirm = true
-}
+// 폼 필수값 검증
+function validateFormModal() {
+  formModal.error = ''
 
-// 수정 전 ConfirmModal을 연다.
-function openEditConfirm() {
-  state.modals.editConfirm = true
-}
-
-// 소속 해제 전 ConfirmModal을 연다.
-function openDeleteConfirm(admin) {
-  state.selectedAdmin = admin
-  state.modals.deleteConfirm = true
-}
-
-// 등록 폼 값을 백엔드 요청 DTO에 맞게 변환한다.
-function buildCreatePayload() {
-  return {
-    name: state.createForm.name,
-    email: state.createForm.email,
-    password: state.createForm.password,
-    phone: state.createForm.phone,
-    adminRole: state.createForm.adminRole,
+  if (!formModal.name.trim()) {
+    formModal.error = '이름을 입력해주세요.'
+    return false
   }
-}
 
-// 수정 폼 값을 백엔드 요청 DTO에 맞게 변환한다.
-function buildUpdatePayload() {
-  return {
-    name: state.editForm.name,
-    phone: state.editForm.phone,
-    adminRole: state.editForm.adminRole,
-    isActive: state.editForm.isActive,
+  if (!formModal.email.trim()) {
+    formModal.error = '이메일을 입력해주세요.'
+    return false
   }
+
+  if (formModal.mode === 'create' && !formModal.password.trim()) {
+    formModal.error = '초기 비밀번호를 입력해주세요.'
+    return false
+  }
+
+  if (!formModal.role) {
+    formModal.error = '권한을 선택해주세요.'
+    return false
+  }
+
+  return true
 }
 
-// 등록 ConfirmModal 확인 후 현재 모드에 맞는 관리자 생성 API를 호출한다.
-async function handleCreateAdmin() {
-  if (state.createSubmitting) return
+// 등록/수정 확인 모달 열기
+function submitAdminForm() {
+  if (!validateFormModal()) return
+
+  openConfirmModal(null, formModal.mode === 'create' ? 'create' : 'update')
+}
+
+// 확인 모달 열기
+function openConfirmModal(admin, type) {
+  confirmModal.target = admin
+  confirmModal.type = type
+  confirmModal.show = true
+}
+
+// 삭제 확인 모달 열기
+function openDeleteConfirm() {
+  openConfirmModal(
+    {
+      userId: formModal.adminId,
+      name: formModal.name,
+      email: formModal.email,
+      adminRole: formModal.role,
+      adminRoleName: getComplexAdminRoleLabel(formModal.role),
+    },
+    'delete',
+  )
+}
+
+// 확인 모달 닫기
+function closeConfirmModal() {
+  confirmModal.show = false
+  confirmModal.target = null
+  confirmModal.type = ''
+}
+
+// 확인 모달 액션 처리
+async function handleConfirmAction() {
+  if (state.submitting) return
   if (isMasterUser.value && !complexStore.selectedComplex?.complexId) return
 
-  state.modals.createConfirm = false
-  state.createSubmitting = true
-  state.createErrorMessage = ''
-  state.resultModal.visible = false
+  const actionType = confirmModal.type
+  state.submitting = true
+  formModal.error = ''
+  resultModal.show = false
 
   try {
-    // MASTER와 일반 관리자 모드 모두 공통 관리자 등록 API를 사용한다.
-    await complexStore.createAdminForMyComplex(buildCreatePayload())
-
-    const createdName = state.createForm.name || '관리자 계정'
-    const createdRole = getComplexAdminRoleLabel(state.createForm.adminRole)
-
-    state.modals.create = false
-    resetCreateForm()
-
-    openResultModal({
-      type: 'success',
-      title: '관리자 계정이 등록되었습니다.',
-      subtitle: '선택한 단지에 관리자 또는 스태프 계정이 추가되었습니다.',
-      itemName: createdName,
-      time: getCurrentTimeText(),
-      actionLabel: `${createdRole} 등록`,
-      actor: getCurrentActorName(),
-      afterConfirm: async () => {
-        await loadAdmins()
-      },
-    })
+    if (actionType === 'create') {
+      await createAdmin()
+    } else if (actionType === 'update') {
+      await updateAdmin()
+    } else if (actionType === 'delete') {
+      await deleteAdmin()
+    }
   } catch (error) {
     console.error(error)
-    state.resultModal.visible = false
-    state.createErrorMessage = getErrorMessage(
-      error,
-      '관리자 계정 등록에 실패했습니다. 입력값을 확인한 뒤 다시 시도해주세요.',
-    )
+    closeConfirmModal()
+
+    if (actionType === 'create' || actionType === 'update') {
+      formModal.error = getErrorMessage(error, '입력값을 확인한 뒤 다시 시도해주세요.')
+    } else {
+      openResultModal({
+        type: 'error',
+        title: '관리자 삭제에 실패했습니다.',
+        subtitle: getErrorMessage(error, '잠시 후 다시 시도해주세요.'),
+      })
+    }
   } finally {
-    state.createSubmitting = false
+    state.submitting = false
   }
 }
 
-// 수정 ConfirmModal 확인 후 현재 모드에 맞는 관리자 수정 API를 호출한다.
-async function handleUpdateAdmin() {
-  if (!state.selectedAdmin?.userId || state.editSubmitting) return
-  if (isMasterUser.value && !complexStore.selectedComplex?.complexId) return
-
-  state.modals.editConfirm = false
-  state.editSubmitting = true
-  state.editErrorMessage = ''
-
-  try {
-    // MASTER와 일반 관리자 모드 모두 공통 관리자 수정 API를 사용한다.
-    await complexStore.updateAdminForMyComplex(state.selectedAdmin.userId, buildUpdatePayload())
-
-    const updatedName = state.editForm.name || '관리자 계정'
-    const updatedRole = getComplexAdminRoleLabel(state.editForm.adminRole)
-
-    state.modals.edit = false
-    resetEditForm()
-
-    openResultModal({
-      type: 'success',
-      title: '관리자 계정 정보가 수정되었습니다.',
-      subtitle: '권한과 활성 여부가 최신 상태로 반영되었습니다.',
-      itemName: updatedName,
-      time: getCurrentTimeText(),
-      actionLabel: `${updatedRole} 정보 수정`,
-      actor: getCurrentActorName(),
-      afterConfirm: async () => {
-        await loadAdmins()
-      },
-    })
-  } catch (error) {
-    console.error(error)
-    state.editErrorMessage = getErrorMessage(error, '잠시 후 다시 시도해주세요.')
-  } finally {
-    state.editSubmitting = false
+// 관리자 등록 요청
+async function createAdmin() {
+  const submitData = {
+    name: formModal.name,
+    email: formModal.email,
+    password: formModal.password,
+    phone: formModal.phone,
+    adminRole: formModal.role,
   }
+
+  await complexStore.createAdminForMyComplex(submitData)
+
+  const createdName = formModal.name || '관리자 계정'
+  const createdRole = getComplexAdminRoleLabel(formModal.role)
+
+  formModal.show = false
+  closeConfirmModal()
+  resetFormModal()
+
+  openResultModal({
+    type: 'success',
+    title: '관리자 계정이 등록되었습니다.',
+    subtitle: '선택한 단지에 관리자 또는 스태프 계정이 추가되었습니다.',
+    itemName: createdName,
+    time: getCurrentTimeText(),
+    actionLabel: `${createdRole} 등록`,
+    actor: getCurrentActorName(),
+    afterConfirm: fetchAdminList,
+  })
 }
 
-// 삭제 ConfirmModal 확인 후 현재 모드에 맞는 관리자 삭제 API를 호출한다.
-async function handleDeleteAdmin() {
-  if (!state.selectedAdmin?.userId || state.deleteSubmitting) return
-  if (isMasterUser.value && !complexStore.selectedComplex?.complexId) return
+// 관리자 수정 요청
+async function updateAdmin() {
+  if (!formModal.adminId) return
 
-  state.modals.deleteConfirm = false
-  state.deleteSubmitting = true
-  state.editErrorMessage = ''
-
-  try {
-    const deletedName = state.selectedAdmin?.name || '관리자 계정'
-    const deletedRole =
-      state.selectedAdmin?.adminRoleName || getComplexAdminRoleLabel(state.selectedAdmin?.adminRole)
-
-    // MASTER와 일반 관리자 모드 모두 공통 관리자 삭제 API를 사용한다.
-    await complexStore.deleteAdminFromMyComplex(state.selectedAdmin.userId)
-    resetEditForm()
-
-    openResultModal({
-      type: 'success',
-      title: '관리자 계정이 소속 해제되었습니다.',
-      subtitle: '해당 계정의 단지 소속 해제 요청이 처리되었습니다.',
-      itemName: deletedName,
-      time: getCurrentTimeText(),
-      actionLabel: `${deletedRole} 소속 해제`,
-      actor: getCurrentActorName(),
-      afterConfirm: async () => {
-        await loadAdmins()
-      },
-    })
-  } catch (error) {
-    console.error(error)
-    state.editErrorMessage = getErrorMessage(error, '잠시 후 다시 시도해주세요.')
-  } finally {
-    state.deleteSubmitting = false
+  const submitData = {
+    name: formModal.name,
+    phone: formModal.phone,
+    adminRole: formModal.role,
+    isActive: formModal.status === 'ACTIVE',
   }
+
+  await complexStore.updateAdminForMyComplex(formModal.adminId, submitData)
+
+  const updatedName = formModal.name || '관리자 계정'
+  const updatedRole = getComplexAdminRoleLabel(formModal.role)
+
+  formModal.show = false
+  closeConfirmModal()
+  resetFormModal()
+
+  openResultModal({
+    type: 'success',
+    title: '관리자 계정 정보가 수정되었습니다.',
+    subtitle: '권한과 활성 여부가 최신 상태로 반영되었습니다.',
+    itemName: updatedName,
+    time: getCurrentTimeText(),
+    actionLabel: `${updatedRole} 정보 수정`,
+    actor: getCurrentActorName(),
+    afterConfirm: fetchAdminList,
+  })
+}
+
+// 관리자 삭제 요청
+async function deleteAdmin() {
+  const target = confirmModal.target
+
+  if (!target?.userId) return
+
+  const deletedName = target?.name || '관리자 계정'
+  const deletedRole = target?.adminRoleName || getComplexAdminRoleLabel(target?.adminRole)
+
+  await complexStore.deleteAdminFromMyComplex(target.userId)
+
+  formModal.show = false
+  closeConfirmModal()
+  resetFormModal()
+
+  openResultModal({
+    type: 'success',
+    title: '관리자 계정이 삭제되었습니다.',
+    subtitle: '해당 계정의 단지 소속 해제 요청이 처리되었습니다.',
+    itemName: deletedName,
+    time: getCurrentTimeText(),
+    actionLabel: `${deletedRole} 관리자 삭제`,
+    actor: getCurrentActorName(),
+    afterConfirm: fetchAdminList,
+  })
 }
 
 // 날짜 값은 표와 요약 영역에서 간단히 잘라서 표시한다.
@@ -628,9 +705,17 @@ onMounted(async () => {
   const isReady = await restoreComplexContext()
 
   if (isReady) {
-    await loadAdmins()
+    await fetchAdminList()
   }
 })
+
+// 필터 변경 시 첫 페이지로 이동
+watch(
+  () => [state.keyword, state.role, state.status],
+  () => {
+    doSearch()
+  },
+)
 
 // 페이지를 벗어날 때는 레이아웃 상단 버튼 연결을 정리한다.
 onUnmounted(() => {
@@ -647,17 +732,17 @@ onUnmounted(() => {
     <div class="card-shell">
       <AdminFilterBar @reset="resetFilters">
         <input
-          v-model="state.filters.keyword"
+          v-model="state.keyword"
           class="filter-input"
           type="text"
           placeholder="이름 또는 이메일 검색"
         />
-        <select v-model="state.filters.role" class="filter-select">
+        <select v-model="state.role" class="filter-select">
           <option v-for="item in roleOptions" :key="item.value" :value="item.value">
             {{ item.label }}
           </option>
         </select>
-        <select v-model="state.filters.active" class="filter-select">
+        <select v-model="state.status" class="filter-select">
           <option v-for="item in activeOptions" :key="item.value" :value="item.value">
             {{ item.label }}
           </option>
@@ -692,187 +777,121 @@ onUnmounted(() => {
       <div class="manage-page__pagination">
         <AppPagination
           v-if="!state.listLoading && filteredAdmins.length > 0"
-          :current-page="state.pagination.currentPage"
+          :current-page="state.currentPage"
           :total-pages="totalPages"
-          :total-all="adminList.length"
+          :total-all="state.list.length"
           :total-filtered="filteredAdmins.length"
-          @change="handlePageChange"
+          @change="goToPage"
         />
       </div>
     </div>
 
     <BaseModal
-      :visible="state.modals.create"
-      title="관리자 계정 등록"
-      subtitle="선택한 단지에 소속될 관리자 또는 스태프 계정을 생성합니다."
-      @close="closeCreateModal"
+      :visible="formModal.show"
+      :title="formModal.mode === 'create' ? '관리자 계정 등록' : '관리자 계정 수정'"
+      :subtitle="formModal.mode === 'create'
+        ? '선택한 단지에 소속될 관리자 또는 스태프 계정을 생성합니다.'
+        : '선택한 단지 내 권한과 활성 상태를 수정합니다.'"
+      @close="closeFormModal"
     >
       <div class="form-grid">
         <label class="form-field">
           <span>이름</span>
-          <input v-model="state.createForm.name" type="text" placeholder="이름" />
+          <input v-model="formModal.name" type="text" placeholder="이름" />
         </label>
         <label class="form-field">
           <span>이메일</span>
-          <input v-model="state.createForm.email" type="email" placeholder="admin@example.com" />
+          <input
+            v-model="formModal.email"
+            type="email"
+            placeholder="admin@example.com"
+            :readonly="formModal.mode === 'edit'"
+          />
         </label>
-        <label class="form-field">
+        <label v-if="formModal.mode === 'create'" class="form-field">
           <span>비밀번호</span>
-          <input v-model="state.createForm.password" type="password" placeholder="초기 비밀번호" />
+          <input v-model="formModal.password" type="password" placeholder="초기 비밀번호" />
         </label>
         <label class="form-field">
           <span>연락처</span>
-          <input v-model="state.createForm.phone" type="text" placeholder="010-0000-0000" />
+          <input v-model="formModal.phone" type="text" placeholder="010-0000-0000" />
         </label>
-        <label class="form-field form-field--full">
+        <label class="form-field">
           <span>권한</span>
-          <select v-model="state.createForm.adminRole">
+          <select v-model="formModal.role">
             <option value="01">매니저</option>
             <option value="02">스태프</option>
           </select>
         </label>
+        <label v-if="formModal.mode === 'edit'" class="form-field">
+          <span>활성 여부</span>
+          <select v-model="formModal.status">
+            <option value="ACTIVE">활성</option>
+            <option value="INACTIVE">비활성</option>
+          </select>
+        </label>
       </div>
 
-      <p v-if="state.createErrorMessage" class="form-feedback error">{{ state.createErrorMessage }}</p>
+      <p v-if="formModal.error" class="form-feedback error">{{ formModal.error }}</p>
 
       <template #footer>
-        <button type="button" class="page-button page-button--ghost" @click="closeCreateModal">
+        <button
+          v-if="formModal.mode === 'create'"
+          type="button"
+          class="page-button page-button--ghost"
+          @click="closeFormModal"
+        >
           취소
         </button>
         <button
-          type="button"
-          class="page-button page-button--primary"
-          :disabled="state.createSubmitting"
-          @click="openCreateConfirm"
-        >
-          {{ state.createSubmitting ? '등록 중...' : '등록' }}
-        </button>
-      </template>
-    </BaseModal>
-
-    <BaseModal
-      :visible="state.modals.edit"
-      title="관리자 계정 수정"
-      subtitle="선택한 단지 내 권한과 활성 상태를 수정합니다."
-      @close="closeEditModal"
-    >
-      <div class="form-grid">
-        <label class="form-field">
-          <span>이름</span>
-          <input v-model="state.editForm.name" type="text" placeholder="이름" />
-        </label>
-        <label class="form-field">
-          <span>이메일</span>
-          <input v-model="state.editForm.email" type="email" readonly />
-        </label>
-        <label class="form-field">
-          <span>연락처</span>
-          <input v-model="state.editForm.phone" type="text" placeholder="010-0000-0000" />
-        </label>
-        <label class="form-field">
-          <span>권한</span>
-          <select v-model="state.editForm.adminRole">
-            <option value="01">매니저</option>
-            <option value="02">스태프</option>
-          </select>
-        </label>
-        <label class="form-field form-field--full">
-          <span>활성 여부</span>
-          <select v-model="state.editForm.isActive">
-            <option :value="true">활성</option>
-            <option :value="false">비활성</option>
-          </select>
-        </label>
-      </div>
-
-      <p v-if="state.editErrorMessage" class="form-feedback error">{{ state.editErrorMessage }}</p>
-
-      <template #footer>
-        <button
-          v-if="canManageAdmins"
+          v-if="formModal.mode === 'edit' && canManageAdmins"
           type="button"
           class="page-button page-button--danger"
-          :disabled="state.deleteSubmitting"
-          @click="openDeleteConfirm(state.selectedAdmin)"
+          :disabled="state.submitting"
+          @click="openDeleteConfirm"
         >
-          {{ state.deleteSubmitting ? '삭제 중...' : '관리자 삭제' }}
+          {{ state.submitting ? '처리 중...' : '관리자 삭제' }}
         </button>
         <button
           type="button"
           class="page-button page-button--primary"
-          :disabled="state.editSubmitting"
-          @click="openEditConfirm"
+          :disabled="state.submitting"
+          @click="submitAdminForm"
         >
-          {{ state.editSubmitting ? '저장 중...' : '수정' }}
+          {{ state.submitting ? '처리 중...' : formModal.mode === 'create' ? '등록' : '수정' }}
         </button>
       </template>
     </BaseModal>
 
     <ConfirmModal
-      :visible="state.modals.createConfirm"
-      title="관리자 계정을 등록하시겠습니까?"
-      subtitle="선택한 단지에 새로운 관리자 또는 스태프 계정을 생성합니다."
+      :visible="confirmModal.show"
+      :title="confirmTitle"
+      :subtitle="confirmSubtitle"
+      :subtitle-color="confirmModal.type === 'delete' ? '#E53E3E' : ''"
       item-label="계정"
-      :item-name="state.createForm.name || '신규 관리자'"
-      :action-label="getComplexAdminRoleLabel(state.createForm.adminRole)"
-      action-text="관리자 계정 생성"
-      :extra-value="state.createForm.email"
+      :item-name="confirmTarget?.name || '관리자 계정'"
+      :action-label="confirmTarget?.adminRoleName || getComplexAdminRoleLabel(confirmTarget?.adminRole)"
+      :action-text="confirmActionText"
+      :extra-value="confirmTarget?.email"
       extra-label="이메일"
-      confirm-text="등록"
+      :confirm-text="confirmText"
       cancel-text="취소"
-      confirm-type="primary"
-      :loading="state.createSubmitting"
-      @confirm="handleCreateAdmin"
-      @cancel="state.modals.createConfirm = false"
-    />
-
-    <ConfirmModal
-      :visible="state.modals.editConfirm"
-      title="관리자 계정 정보를 수정하시겠습니까?"
-      subtitle="이름, 연락처, 권한, 활성 상태 변경 내용을 저장합니다."
-      item-label="계정"
-      :item-name="state.editForm.name || '관리자 계정'"
-      :action-label="getComplexAdminRoleLabel(state.editForm.adminRole)"
-      action-text="관리자 계정 수정"
-      :extra-value="state.editForm.email"
-      extra-label="이메일"
-      confirm-text="수정"
-      cancel-text="취소"
-      confirm-type="primary"
-      :loading="state.editSubmitting"
-      @confirm="handleUpdateAdmin"
-      @cancel="state.modals.editConfirm = false"
-    />
-
-    <ConfirmModal
-      :visible="state.modals.deleteConfirm"
-      title="관리자 계정을 삭제하시겠습니까?"
-      subtitle="해당 관리자 계정의 단지 소속이 해제되고 계정이 비활성화됩니다."
-      subtitle-color="#E53E3E"
-      item-label="계정"
-      :item-name="state.selectedAdmin?.name || '관리자 계정'"
-      :action-label="state.selectedAdmin?.adminRoleName || getComplexAdminRoleLabel(state.selectedAdmin?.adminRole)"
-      action-text="관리자 삭제"
-      :extra-value="state.selectedAdmin?.email"
-      extra-label="이메일"
-      confirm-text="관리자 삭제"
-      cancel-text="취소"
-      confirm-type="danger"
-      :loading="state.deleteSubmitting"
-      @confirm="handleDeleteAdmin"
-      @cancel="state.modals.deleteConfirm = false"
+      :confirm-type="confirmType"
+      :loading="state.submitting"
+      @confirm="handleConfirmAction"
+      @cancel="closeConfirmModal"
     />
 
     <ActionResultModal
-      :visible="state.resultModal.visible"
-      :type="state.resultModal.type"
-      :title="state.resultModal.title"
-      :subtitle="state.resultModal.subtitle"
-      :desc="state.resultModal.desc"
-      :item-name="state.resultModal.itemName"
-      :time="state.resultModal.time"
-      :action-label="state.resultModal.actionLabel"
-      :actor="state.resultModal.actor"
+      :visible="resultModal.show"
+      :type="resultModal.type"
+      :title="resultModal.title"
+      :subtitle="resultModal.subtitle"
+      :desc="resultModal.desc"
+      :item-name="resultModal.itemName"
+      :time="resultModal.time"
+      :action-label="resultModal.actionLabel"
+      :actor="resultModal.actor"
       @close="handleResultConfirm"
     />
   </section>

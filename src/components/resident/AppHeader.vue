@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { FEATURE_CODES } from '@/constants/complexFeatures'
 import { isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
+import NotificationBadge from '@/components/notification/NotificationBadge.vue'
 
 defineProps({
   title: {
@@ -101,6 +102,10 @@ const menuGroups = computed(() => [
       canUseResidentFeature(FEATURE_CODES.FACILITY)
         ? { label: '내 예약', path: residentPath('reservations'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>` }
         : null,
+      // 구독형 시설 이용 내역 직접 접근 경로
+      canUseResidentFeature(FEATURE_CODES.FACILITY)
+        ? { label: '나의 구독', path: residentPath('facility/subscriptions'), icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>` }
+        : null,
     ].filter(Boolean),
   },
   {
@@ -129,11 +134,13 @@ const menuGroups = computed(() => [
 
     <!-- 우측 액션 버튼 -->
     <div class="app-header__actions">
-      <button class="app-header__btn" @click="navigate(residentPath('notifications'))">
+      <!-- 알림 버튼: 배지 position 기준을 위해 relative 적용 -->
+      <button class="app-header__btn app-header__btn--notif" @click="navigate(residentPath('notifications'))">
         <svg viewBox="0 0 24 24" fill="none">
           <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
+        <NotificationBadge />
       </button>
       <button class="app-header__btn" @click="drawerOpen = true">
         <svg viewBox="0 0 24 24" fill="none">
@@ -267,6 +274,11 @@ const menuGroups = computed(() => [
   color: var(--color-text-secondary);
   cursor: pointer;
   transition: background 0.15s;
+}
+
+/* 배지를 absolute로 붙이려면 position: relative가 필요 */
+.app-header__btn--notif {
+  position: relative;
 }
 
 .app-header__btn:hover {

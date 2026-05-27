@@ -37,5 +37,12 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+.claude/
+
+# Env
 .env
 .env.local
+.env.development
+.env.production
+.env.*.local
+!.env.example

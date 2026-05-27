@@ -74,7 +74,7 @@ async function handleSubmit() {
     })
     success.value = true
   } catch (e) {
-    serverError.value = e.response?.data?.resultMessage || '비밀번호 재설정에 실패했습니다.'
+    serverError.value = e.response?.data?.message || '비밀번호 재설정에 실패했습니다.'
   } finally {
     loading.value = false
   }

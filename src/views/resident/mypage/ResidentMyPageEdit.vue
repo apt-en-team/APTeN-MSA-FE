@@ -68,7 +68,7 @@ async function handleSubmit() {
     authStore.name = form.value.name
     showSuccessModal.value = true
   } catch (e) {
-    serverError.value = e.response?.data?.resultMessage || '수정 중 오류가 발생했습니다.'
+    serverError.value = e.response?.data?.message || '수정 중 오류가 발생했습니다.'
   } finally {
     loading.value = false
   }

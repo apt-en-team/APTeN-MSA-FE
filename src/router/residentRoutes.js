@@ -8,6 +8,9 @@ import ChangePassword from '@/views/resident/mypage/ChangePassword.vue'
 import NotificationList from '@/views/resident/notification/NotificationList.vue'
 import ResidentParkingStatusHome from '@/views/resident/parking/ResidentParkingStatusHome.vue'
 import ResidentVoteHome from '@/views/resident/vote/ResidentVoteHome.vue'
+import ResidentBoardList from '@/views/resident/board/ResidentBoardList.vue'
+import ResidentBoardPost from '@/views/resident/board/ResidentBoardPost.vue'
+import ResidentBoardDetail from '@/views/resident/board/ResidentBoardDetail.vue'
 
 const residentRoutes = [
   {
@@ -43,8 +46,43 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'board',
+        component: ResidentBoardList,
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'board/posts',
+        component: ResidentBoardPost,
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'board/:postId',
+        component: ResidentBoardDetail,
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'board/:postId/edit',
+        component: ResidentBoardPost,
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'notice',
+        component: () => import('@/views/resident/board/ResidentNoticeList.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'notice/:noticeId',
+        component: () => import('@/views/resident/board/ResidentNoticeDetail.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'notifications',
         component: NotificationList,
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'notifications/settings',
+        component: () => import('@/views/resident/notification/NotificationSetting.vue'),
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
@@ -53,8 +91,38 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'facility/subscriptions',
+        component: () => import('@/views/resident/facility/ResidentMySubscriptionView.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'facility/:facilityId',
+        component: () => import('@/views/resident/facility/ResidentFacilityDetail.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'facility/:facilityId/reserve',
+        component: () => import('@/views/resident/facility/ResidentReservationCreate.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'facility/:facilityId/gx-programs',
+        component: () => import('@/views/resident/facility/ResidentGxProgramList.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'facility/gx-programs/:programId',
+        component: () => import('@/views/resident/facility/ResidentGxProgramDetail.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'reservations',
         component: ResidentReservationHome,
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'reservations/:reservationId',
+        component: () => import('@/views/resident/reservation/MyReservationDetail.vue'),
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {

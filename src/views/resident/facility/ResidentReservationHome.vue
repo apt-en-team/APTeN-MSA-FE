@@ -1,163 +1,563 @@
 <script setup>
-// 입주민 예약 대표 페이지의 안내 카드를 고정 데이터로 구성한다.
-const reservationCards = [
-  {
-    title: '오늘 예약',
-    desc: '오늘 이용 예정인 시설 예약을 빠르게 확인할 수 있습니다.',
-    tone: 'primary',
-  },
-  {
-    title: '예약 내역',
-    desc: '최근 예약 내역과 이용 일정을 한 화면에서 관리할 수 있습니다.',
-    tone: 'mint',
-  },
-  {
-    title: '이용 안내',
-    desc: '시설별 이용 안내와 실제 예약 상세 목록은 API 연동 후 제공될 예정입니다.',
-    tone: 'soft',
-  },
-]
+import { reactive, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useReservationStore } from '@/stores/useReservationStore.js'
+import { normalizeReservationStatus, normalizeGxReservationStatus } from '@/utils/normalize.js'
+import imgReadingroom from '@/assets/images/readingroom.png'
+import imgGolf from '@/assets/images/golf.png'
+import imgPT from '@/assets/images/PT.png'
+import imgGroupPT from '@/assets/images/Group PT.png'
+import imgPilates from '@/assets/images/pilates.png'
+import imgGX from '@/assets/images/GX.png'
+import imgSwimmingPool from '@/assets/images/SwimmingPool.png'
+import imgSauna from '@/assets/images/Sauna.png'
+import imgGuestHouse from '@/assets/images/GuestHouse.png'
+import imgLaundryRoom from '@/assets/images/LaundryRoom.png'
+import imgCafe from '@/assets/images/Cafe.png'
+import imgYoga from '@/assets/images/Yoga.png'
+
+const route = useRoute()
+const router = useRouter()
+const reservationStore = useReservationStore()
+
+const PAGE_SIZE = 10
+
+const state = reactive({
+  list: [],
+  activeFilterTab: 'upcoming', // 'upcoming' | 'past'
+  loading: false,
+  loadingMore: false,
+  errorMessage: '',
+  page: 0,
+  hasNext: false,
+  totalElements: 0,
+})
+
+const goToFacility = () => {
+  router.push(`/resident/${route.params.complexId}/facility`)
+}
+
+const goToFacilityDetail = (reservationId) => {
+  router.push(`/resident/${route.params.complexId}/reservations/${reservationId}`)
+}
+
+const goToGxDetail = (programId, gxReservationId, status, waitNo) => {
+  const query = { from: 'reservations' }
+  if (gxReservationId) query.gxReservationId = String(gxReservationId)
+  if (status) query.status = String(status)
+  if (waitNo != null) query.waitNo = String(waitNo)
+  router.push({
+    path: `/resident/${route.params.complexId}/facility/gx-programs/${programId}`,
+    query,
+  })
+}
+
+// status code → normalized (GX: "01"=WAITING,"02"=CONFIRMED / Facility: "01"=CONFIRMED)
+const gxStatusNorm = (r) => normalizeGxReservationStatus(r.status)
+const facilityStatusNorm = (r) => normalizeReservationStatus(r.status)
+
+const filteredList = computed(() => state.list)
+
+// 예약 카드 이미지
+const getGxImage = (name) => {
+  if (!name) return imgGX
+  const n = name.toLowerCase()
+  if (n.includes('요가') || n.includes('yoga')) return imgYoga
+  if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
+  if (n.includes('그룹') || n.includes('group')) return imgGroupPT
+  if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
+  return imgGX
+}
+
+const getFacilityReservationImage = (name) => {
+  if (!name) return null
+  const n = name.toLowerCase()
+  if (n.includes('독서') || n.includes('reading')) return imgReadingroom
+  if (n.includes('골프') || n.includes('golf')) return imgGolf
+  if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
+  if (n.includes('그룹') || n.includes('group')) return imgGroupPT
+  if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
+  if (n.includes('gx') || n.includes('group exercise')) return imgGX
+  if (n.includes('수영') || n.includes('swimming') || n.includes('pool')) return imgSwimmingPool
+  if (n.includes('사우나') || n.includes('sauna')) return imgSauna
+  if (n.includes('게스트') || n.includes('guest')) return imgGuestHouse
+  if (n.includes('세탁') || n.includes('laundry')) return imgLaundryRoom
+  if (n.includes('카페') || n.includes('cafe') || n.includes('café')) return imgCafe
+  return null
+}
+
+// 일반 예약 상태
+const facilityStatusLabel = (s) =>
+  ({ CONFIRMED: '예약완료', COMPLETED: '이용완료', CANCELLED: '취소됨' }[normalizeReservationStatus(s)] || s || '-')
+const facilityStatusClass = (s) =>
+  ({ CONFIRMED: 'is-confirmed', COMPLETED: 'is-completed', CANCELLED: 'is-cancelled' }[normalizeReservationStatus(s)] || '')
+
+// GX 예약 상태
+const gxStatusLabel = (r) => {
+  const s = normalizeGxReservationStatus(typeof r === 'object' ? r?.status : r)
+  if (s === 'WAITING') {
+    const waitNo = typeof r === 'object' ? r?.waitNo : null
+    return waitNo != null ? `대기 ${waitNo}번` : '대기 중'
+  }
+  return { CONFIRMED: '신청완료', CANCELLED: '취소됨', REJECTED: '거절됨', COMPLETED: '이용완료' }[s] || (typeof r === 'string' ? r : '') || '-'
+}
+const gxStatusClass = (s) =>
+  ({ CONFIRMED: 'is-confirmed', WAITING: 'is-waiting', CANCELLED: 'is-cancelled', REJECTED: 'is-cancelled', COMPLETED: 'is-completed' }[normalizeGxReservationStatus(s)] || '')
+
+const formatDate = (d) => (d ? String(d).slice(0, 10).replace(/-/g, '.') : '-')
+const formatTime = (t) => (t ? String(t).slice(0, 5) : '-')
+
+const DAY_LABEL = { MONDAY: '월', TUESDAY: '화', WEDNESDAY: '수', THURSDAY: '목', FRIDAY: '금', SATURDAY: '토', SUNDAY: '일' }
+const formatDays = (days) => {
+  if (!days) return ''
+  const arr = Array.isArray(days)
+    ? days
+    : String(days).split(',').map((s) => s.trim()).filter(Boolean)
+  return arr.map((d) => DAY_LABEL[d] || d).join(', ')
+}
+
+const onCardClick = (item) => {
+  if (item.type === 'GX') {
+    goToGxDetail(item.programId, item.gxReservationId, item.status, item.waitNo)
+  } else {
+    goToFacilityDetail(item.reservationId)
+  }
+}
+
+const phaseParam = () => state.activeFilterTab === 'upcoming' ? 'UPCOMING' : 'PAST'
+
+const fetchPage = async (page) => {
+  const isFirst = page === 0
+  if (isFirst) {
+    state.loading = true
+    state.list = []
+  } else {
+    state.loadingMore = true
+  }
+  state.errorMessage = ''
+  try {
+    const res = await reservationStore.fetchMyReservations({ phase: phaseParam(), page, size: PAGE_SIZE })
+    const content = res?.content ?? []
+    state.list = isFirst ? content : [...state.list, ...content]
+    state.page = res?.page ?? page
+    state.hasNext = res?.hasNext ?? false
+    state.totalElements = res?.totalElements ?? 0
+  } catch {
+    if (isFirst) state.errorMessage = '예약 목록을 불러오지 못했습니다.'
+  } finally {
+    state.loading = false
+    state.loadingMore = false
+  }
+}
+
+const onTabChange = (tab) => {
+  state.activeFilterTab = tab
+  fetchPage(0)
+}
+
+const loadMore = () => {
+  if (state.hasNext && !state.loadingMore) fetchPage(state.page + 1)
+}
+
+onMounted(() => {
+  fetchPage(0)
+})
 </script>
 
 <template>
-  <section class="resident-feature-page">
-    <header class="resident-feature-page__hero">
-      <p class="resident-feature-page__eyebrow">RESERVATION</p>
-      <h1 class="resident-feature-page__title">내 예약</h1>
-      <p class="resident-feature-page__desc">
-        내가 신청한 시설 예약 내역을 확인합니다.
-      </p>
-    </header>
+  <div class="reservation-home">
+    <!-- 메인 탭: 예약하기 / 내 예약 / 나의 구독 -->
+    <div class="main-tabs">
+      <button class="main-tab" type="button" @click="goToFacility">예약하기</button>
+      <button class="main-tab is-active" type="button">내 예약</button>
+      <button class="main-tab" type="button" @click="router.push(`/resident/${route.params.complexId}/facility/subscriptions`)">나의 구독</button>
+    </div>
 
-    <!-- 모바일 전용 예약 대표 카드를 세로로 배치한다. -->
-    <section class="resident-feature-page__cards">
-      <article
-        v-for="card in reservationCards"
-        :key="card.title"
-        class="resident-feature-card"
-        :class="`resident-feature-card--${card.tone}`"
+    <!-- 필터 탭: 이용예정 / 지난예약 -->
+    <div class="filter-tabs">
+      <button
+        :class="['filter-tab', state.activeFilterTab === 'upcoming' && 'is-active']"
+        type="button"
+        @click="onTabChange('upcoming')"
       >
-        <div class="resident-feature-card__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <rect x="3" y="4" width="18" height="18" rx="3" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-        </div>
-        <div class="resident-feature-card__copy">
-          <h2>{{ card.title }}</h2>
-          <p>{{ card.desc }}</p>
-        </div>
-      </article>
-    </section>
-  </section>
+        이용예정
+      </button>
+      <button
+        :class="['filter-tab', state.activeFilterTab === 'past' && 'is-active']"
+        type="button"
+        @click="onTabChange('past')"
+      >
+        지난예약
+      </button>
+    </div>
+
+    <!-- 로딩 -->
+    <div v-if="state.loading" class="loading-area">
+      <p class="loading-text">불러오는 중...</p>
+    </div>
+
+    <!-- 에러 -->
+    <div v-else-if="state.errorMessage" class="error-area">
+      <p class="error-text">{{ state.errorMessage }}</p>
+      <button class="btn-retry" type="button" @click="fetchPage(0)">다시 시도</button>
+    </div>
+
+    <!-- 목록 -->
+    <div v-else class="reservation-list">
+      <template v-for="r in filteredList" :key="r.type === 'GX' ? `gx-${r.gxReservationId}` : r.reservationId">
+        <!-- GX 예약 카드 -->
+        <button
+          v-if="r.type === 'GX'"
+          class="reservation-card"
+          type="button"
+          @click="onCardClick(r)"
+        >
+          <div class="card-thumb">
+            <img :src="getGxImage(r.name)" :alt="r.name" class="card-thumb-img" />
+          </div>
+          <div class="card-body">
+            <div class="card-top">
+              <div class="card-name-row">
+                <span class="gx-type-badge">GX</span>
+                <span class="card-facility-name">{{ r.name || '-' }}</span>
+              </div>
+              <span :class="['status-badge', gxStatusClass(r.status)]">{{ gxStatusLabel(r) }}</span>
+            </div>
+            <div class="card-info">
+              <span class="card-date">{{ formatDate(r.reservationDate) }} ~ {{ formatDate(r.endDate) }}</span>
+            </div>
+            <div class="card-info">
+              <span class="card-time">{{ formatTime(r.startTime) }} ~ {{ formatTime(r.endTime) }}</span>
+              <template v-if="r.daysOfWeek">
+                <span class="card-sep">·</span>
+                <span class="card-time">{{ formatDays(r.daysOfWeek) }}</span>
+              </template>
+            </div>
+          </div>
+        </button>
+
+        <!-- 일반 시설 예약 카드 -->
+        <button
+          v-else
+          class="reservation-card"
+          type="button"
+          @click="onCardClick(r)"
+        >
+          <div class="card-thumb">
+            <img
+              v-if="getFacilityReservationImage(r.name)"
+              :src="getFacilityReservationImage(r.name)"
+              :alt="r.name"
+              class="card-thumb-img"
+            />
+            <div v-else class="card-thumb-placeholder">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M3 9h18M9 21V9" />
+              </svg>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="card-top">
+              <span class="card-facility-name">{{ r.name || '-' }}</span>
+              <span :class="['status-badge', facilityStatusClass(r.status)]">{{ facilityStatusLabel(r.status) }}</span>
+            </div>
+            <div class="card-info">
+              <span class="card-date">{{ formatDate(r.reservationDate) }}</span>
+              <span class="card-sep">·</span>
+              <span class="card-time">
+                {{ formatTime(r.startTime) }} ~ {{ formatTime(r.endTime) }}
+              </span>
+            </div>
+            <div v-if="r.seatNo" class="card-seat">좌석 {{ r.seatNo }}</div>
+          </div>
+        </button>
+      </template>
+
+      <div v-if="filteredList.length === 0 && !state.loading" class="empty-area">
+        <p>예약 내역이 없습니다.</p>
+      </div>
+
+      <!-- 더 보기 -->
+      <button v-if="state.hasNext" class="btn-load-more" type="button" :disabled="state.loadingMore" @click="loadMore">
+        {{ state.loadingMore ? '불러오는 중...' : '더 보기' }}
+      </button>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.resident-feature-page {
+.reservation-home {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 4px 16px 24px;
+  gap: 0;
+  padding: 16px;
 }
 
-.resident-feature-page__hero {
+/* 메인 탭 */
+.main-tabs {
   display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  background: #e2e8f0;
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+
+.main-tab {
+  height: 40px;
+  border: none;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: #718096;
+  transition: background 0.15s, color 0.15s;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.main-tab.is-active {
+  background: #4973e5;
+  color: #ffffff;
+}
+
+/* 필터 탭 */
+.filter-tabs {
+  display: flex;
   gap: 8px;
+  margin-bottom: 16px;
 }
 
-.resident-feature-page__eyebrow {
-  margin: 0;
-  color: var(--resident-primary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+.filter-tab {
+  padding: 7px 16px;
+  border: 1.5px solid #d1d9e6;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #ffffff;
+  color: #718096;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  font-family: 'Noto Sans KR', sans-serif;
 }
 
-.resident-feature-page__title {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 24px;
-  font-weight: 700;
+.filter-tab.is-active {
+  border-color: #4973e5;
+  background: #eef3fb;
+  color: #4973e5;
 }
 
-.resident-feature-page__desc {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.resident-feature-page__cards {
-  display: grid;
-  gap: 14px;
-}
-
-.resident-feature-card {
+/* 예약 목록 */
+.reservation-list {
   display: flex;
-  gap: 14px;
-  padding: 18px 16px;
-  border-radius: 18px;
-  background: #FFFFFF;
-  box-shadow: 0 4px 14px rgba(73, 115, 229, 0.08);
+  flex-direction: column;
+  gap: 12px;
 }
 
-.resident-feature-card--primary {
-  border: 1px solid rgba(73, 115, 229, 0.18);
-}
-
-.resident-feature-card--mint {
-  border: 1px solid rgba(50, 168, 150, 0.18);
-}
-
-.resident-feature-card--soft {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-}
-
-.resident-feature-card__icon {
+.reservation-card {
   display: flex;
-  width: 44px;
-  height: 44px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  background: #ffffff;
+  border-radius: 16px;
+  border: none;
+  box-shadow: 0 2px 10px rgba(73, 115, 229, 0.07);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: box-shadow 0.15s;
+}
+
+.reservation-card:active {
+  box-shadow: 0 1px 4px rgba(73, 115, 229, 0.1);
+}
+
+.card-thumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  overflow: hidden;
   flex-shrink: 0;
+  background: #eef3fb;
+}
+
+.card-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.card-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
-  background: rgba(73, 115, 229, 0.1);
-  color: var(--resident-primary);
+  color: #4973e5;
+  opacity: 0.45;
 }
 
-.resident-feature-card--mint .resident-feature-card__icon {
-  background: rgba(50, 168, 150, 0.12);
-  color: #239782;
-}
-
-.resident-feature-card--soft .resident-feature-card__icon {
-  background: rgba(148, 163, 184, 0.12);
-  color: #64748B;
-}
-
-.resident-feature-card__icon svg {
-  width: 22px;
-  height: 22px;
-}
-
-.resident-feature-card__copy {
-  display: grid;
+.card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
 
-.resident-feature-card__copy h2 {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 16px;
-  font-weight: 700;
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.resident-feature-card__copy p {
-  margin: 0;
-  color: var(--color-text-secondary);
+.card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* GX 타입 뱃지 */
+.gx-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  background: #4973e5;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 5px;
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+}
+
+.card-facility-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a202c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.status-badge.is-confirmed {
+  background: #eef3fb;
+  color: #4973e5;
+}
+
+.status-badge.is-waiting {
+  background: #fef9ec;
+  color: #c08b2d;
+}
+
+.status-badge.is-completed {
+  background: #e6f4ec;
+  color: #2e7d52;
+}
+
+.status-badge.is-cancelled {
+  background: #fff5f5;
+  color: #e53e3e;
+}
+
+.card-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-date {
   font-size: 13px;
-  line-height: 1.6;
+  font-weight: 600;
+  color: #4973e5;
+}
+
+.card-sep {
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.card-time {
+  font-size: 13px;
+  color: #718096;
+}
+
+.card-seat {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* 상태 */
+.loading-area,
+.error-area,
+.empty-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  gap: 12px;
+}
+
+.loading-text,
+.empty-area p {
+  font-size: 14px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.btn-load-more {
+  width: 100%;
+  height: 44px;
+  background: #f8faff;
+  color: #4973e5;
+  border: 1.5px solid #d0dcf9;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  margin-top: 4px;
+}
+
+.btn-load-more:disabled {
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+.error-text {
+  font-size: 14px;
+  color: #e53e3e;
+  margin: 0;
+  text-align: center;
+}
+
+.btn-retry {
+  padding: 8px 20px;
+  background: #4973e5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
 }
 </style>

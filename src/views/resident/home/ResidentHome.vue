@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import {useRouter} from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import {useAuthStore} from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { FEATURE_CODES, DEFAULT_COMPLEX_FEATURES } from '@/constants/complexFeatures'
@@ -9,8 +9,22 @@ import {getMyVehicles} from '@/api/vehicleApi'
 import {getMyReservations} from '@/api/reservationApi'
 import {getNotices} from '@/api/noticeApi'
 import {getVisitorVehicles} from '@/api/visitorVehicleApi'
+import { normalizeReservationStatus, normalizeGxReservationStatus } from '@/utils/normalize.js'
+import imgReadingroom from '@/assets/images/readingroom.png'
+import imgGolf from '@/assets/images/golf.png'
+import imgPT from '@/assets/images/PT.png'
+import imgGroupPT from '@/assets/images/Group PT.png'
+import imgPilates from '@/assets/images/pilates.png'
+import imgGX from '@/assets/images/GX.png'
+import imgSwimmingPool from '@/assets/images/SwimmingPool.png'
+import imgSauna from '@/assets/images/Sauna.png'
+import imgGuestHouse from '@/assets/images/GuestHouse.png'
+import imgLaundryRoom from '@/assets/images/LaundryRoom.png'
+import imgCafe from '@/assets/images/Cafe.png'
+import imgYoga from '@/assets/images/Yoga.png'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
 
@@ -26,8 +40,10 @@ const complexName = computed(() => {
 const vehicleCount = ref(0)
 const maxVehicleCount = 2 // 최대 등록 가능 대수
 
-// 예약 현황 (이번 주 예약 건수)
-const reservationCount = ref(0)
+// 내 예약 현황 목록 (대시보드 표시용 최대 4개)
+const myReservations = ref([])
+// 이용예정 전체 건수 (PageResponse.totalElements)
+const reservationTotal = ref(0)
 
 // 방문차량 현황 (승인 대기 건수)
 const pendingVisitorCount = ref(0)
@@ -37,9 +53,6 @@ const parkingUsageRate = ref(0)
 
 // 최근 공지사항 목록
 const notices = ref([])
-
-// 내 예약 현황 목록
-const myReservations = ref([])
 
 // 로딩 상태
 const loading = ref(true)
@@ -83,9 +96,9 @@ const homeSummaryCards = computed(() => {
       label: '예약 현황',
       value: reservationCount.value,
       unit: '건',
-      desc: '이번 주 예약',
+      desc: '이용 예정',
       descClass: '',
-      path: '/resident/my-reservation',
+      path: `/resident/${route.params.complexId}/reservations`,
       showProgress: false,
       progressValue: 0,
     })
@@ -120,7 +133,7 @@ const homeSummaryCards = computed(() => {
   return cards
 })
 
-// 날짜 포맷 (26.02.15 형식)
+// 날짜 포맷 (26.02.15 형식) — 공지사항 등에 사용
 function formatDate(dateStr) {
   if (!dateStr) return ''
   const date = new Date(dateStr)
@@ -130,6 +143,55 @@ function formatDate(dateStr) {
   return `${yy}.${mm}.${dd}`
 }
 
+// 날짜 포맷 (2026.05.23 형식) — 예약 카드에 사용
+function formatDateFull(d) {
+  if (!d) return ''
+  return String(d).slice(0, 10).replace(/-/g, '.')
+}
+
+// 시간 포맷 (HH:mm) — LocalTime 직렬화값 앞 5자만 사용
+function formatTimeFull(t) {
+  if (!t) return ''
+  return String(t).slice(0, 5)
+}
+
+// 예약 카드 이미지 헬퍼
+function getGxDashboardImage(name) {
+  if (!name) return imgGX
+  const n = name.toLowerCase()
+  if (n.includes('요가') || n.includes('yoga')) return imgYoga
+  if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
+  if (n.includes('그룹') || n.includes('group')) return imgGroupPT
+  if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
+  return imgGX
+}
+
+function getFacilityDashboardImage(name) {
+  if (!name) return null
+  const n = name.toLowerCase()
+  if (n.includes('독서') || n.includes('reading')) return imgReadingroom
+  if (n.includes('골프') || n.includes('golf')) return imgGolf
+  if (n.includes('필라테스') || n.includes('pilates')) return imgPilates
+  if (n.includes('그룹') || n.includes('group')) return imgGroupPT
+  if (n.includes('pt') || n.includes('헬스') || n.includes('health') || n.includes('fitness')) return imgPT
+  if (n.includes('gx') || n.includes('group exercise')) return imgGX
+  if (n.includes('수영') || n.includes('swimming') || n.includes('pool')) return imgSwimmingPool
+  if (n.includes('사우나') || n.includes('sauna')) return imgSauna
+  if (n.includes('게스트') || n.includes('guest')) return imgGuestHouse
+  if (n.includes('세탁') || n.includes('laundry')) return imgLaundryRoom
+  if (n.includes('카페') || n.includes('cafe') || n.includes('café')) return imgCafe
+  return null
+}
+
+// 통합 API가 phase=UPCOMING으로 이미 필터·정렬해서 반환하므로 그대로 사용
+const upcomingReservations = computed(() => myReservations.value)
+
+// 홈 표시용: 최대 4개
+const dashboardReservations = computed(() => upcomingReservations.value.slice(0, 4))
+
+// 예약현황 카운트는 화면 표시 개수(최대 4)가 아니라 이용예정 전체 건수
+const reservationCount = computed(() => reservationTotal.value)
+
 // 홈 데이터 전체 로드
 async function loadHomeData() {
   loading.value = true
@@ -137,7 +199,7 @@ async function loadHomeData() {
     // 병렬 요청으로 성능 최적화
     const [vehicles, reservations, notices_res, visitors] = await Promise.allSettled([
       getMyVehicles(),
-      getMyReservations({size: 2}),
+      getMyReservations({ phase: 'UPCOMING', size: 4 }),
       getNotices({size: 3}),
       getVisitorVehicles({status: 'PENDING', size: 1}),
     ])
@@ -153,7 +215,7 @@ async function loadHomeData() {
     if (reservations.status === 'fulfilled') {
       const data = reservations.value
       myReservations.value = Array.isArray(data) ? data : data?.content ?? []
-      reservationCount.value = data?.totalElements ?? myReservations.value.length
+      reservationTotal.value = data?.totalElements ?? myReservations.value.length
     }
 
     // 최근 공지사항
@@ -245,32 +307,69 @@ onMounted(() => {
     <section v-if="showFacilitySection" class="home__section">
       <div class="home__section-header">
         <h2 class="home__section-title">내 예약 현황</h2>
-        <button class="home__section-more" @click="router.push('/resident/my-reservation')">
+        <button class="home__section-more" @click="router.push(`/resident/${route.params.complexId}/reservations`)">
           더보기 →
         </button>
       </div>
 
       <!-- 예약 없을 때 -->
-      <p v-if="!loading && myReservations.length === 0" class="home__empty">
+      <p v-if="!loading && dashboardReservations.length === 0" class="home__empty">
         예약 내역이 없습니다.
       </p>
 
-      <!-- 예약 목록 -->
+      <!-- 예약 목록 (이용예정만, 최대 4개) -->
       <ul v-else class="reservation-list">
         <li
-          v-for="item in myReservations"
-          :key="item.reservationUid"
+          v-for="item in dashboardReservations"
+          :key="item.type === 'GX' ? `gx-${item.gxReservationId}` : `f-${item.reservationId}`"
           class="reservation-item"
-          @click="router.push(`/resident/my-reservation/${item.reservationUid}`)"
+          @click="item.type === 'GX'
+            ? router.push(`/resident/${route.params.complexId}/facility/gx-programs/${item.programId}?from=reservations&gxReservationId=${item.gxReservationId}&status=${item.status}`)
+            : router.push(`/resident/${route.params.complexId}/reservations/${item.reservationId}`)"
         >
+          <!-- 썸네일 -->
+          <div class="reservation-item__thumb">
+            <img
+              v-if="item.type === 'GX' ? getGxDashboardImage(item.name) : getFacilityDashboardImage(item.name)"
+              :src="item.type === 'GX' ? getGxDashboardImage(item.name) : getFacilityDashboardImage(item.name)"
+              :alt="item.name"
+              class="reservation-item__thumb-img"
+            />
+            <div v-else class="reservation-item__thumb-placeholder">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M3 9h18M9 21V9" />
+              </svg>
+            </div>
+          </div>
+          <!-- 정보 -->
           <div class="reservation-item__info">
-            <span class="reservation-item__name">{{ item.facilityName }}</span>
+            <span class="reservation-item__name">
+              <span v-if="item.type === 'GX'" class="reservation-item__gx-badge">GX</span>
+              {{ item.name }}
+            </span>
             <span class="reservation-item__time">
-              {{ item.startTime }}~{{ item.endTime }} {{ formatDate(item.reservationDate) }}
+              <template v-if="item.type === 'GX'">
+                {{ formatDateFull(item.reservationDate) }} ~ {{ formatDateFull(item.endDate) }}
+              </template>
+              <template v-else>
+                <span class="reservation-item__date">{{ formatDateFull(item.reservationDate) }}</span>
+                <span class="reservation-item__sep"> · </span>
+                {{ formatTimeFull(item.startTime) }} ~ {{ formatTimeFull(item.endTime) }}
+              </template>
             </span>
           </div>
-          <!-- 예약 상태 뱃지 -->
-          <span class="reservation-item__badge">예약중</span>
+          <!-- 상태 뱃지 -->
+          <span :class="['reservation-item__badge',
+            item.type === 'GX'
+              ? (normalizeGxReservationStatus(item.status) === 'WAITING' ? 'is-waiting' : 'is-confirmed')
+              : ({ CONFIRMED: 'is-confirmed', COMPLETED: 'is-completed', CANCELLED: 'is-cancelled' }[normalizeReservationStatus(item.status)] || 'is-confirmed')]">
+            {{ item.type === 'GX'
+              ? (normalizeGxReservationStatus(item.status) === 'WAITING'
+                  ? (item.waitNo != null ? `대기 ${item.waitNo}번` : '대기 중')
+                  : '신청완료')
+              : ({ CONFIRMED: '예약완료', COMPLETED: '이용완료', CANCELLED: '취소됨' }[normalizeReservationStatus(item.status)] || '예약완료') }}
+          </span>
         </li>
       </ul>
     </section>
@@ -483,7 +582,7 @@ onMounted(() => {
 .reservation-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-12);
   padding: var(--space-12) var(--space-16);
   background: var(--resident-bg-2);
   border-radius: var(--radius-12);
@@ -496,7 +595,35 @@ onMounted(() => {
   transform: scale(0.98);
 }
 
+.reservation-item__thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #eef3fb;
+}
+
+.reservation-item__thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.reservation-item__thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4973e5;
+  opacity: 0.4;
+}
+
 .reservation-item__info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -506,11 +633,40 @@ onMounted(() => {
   font-size: var(--font-size-body-sm);
   font-weight: 600;
   color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reservation-item__gx-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: #4973e5;
+  padding: 1px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .reservation-item__time {
   font-size: var(--font-size-label);
   color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.reservation-item__date {
+  color: #4973e5;
+  font-weight: 600;
+}
+
+.reservation-item__sep {
+  color: #cbd5e1;
 }
 
 .reservation-item__badge {
@@ -521,5 +677,20 @@ onMounted(() => {
   padding: 3px 8px;
   border-radius: 20px;
   flex-shrink: 0;
+}
+
+.reservation-item__badge.is-waiting {
+  color: #c08b2d;
+  background: rgba(192, 139, 45, 0.12);
+}
+
+.reservation-item__badge.is-completed {
+  color: #2e7d52;
+  background: rgba(46, 125, 82, 0.1);
+}
+
+.reservation-item__badge.is-cancelled {
+  color: #e53e3e;
+  background: rgba(229, 62, 62, 0.1);
 }
 </style>

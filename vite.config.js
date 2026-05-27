@@ -1,18 +1,12 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
-export default defineConfig(({ mode }) => {
-  console.log('mode: ', mode)
-  const env = loadEnv(mode, process.cwd())
-
-  return {
+export default defineConfig( {
     build: {
-      // .env의 VITE_OUT_DIR 값 사용, 없으면 기본값 dist
-      outDir: env.VITE_OUT_DIR || 'dist',
-      // 빌드 시 outDir 초기화
+      outDir: 'dist',
       emptyOutDir: true,
     },
     plugins: [
@@ -27,8 +21,8 @@ export default defineConfig(({ mode }) => {
           name: 'APTeN',
           short_name: 'APTeN',
           description: '아파트 단지 통합 관리 플랫폼',
-          theme_color: '#4973e5',
-          background_color: '#ffffff',
+          theme_color: '#4973E5',
+          background_color: '#FFFFFF',
           display: 'standalone',
           orientation: 'portrait',
           start_url: '/',
@@ -59,6 +53,8 @@ export default defineConfig(({ mode }) => {
           navigateFallbackDenylist: [/^\/api/],
           // 정적 자원만 precache
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+          // 시설/GX 이미지 중 대용량(~2.5 MB)이 있어 precache 한도를 4 MiB로 설정
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           // 알림과 주차는 실시간성 때문에 캐싱 부적합. 추후 화면별로 추가.
           runtimeCaching: [],
         },
@@ -70,4 +66,4 @@ export default defineConfig(({ mode }) => {
       },
     },
   }
-})
+);

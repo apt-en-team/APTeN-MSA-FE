@@ -31,6 +31,12 @@ export const cancelGxProgram = async (programId, body) => {
   return unwrapApiData(res)
 }
 
+// 관리자 GX 모집 마감 처리 (잔여 WAITING 일괄 거절 + 프로그램 CLOSED)
+export const closeWaiting = async (programId, body = {}) => {
+  const res = await apiClient.patch(`/api/admin/gx-programs/${programId}/close-waiting`, body)
+  return unwrapApiData(res)
+}
+
 // 입주민 GX 프로그램 목록 조회
 export const getGxPrograms = async (params) => {
   const res = await apiClient.get('/api/gx-programs', { params })
@@ -40,6 +46,12 @@ export const getGxPrograms = async (params) => {
 // 입주민 GX 프로그램 상세 조회
 export const getGxProgramDetail = async (programId) => {
   const res = await apiClient.get(`/api/gx-programs/${programId}`)
+  return unwrapApiData(res)
+}
+
+// 내 GX 예약 목록 조회
+export const getMyGxReservations = async () => {
+  const res = await apiClient.get('/api/gx-reservations/my')
   return unwrapApiData(res)
 }
 
@@ -58,6 +70,18 @@ export const getGxWaitingStatus = async (gxReservationId) => {
 // GX 예약 취소
 export const cancelGxReservation = async (gxReservationId) => {
   const res = await apiClient.patch(`/api/gx-reservations/${gxReservationId}/cancel`)
+  return unwrapApiData(res)
+}
+
+// 관리자 GX 예약 단건 상세 조회
+export const getAdminGxReservationDetail = async (gxReservationId) => {
+  const res = await apiClient.get(`/api/admin/gx-reservations/${gxReservationId}`)
+  return unwrapApiData(res)
+}
+
+// 관리자 GX 예약 강제 취소
+export const cancelAdminGxReservation = async (gxReservationId) => {
+  const res = await apiClient.patch(`/api/admin/gx-reservations/${gxReservationId}/cancel`)
   return unwrapApiData(res)
 }
 
@@ -91,6 +115,12 @@ export const getGxProgramStatus = async (programId) => {
   return unwrapApiData(res)
 }
 
+// 관리자 GX 신청자 목록 조회
+export const getAdminGxProgramReservations = async (programId, params) => {
+  const res = await apiClient.get(`/api/admin/gx-programs/${programId}/reservations`, { params })
+  return unwrapApiData(res)
+}
+
 export default {
   createGxProgram,
   getAdminGxPrograms,
@@ -99,12 +129,17 @@ export default {
   cancelGxProgram,
   getGxPrograms,
   getGxProgramDetail,
+  getMyGxReservations,
   createGxReservation,
   getGxWaitingStatus,
   cancelGxReservation,
+  getAdminGxReservationDetail,
+  cancelAdminGxReservation,
   approveGxReservation,
   rejectGxReservation,
   bulkApproveGxProgram,
+  closeWaiting,
   checkGxMinimum,
   getGxProgramStatus,
+  getAdminGxProgramReservations,
 }

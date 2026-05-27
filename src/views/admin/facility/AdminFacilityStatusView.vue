@@ -1,0 +1,573 @@
+<script setup>
+import { computed, onMounted, reactive, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import facilityApi from '@/api/facilityApi'
+import reservationApi from '@/api/reservationApi'
+import { toList } from '@/utils/apiResponse'
+import AdminSeatStatus from '@/components/admin/facility/AdminSeatStatus.vue'
+import AdminSeatTimeStatus from '@/components/admin/facility/AdminSeatTimeStatus.vue'
+import AdminCountStatus from '@/components/admin/facility/AdminCountStatus.vue'
+import AdminGxStatus from '@/components/admin/facility/AdminGxStatus.vue'
+const RESERVATION_TYPE_LABEL = {
+  SEAT: '좌석형',
+  COUNT: '정원형',
+}
+
+const route = useRoute()
+
+const state = reactive({
+  activeTab: 'facility',
+  selectedDate: new Date().toISOString().slice(0, 10),
+
+  facilityList: [],
+  selectedFacilityId: route.query.facilityId ?? null,
+  loadingFacilities: false,
+  facilityError: '',
+  seatSummary: { reservedCount: 0, totalCount: 0 },
+  countSummary: { maxCount: 0, reservedCount: 0, availableCount: 0 },
+
+  // 오른쪽 패널 서브탭: 'status'=운영현황 | 'reservations'=예약목록
+  rightPanelTab: 'status',
+})
+
+// 예약 목록 서브탭 전용 상태
+const reservations = reactive({ items: [], loading: false, error: '' })
+
+// 예약 상태 코드 → 한글 매핑
+const STATUS_LABEL = {
+  CONFIRMED: '예약완료',
+  COMPLETED: '이용완료',
+  CANCELLED: '취소',
+  HOLDING: '좌석선점',
+}
+
+const formatStatus = (s) => STATUS_LABEL[s] || s || '-'
+
+const selectedFacility = computed(() =>
+  state.facilityList.find((f) => String(f.facilityId) === String(state.selectedFacilityId)) || null,
+)
+
+const reservationType = computed(() => selectedFacility.value?.reservationType || null)
+
+const showSeatSummary = computed(
+  () =>
+    state.activeTab === 'facility' &&
+    reservationType.value === 'SEAT' &&
+    selectedFacility.value?.usageUnitType !== 'MINUTE',
+)
+const showCountSummary = computed(() => state.activeTab === 'facility' && reservationType.value === 'COUNT')
+
+const formatTime = (t) => (t ? String(t).slice(0, 5) : '-')
+
+const normalizeReservationType = (type) => {
+  const v = String(type || '').trim()
+  if (v === '좌석형') return 'SEAT'
+  if (v === '정원형') return 'COUNT'
+  if (v === '승인형') return 'APPROVAL'
+  return v
+}
+
+const fetchFacilities = async () => {
+  state.loadingFacilities = true
+  state.facilityError = ''
+  try {
+    const res = await facilityApi.getAdminFacilities({ page: 0, size: 100 })
+    const all = toList(res)
+    state.facilityList = all
+      .map((f) => ({ ...f, reservationType: normalizeReservationType(f.reservationType) }))
+      .filter((f) => f.reservationType !== 'APPROVAL')
+    if (state.facilityList.length > 0 && !state.selectedFacilityId) {
+      state.selectedFacilityId = state.facilityList[0].facilityId
+    }
+  } catch {
+    state.facilityError = '시설 목록을 불러오지 못했습니다.'
+    state.facilityList = []
+  } finally {
+    state.loadingFacilities = false
+  }
+}
+
+const switchTab = (tab) => {
+  state.activeTab = tab
+}
+
+const selectFacility = (id) => {
+  state.selectedFacilityId = id
+}
+
+const updateSeatSummary = (summary) => {
+  state.seatSummary = {
+    reservedCount: summary?.reservedCount || 0,
+    totalCount: summary?.totalCount || 0,
+  }
+}
+
+const updateCountSummary = (summary) => {
+  state.countSummary = {
+    maxCount: summary?.maxCount || 0,
+    reservedCount: summary?.reservedCount || 0,
+    availableCount: summary?.availableCount || 0,
+  }
+}
+
+// 선택 시설 + 날짜 기준 예약 목록 조회 (서브탭 전환 시 호출)
+const fetchFacilityReservations = async () => {
+  if (!state.selectedFacilityId) return
+  reservations.loading = true
+  reservations.error = ''
+  try {
+    const res = await reservationApi.getAdminReservationOverview({
+      facilityId: state.selectedFacilityId,
+      reservationDate: state.selectedDate,
+      page: 0,
+      size: 50,
+    })
+    reservations.items = res?.content || []
+  } catch {
+    reservations.error = '예약 목록을 불러오지 못했습니다.'
+    reservations.items = []
+  } finally {
+    reservations.loading = false
+  }
+}
+
+// 예약목록 서브탭이 활성화된 상태에서 시설/날짜가 바뀌면 자동 재조회
+watch(
+  () => [state.selectedFacilityId, state.selectedDate],
+  () => {
+    if (state.rightPanelTab === 'reservations') fetchFacilityReservations()
+  },
+)
+
+onMounted(fetchFacilities)
+</script>
+
+<template>
+  <div class="facility-status-page">
+    <!-- 상단 탭 + 날짜 필터 -->
+    <div class="top-card">
+      <div class="main-tab-bar">
+        <button
+          :class="['main-tab', { active: state.activeTab === 'facility' }]"
+          @click="switchTab('facility')"
+        >
+          일반 시설
+        </button>
+        <button
+          :class="['main-tab', { active: state.activeTab === 'gx' }]"
+          @click="switchTab('gx')"
+        >
+          GX 프로그램
+        </button>
+      </div>
+
+      <div v-if="state.activeTab === 'facility'" class="filter-area">
+        <label class="filter-label">조회 날짜</label>
+        <input v-model="state.selectedDate" class="date-input" type="date" />
+        <template v-if="showSeatSummary">
+          <div class="summary-chip seat-chip">
+            예약 {{ state.seatSummary.reservedCount }} / 전체 {{ state.seatSummary.totalCount }}석
+          </div>
+        </template>
+        <template v-if="showCountSummary">
+          <div class="summary-chip">최대 {{ state.countSummary.maxCount }}명</div>
+          <div class="summary-chip confirmed-chip">예약 {{ state.countSummary.reservedCount }}명</div>
+          <div class="summary-chip available-chip">남은 자리 {{ state.countSummary.availableCount }}명</div>
+        </template>
+      </div>
+    </div>
+
+    <!-- ── 일반 시설 탭 ─────────────────────────────────────────── -->
+    <div v-if="state.activeTab === 'facility'" class="split-layout">
+      <!-- 왼쪽: 시설 목록 -->
+      <div class="left-panel">
+        <div v-if="state.loadingFacilities" class="panel-empty">시설 목록 조회 중...</div>
+        <div v-else-if="state.facilityError" class="panel-error">{{ state.facilityError }}</div>
+        <div v-else-if="state.facilityList.length === 0" class="panel-empty">
+          등록된 일반 시설이 없습니다.
+        </div>
+        <div v-else class="item-list">
+          <div
+            v-for="facility in state.facilityList"
+            :key="facility.facilityId"
+            :class="['facility-card', { active: String(state.selectedFacilityId) === String(facility.facilityId) }]"
+            @click="selectFacility(facility.facilityId)"
+          >
+            <div class="card-top">
+              <div class="card-name">{{ facility.name }}</div>
+              <span class="type-badge">
+                {{ RESERVATION_TYPE_LABEL[facility.reservationType] || facility.reservationType || '-' }}
+              </span>
+            </div>
+            <div class="card-row">
+              <span class="card-time">{{ formatTime(facility.openTime) }} ~ {{ formatTime(facility.closeTime) }}</span>
+              <span v-if="facility.maxCount" class="card-sub">{{facility.usageUnitType === 'MINUTE' ? '타임별' : '최대'}} {{ facility.maxCount }}명</span>
+              <span v-else class="card-sub"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 현황 / 예약목록 -->
+      <div class="right-panel">
+        <div v-if="!selectedFacility" class="panel-empty">왼쪽에서 시설을 선택하세요.</div>
+        <template v-else>
+          <!-- 서브탭 바 -->
+          <div class="sub-tab-bar">
+            <button
+              :class="['sub-tab', { active: state.rightPanelTab === 'status' }]"
+              @click="state.rightPanelTab = 'status'"
+            >운영 현황</button>
+            <button
+              :class="['sub-tab', { active: state.rightPanelTab === 'reservations' }]"
+              @click="state.rightPanelTab = 'reservations'; fetchFacilityReservations()"
+            >예약 목록</button>
+          </div>
+
+          <!-- 운영 현황 서브탭 -->
+          <template v-if="state.rightPanelTab === 'status'">
+            <AdminSeatTimeStatus
+              v-if="reservationType === 'SEAT' && selectedFacility.usageUnitType === 'MINUTE'"
+              :facility-id="selectedFacility.facilityId"
+              :selected-date="state.selectedDate"
+              :open-time="selectedFacility.openTime"
+              :close-time="selectedFacility.closeTime"
+              :slot-min="selectedFacility.slotMin"
+            />
+            <AdminSeatStatus
+              v-else-if="reservationType === 'SEAT'"
+              :facility-id="selectedFacility.facilityId"
+              :selected-date="state.selectedDate"
+              :open-time="selectedFacility.openTime"
+              :close-time="selectedFacility.closeTime"
+              @update-summary="updateSeatSummary"
+            />
+            <AdminCountStatus
+              v-else-if="reservationType === 'COUNT'"
+              :facility-id="selectedFacility.facilityId"
+              :selected-date="state.selectedDate"
+              :open-time="selectedFacility.openTime"
+              :close-time="selectedFacility.closeTime"
+              @update-summary="updateCountSummary"
+            />
+            <div v-else class="panel-empty">
+              이 시설의 예약 방식({{ selectedFacility.reservationType }})은 현황 조회가 지원되지 않습니다.
+            </div>
+          </template>
+
+          <!-- 예약 목록 서브탭 -->
+          <template v-else-if="state.rightPanelTab === 'reservations'">
+            <div v-if="reservations.loading" class="panel-empty">조회 중...</div>
+            <div v-else-if="reservations.error" class="panel-error">{{ reservations.error }}</div>
+            <div v-else-if="reservations.items.length === 0" class="panel-empty">해당 날짜 예약이 없습니다.</div>
+            <table v-else class="res-table">
+              <thead>
+                <tr>
+                  <th>번호</th>
+                  <th>예약자</th>
+                  <th>동호수</th>
+                  <th>시간</th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(r, i) in reservations.items" :key="r.reservationId">
+                  <td>{{ i + 1 }}</td>
+                  <td>{{ r.residentName || '-' }}</td>
+                  <td>{{ r.unit || '-' }}</td>
+                  <td>{{ formatTime(r.startTime) }} ~ {{ formatTime(r.endTime) }}</td>
+                  <td>
+                    <span :class="['res-status', `is-${r.status?.toLowerCase()}`]">
+                      {{ formatStatus(r.status) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </template>
+        </template>
+      </div>
+    </div>
+
+    <!-- ── GX 프로그램 탭 ──────────────────────────────────────── -->
+    <div v-if="state.activeTab === 'gx'">
+      <AdminGxStatus />
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.facility-status-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── 상단 카드 ─────────────────────────────────────────── */
+.top-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.main-tab-bar {
+  display: flex;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0 20px;
+}
+
+.main-tab {
+  padding: 14px 20px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #718096;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: all 0.15s;
+}
+
+.main-tab:hover {
+  color: #2b3a55;
+}
+
+.main-tab.active {
+  color: #2b3a55;
+  border-bottom-color: #2b3a55;
+}
+
+.filter-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #718096;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.date-input {
+  padding: 7px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #374151;
+  outline: none;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.summary-chip {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: #edf2f7;
+  color: #718096;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.seat-chip {
+  background: #e8eaf6;
+  color: #3949ab;
+}
+
+.confirmed-chip {
+  background: #e6f4ea;
+  color: #2e7d32;
+}
+
+.available-chip {
+  background: #e8eaf6;
+  color: #3949ab;
+}
+
+/* ── 좌우 분할 레이아웃 ─────────────────────────────────── */
+.split-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.left-panel,
+.right-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  min-height: 480px;
+  min-width: 0;
+}
+
+/* ── 리스트 공통 ────────────────────────────────────────── */
+.item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── 시설 카드 ─────────────────────────────────────────── */
+.facility-card {
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.facility-card:hover {
+  background: #f1f5f9;
+}
+
+.facility-card.active {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a202c;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.type-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #e8eaf6;
+  color: #3949ab;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.card-time {
+  font-size: 12px;
+  color: #718096;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.card-sub {
+  font-size: 12px;
+  color: #94a3b8;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+/* ── 패널 공통 상태 ─────────────────────────────────────── */
+.panel-empty {
+  font-size: 13px;
+  color: #718096;
+  font-family: 'Noto Sans KR', sans-serif;
+  padding: 20px 0;
+}
+
+.panel-error {
+  font-size: 13px;
+  color: #e53e3e;
+  font-family: 'Noto Sans KR', sans-serif;
+  padding: 10px 14px;
+  background: #fff5f5;
+  border-radius: 8px;
+}
+
+@media (max-width: 1100px) {
+  .split-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── 서브탭 ─────────────────────────────────────────────── */
+.sub-tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0;
+}
+
+.sub-tab {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: all 0.15s;
+}
+
+.sub-tab:hover { color: #4973e5; }
+.sub-tab.active { color: #4973e5; border-bottom-color: #4973e5; }
+
+/* ── 예약 목록 테이블 ──────────────────────────────────── */
+.res-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.res-table th {
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.res-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #374151;
+}
+
+/* 예약 상태 뱃지 */
+.res-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #edf2f7;
+  color: #718096;
+}
+
+.res-status.is-confirmed { background: #e6f4ea; color: #2e7d32; }
+.res-status.is-completed { background: #e8eaf6; color: #3949ab; }
+.res-status.is-cancelled { background: #fff5f5; color: #e53e3e; }
+.res-status.is-holding   { background: #fff8e1; color: #b7791f; }
+</style>
