@@ -31,9 +31,16 @@ export const getAdminHouseholdBillDetail = async (billId) => {
   return unwrapApiData(res)
 }
 
+// 월별 비용 확정 취소
+export const unconfirmHouseholdBill = async (billId) => {
+  const res = await apiClient.patch(`/api/admin/household-bills/${billId}/unconfirm`)
+  return unwrapApiData(res)
+}
+
 export default {
   saveBasicBillPolicy,
   confirmHouseholdBill,
+  unconfirmHouseholdBill,
   getMyHouseholdBills,
   getAdminHouseholdBills,
   getAdminHouseholdBillDetail,

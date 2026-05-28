@@ -7,6 +7,18 @@ export const createHousehold = async (body) => {
   return unwrapApiData(res)
 }
 
+// 관리자 세대 일괄 등록
+export const createHouseholdsBulk = async (body) => {
+  const res = await apiClient.post('/admin/households/bulk', body)
+  return unwrapApiData(res)
+}
+
+// 관리자 세대 삭제
+export const deleteHousehold = async (householdId) => {
+  const res = await apiClient.delete(`/admin/households/${householdId}`)
+  return unwrapApiData(res)
+}
+
 // 관리자 세대 목록 조회
 export const getAdminHouseholds = async (params) => {
   const res = await apiClient.get('/admin/households', { params })
@@ -79,6 +91,30 @@ export const rejectHouseholdMatchRequest = async (matchRequestId, body) => {
   return unwrapApiData(res)
 }
 
+// 입주민 명부 등록
+export const createExpectedResident = async (body) => {
+  const res = await apiClient.post('/admin/expected-residents', body)
+  return unwrapApiData(res)
+}
+
+// 관리자 입주민 명부 조회
+export const getExpectedResidents = async (params) => {
+  const res = await apiClient.get('/admin/expected-residents', { params })
+  return unwrapApiData(res)
+}
+
+// 입주민 명부 수정
+export const updateExpectedResident = async (expectedResidentId, body) => {
+  const res = await apiClient.patch(`/admin/expected-residents/${expectedResidentId}`, body)
+  return unwrapApiData(res)
+}
+
+// 입주민 명부 비활성화
+export const disableExpectedResident = async (expectedResidentId) => {
+  const res = await apiClient.patch(`/admin/expected-residents/${expectedResidentId}/disable`)
+  return unwrapApiData(res)
+}
+
 // 세대 정보 수정
 export const updateHousehold = async (householdId, body) => {
   const res = await apiClient.patch(`/admin/households/${householdId}`, body)
@@ -91,8 +127,68 @@ export const getMyHousehold = async () => {
   return unwrapApiData(res)
 }
 
+// 평형 목록 조회
+export const getHouseholdTypes = async () => {
+  const res = await apiClient.get('/admin/household-types')
+  return unwrapApiData(res)
+}
+
+// 평형 등록
+export const createHouseholdType = async (body) => {
+  const res = await apiClient.post('/admin/household-types', body)
+  return unwrapApiData(res)
+}
+
+// 평형 수정
+export const updateHouseholdType = async (typeId, body) => {
+  const res = await apiClient.patch(`/admin/household-types/${typeId}`, body)
+  return unwrapApiData(res)
+}
+
+// 평형 삭제
+export const deleteHouseholdType = async (typeId) => {
+  const res = await apiClient.delete(`/admin/household-types/${typeId}`)
+  return unwrapApiData(res)
+}
+
+// 동 라인 평형 목록 조회
+export const getBuildingLineTypes = async (params) => {
+  const res = await apiClient.get('/admin/building-line-types', { params })
+  return unwrapApiData(res)
+}
+
+// 동호수 기준 평형 조회
+export const resolveBuildingLineType = async (params) => {
+  const res = await apiClient.get('/admin/building-line-types/resolve', { params })
+  return unwrapApiData(res)
+}
+
+// 동 라인 평형 등록
+export const createBuildingLineType = async (body) => {
+  const res = await apiClient.post('/admin/building-line-types', body)
+  return unwrapApiData(res)
+}
+
+// 동 라인 평형 수정
+export const updateBuildingLineType = async (lineTypeId, body) => {
+  const res = await apiClient.patch(`/admin/building-line-types/${lineTypeId}`, body)
+  return unwrapApiData(res)
+}
+
+// 동 라인 평형 삭제
+export const deleteBuildingLineType = async (lineTypeId) => {
+  const res = await apiClient.delete(`/admin/building-line-types/${lineTypeId}`)
+  return unwrapApiData(res)
+}
+
 export default {
   createHousehold,
+  createHouseholdsBulk,
+  deleteHousehold,
+  createExpectedResident,
+  getExpectedResidents,
+  updateExpectedResident,
+  disableExpectedResident,
   getAdminHouseholds,
   getAdminHouseholdDetail,
   updateHouseholdStatus,
@@ -107,4 +203,13 @@ export default {
   rejectHouseholdMatchRequest,
   updateHousehold,
   getMyHousehold,
+  getHouseholdTypes,
+  createHouseholdType,
+  updateHouseholdType,
+  deleteHouseholdType,
+  getBuildingLineTypes,
+  resolveBuildingLineType,
+  createBuildingLineType,
+  updateBuildingLineType,
+  deleteBuildingLineType,
 }

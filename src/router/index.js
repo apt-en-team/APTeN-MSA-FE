@@ -7,6 +7,8 @@ import authRoutes from './authRoutes'
 import masterRoutes from './masterRoutes'
 import residentRoutes from './residentRoutes'
 
+const RESIDENT_RESTRICTED_STATUSES = ['PENDING', 'REJECTED', '01', '03', '대기', '반려', '거절']
+
 // 역할 기반 접근 권한 확인
 // allowedRoles가 비어있으면 누구나 접근 가능
 // MASTER는 모든 페이지 접근 가능
@@ -40,6 +42,7 @@ router.beforeEach((to, from) => {
   if (authStore.isAuthenticated) {
     const guestOnlyPaths = ['/', '/login', '/admin/login', '/master/login']
     if (guestOnlyPaths.includes(to.path)) {
+      if (authStore.role === 'USER' && RESIDENT_RESTRICTED_STATUSES.includes(authStore.status)) return `/resident/${authStore.complexId}/pending`
       if (authStore.role === 'USER') return `/resident/${authStore.complexId}/home`
       if (authStore.role === 'MANAGER' || authStore.role === 'ADMIN') return '/admin/dashboard'
       if (authStore.role === 'MASTER') return '/admin/master'
@@ -105,7 +108,7 @@ router.beforeEach((to, from) => {
   }
 
   // 입주민 승인 대기 상태면 대기 페이지로 이동
-  if (authStore.role === 'USER' && authStore.status === 'PENDING' && to.path !== `/resident/${authStore.complexId}/pending`) {
+  if (authStore.role === 'USER' && RESIDENT_RESTRICTED_STATUSES.includes(authStore.status) && to.path !== `/resident/${authStore.complexId}/pending`) {
     return `/resident/${authStore.complexId}/pending`
   }
 

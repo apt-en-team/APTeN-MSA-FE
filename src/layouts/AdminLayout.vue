@@ -37,7 +37,7 @@ const adminMenuDefinitions = [
     label: 'HOUSEHOLD',
     items: [
       { label: '세대 관리', path: 'households', icon: 'home' },
-      { label: '관리비 관리', path: 'bills', icon: 'bill' },
+      { label: '관리비 정산', path: 'bills', icon: 'bill' },
     ],
   },
   {
@@ -196,6 +196,18 @@ function handleActionClick() {
   }
 }
 
+// 자식 페이지가 등록(create) 버튼에 연결할 모달 열기 함수를 등록한다.
+const createModalFn = ref(null)
+provide('registerCreateModal', (fn) => {
+  createModalFn.value = typeof fn === 'function' ? fn : null
+})
+
+function handleCreateClick() {
+  if (createModalFn.value) {
+    createModalFn.value()
+  }
+}
+
 // MASTER 사용자는 어느 관리자 화면에서도 단지 선택 화면으로 돌아갈 수 있다.
 const isMasterUser = computed(() => userRole.value === 'MASTER')
 
@@ -204,6 +216,11 @@ const canRegisterAdmin = computed(() => {
   const isAdminManagePage = route.path === '/admin/admins' || /\/admin\/master\/complexes\/[^/]+\/admins$/.test(route.path)
   const allowedRole = userRole.value === 'MASTER' || userRole.value === 'MANAGER'
   return isAdminManagePage && allowedRole
+})
+
+const canManageHouseholdType = computed(() => {
+  const allowedRole = userRole.value === 'MASTER' || userRole.value === 'MANAGER'
+  return route.path === '/admin/households' && allowedRole
 })
 
 // 입출차 기록 화면에서 기록 등록 버튼을 표시할지 판단한다.
@@ -215,12 +232,17 @@ const canRegisterParkingZone = computed(() => route.path === '/admin/parking/zon
 // 센서 관리 화면에서 센서 등록 버튼을 표시할지 판단한다.
 const canRegisterSensor = computed(() => route.path === '/admin/parking/sensors')
 
+// 세대 관리 화면에서 세대 등록 버튼을 표시할지 판단한다. (모든 관리자 역할)
+const canCreateHousehold = computed(() => route.path === '/admin/households')
+
 // 헤더 공통 버튼 노출 여부를 계산한다.
 const headerActions = computed(() => {
   return {
     showAlert: true,
     showComplexSelector: isMasterUser.value,
     showAdminRegister: canRegisterAdmin.value,
+    showHouseholdTypeManage: canManageHouseholdType.value,
+    showHouseholdCreate: canCreateHousehold.value,
     showParkingLogCreate: canRegisterParkingLog.value,
     showParkingZoneCreate: canRegisterParkingZone.value,
     showSensorCreate: canRegisterSensor.value,
@@ -515,10 +537,19 @@ watch(
           </button>
 
           <button
-            v-if="route.path === '/admin/households'"
+            v-if="headerActions.showHouseholdTypeManage"
             type="button"
             class="admin-layout__action-button"
             @click="handleActionClick"
+          >
+            + 평형/라인 관리
+          </button>
+
+          <button
+            v-if="headerActions.showHouseholdCreate"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleCreateClick"
           >
             + 세대 등록
           </button>
