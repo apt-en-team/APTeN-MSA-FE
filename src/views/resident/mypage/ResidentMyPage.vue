@@ -35,7 +35,7 @@ const quickMenus = computed(() => [
     label: '관리비 조회',
     path: residentPath('bill'),
     icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
-    highlight: true,
+    highlight: false,
   },
   {
     label: '내 차량',
@@ -57,7 +57,7 @@ const quickMenus = computed(() => [
   },
   {
     label: '내가 쓴 글',
-    path: residentPath('my-posts'),
+    path: residentPath('board/my'),
     icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`,
     highlight: false,
   },
@@ -359,6 +359,16 @@ onMounted(() => {
 }
 
 .menu-item--highlight .menu-label {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.menu-item:active {
+  background-color: #eef3fb;
+  border-color: var(--color-primary);
+}
+
+.menu-item:active .menu-label {
   color: var(--color-primary);
   font-weight: 600;
 }

@@ -43,6 +43,14 @@ export const getAdminNoticeDetail = async (noticeId) => {
   return unwrapApiData(res)
 }
 
+// 공지 파일 업로드
+export const uploadNoticeFile = async (formData) => {
+  const res = await apiClient.post('/files/notices', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return unwrapApiData(res)
+}
+
 export default {
   createNotice,
   getNotices,
@@ -51,4 +59,5 @@ export default {
   deleteNotice,
   getAdminNotices,
   getAdminNoticeDetail,
+  uploadNoticeFile,
 }
