@@ -1,11 +1,14 @@
 <script setup>
 // TODO: USER 전용 모바일 레이아웃입니다.
-import { onMounted, watch, computed } from 'vue'
+import { onMounted, onUnmounted, watch, computed } from 'vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
+import { useNotificationStore } from '@/stores/useNotificationStore'
 import AppHeader from '@/components/resident/AppHeader.vue'
 import BottomNav from '@/components/resident/BottomNav.vue'
 import { useRoute } from 'vue-router'
+import notificationSocketService from '@/services/notificationSocketService'
+import { startForegroundMessageListener } from '@/services/fcmService'
 
 const route = useRoute()
 
@@ -19,6 +22,7 @@ const mainPaddingBottom = computed(() => {
 
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
+const notificationStore = useNotificationStore()
 
 // 입주민 레이아웃 진입 시 내 단지 정보를 조회해 features source를 준비한다.
 async function ensureResidentComplex() {
@@ -40,6 +44,17 @@ async function ensureResidentComplex() {
 
 onMounted(() => {
   ensureResidentComplex()
+
+  // 미읽음 수 조회 및 WebSocket 연결
+  notificationStore.fetchUnreadCount()
+  notificationSocketService.connect()
+  // 이미 푸시 토큰을 등록한 사용자는 설정 화면을 다시 열지 않아도 foreground 수신을 준비한다.
+  startForegroundMessageListener().catch((error) => console.error('[FCM] foreground listener 초기화 실패', error))
+})
+
+onUnmounted(() => {
+  // 레이아웃 해제 시 WebSocket 연결 종료
+  notificationSocketService.disconnect()
 })
 
 watch(

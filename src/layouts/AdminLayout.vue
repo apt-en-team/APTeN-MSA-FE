@@ -1,16 +1,27 @@
 <script setup>
 // 일반 ADMIN과 MASTER 선택 단지 모드가 공통으로 사용하는 데스크톱 관리자 레이아웃이다.
-import { computed, onMounted, provide, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { FEATURE_CODES } from '@/constants/complexFeatures'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { normalizeFeatures, isFeatureEnabled } from '@/utils/featureGate'
+import { useNotificationStore } from '@/stores/useNotificationStore'
+import NotificationBadge from '@/components/notification/NotificationBadge.vue'
+import NotificationDropdown from '@/components/notification/NotificationDropdown.vue'
+import notificationSocketService from '@/services/notificationSocketService'
+import { startForegroundMessageListener } from '@/services/fcmService'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
+const notificationStore = useNotificationStore()
+
+// MASTER는 알림 UI를 표시하지 않음 (USER, ADMIN, MANAGER만 대상)
+const showNotification = computed(() => {
+  return authStore.role === 'ADMIN' || authStore.role === 'MANAGER'
+})
 
 // 일반 ADMIN과 MASTER 모드가 공유하는 대표 메뉴 정의이다.
 const adminMenuDefinitions = [
@@ -249,6 +260,20 @@ async function ensureMyComplex() {
 
 onMounted(() => {
   ensureMyComplex()
+
+  // ADMIN/MANAGER일 때 미읽음 수 조회 및 WebSocket 연결
+  if (showNotification.value) {
+    notificationStore.fetchUnreadCount()
+    notificationSocketService.connect()
+    // 설정 화면에서 토큰 등록을 마친 관리자도 새로고침 후 foreground FCM을 받을 수 있게 한다.
+    startForegroundMessageListener().catch((error) => console.error('[FCM] foreground listener 초기화 실패', error))
+  }
+})
+
+onUnmounted(() => {
+  // 레이아웃 해제 시 WebSocket 연결 종료
+  notificationSocketService.disconnect()
+  notificationStore.closeDropdown()
 })
 
 watch(
@@ -449,13 +474,31 @@ watch(
         </div>
 
         <div class="admin-layout__header-actions">
-          <button type="button" class="admin-layout__utility-button">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-            <span>알림</span>
-          </button>
+          <!-- 알림 버튼: ADMIN/MANAGER만 표시, MASTER 제외 -->
+          <div v-if="showNotification" class="admin-layout__notif-wrap">
+            <button
+              type="button"
+              class="admin-layout__utility-button"
+              @click="notificationStore.toggleDropdown()"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              <span>알림</span>
+              <NotificationBadge />
+            </button>
+
+            <!-- 드롭다운: 열림 상태일 때만 렌더링 -->
+            <NotificationDropdown v-if="notificationStore.dropdownOpen" />
+
+            <!-- 드롭다운 외부 클릭 시 닫기 오버레이 -->
+            <div
+              v-if="notificationStore.dropdownOpen"
+              class="admin-layout__notif-overlay"
+              @click="notificationStore.closeDropdown()"
+            />
+          </div>
           <button
             v-if="headerActions.showComplexSelector"
             type="button"
@@ -855,7 +898,18 @@ watch(
   gap: var(--space-12);
 }
 
+.admin-layout__notif-wrap {
+  position: relative;
+}
+
+.admin-layout__notif-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+}
+
 .admin-layout__utility-button {
+  position: relative;
   display: flex;
   height: 36px;
   align-items: center;

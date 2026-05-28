@@ -221,7 +221,7 @@ async function loadHomeData() {
     // 최근 공지사항
     if (notices_res.status === 'fulfilled') {
       const data = notices_res.value
-      notices.value = Array.isArray(data) ? data : data?.content ?? []
+      notices.value = (Array.isArray(data) ? data : data?.content ?? []).slice(0, 3)
     }
 
     // 방문차량 승인 대기
@@ -279,7 +279,7 @@ onMounted(() => {
     <section class="home__section">
       <div class="home__section-header">
         <h2 class="home__section-title">최근 공지사항</h2>
-        <button class="home__section-more" @click="router.push('/resident/board/notice')">
+        <button class="home__section-more" @click="router.push(`/resident/${route.params.complexId}/notice`)">
           더보기 →
         </button>
       </div>
@@ -293,9 +293,9 @@ onMounted(() => {
       <ul class="notice-list">
         <li
           v-for="notice in notices"
-          :key="notice.noticeUid"
+          :key="notice.noticeId"
           class="notice-item"
-          @click="router.push(`/resident/board/notice/${notice.noticeUid}`)"
+          @click="router.push(`/resident/${route.params.complexId}/notice/${notice.noticeId}`)"
         >
           <span class="notice-item__title">{{ notice.title }}</span>
           <span class="notice-item__date">{{ formatDate(notice.createdAt) }}</span>

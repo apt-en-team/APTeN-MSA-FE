@@ -1,18 +1,12 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
-export default defineConfig(({ mode }) => {
-  console.log('mode: ', mode)
-  const env = loadEnv(mode, process.cwd())
-
-  return {
+export default defineConfig( {
     build: {
-      // .env의 VITE_OUT_DIR 값 사용, 없으면 기본값 dist
-      outDir: env.VITE_OUT_DIR || 'dist',
-      // 빌드 시 outDir 초기화
+      outDir: 'dist',
       emptyOutDir: true,
     },
     plugins: [
@@ -27,8 +21,8 @@ export default defineConfig(({ mode }) => {
           name: 'APTeN',
           short_name: 'APTeN',
           description: '아파트 단지 통합 관리 플랫폼',
-          theme_color: '#4973e5',
-          background_color: '#ffffff',
+          theme_color: '#4973E5',
+          background_color: '#FFFFFF',
           display: 'standalone',
           orientation: 'portrait',
           start_url: '/',
@@ -72,4 +66,4 @@ export default defineConfig(({ mode }) => {
       },
     },
   }
-})
+);

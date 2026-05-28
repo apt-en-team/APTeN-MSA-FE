@@ -64,7 +64,7 @@ async function handleSubmit() {
   if (!validate()) return
   loading.value = true
   try {
-    await apiClient.patch('/api/users/me/password', {
+    await apiClient.patch('/users/me/password', {
       currentPassword: form.value.currentPassword,
       newPassword: form.value.newPassword,
     })

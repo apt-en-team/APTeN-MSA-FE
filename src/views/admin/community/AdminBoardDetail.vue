@@ -16,6 +16,8 @@ const postId = computed(() => route.params.postId)
 const noticeId = computed(() => route.params.noticeId)
 const isNotice = computed(() => !!noticeId.value)
 
+const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/api').replace(/\/api$/, '')
+
 const state = reactive({
   post: null,
   comments: [],
@@ -66,7 +68,7 @@ const onDeletePost = async () => {
     if (isNotice.value) {
       await noticeStore.deleteNotice(noticeId.value)
     } else {
-      await boardApi.deleteAdminPost(postId.value)  // deletePost → deleteAdminPost
+      await boardApi.deleteAdminPost(postId.value)
     }
     state.showDeletePostModal = false
     goBack()
@@ -79,7 +81,7 @@ const onSubmitComment = async () => {
   if (!state.commentInput.trim() || state.isSubmitting) return
   state.isSubmitting = true
   try {
-    await boardApi.createComment(postId.value, { content: state.commentInput })
+    await boardApi.createAdminComment(postId.value, { content: state.commentInput })
     state.commentInput = ''
     await fetchComments()
   } finally {
@@ -105,7 +107,7 @@ const onDeleteComment = async () => {
 }
 
 const fetchComments = async () => {
-  const res = await boardApi.getComments(postId.value, { page: 0, size: 100 })
+  const res = await boardApi.getAdminComments(postId.value, { page: 0, size: 100 })
   state.comments = res?.content ?? []
 }
 
@@ -167,19 +169,35 @@ onMounted(async () => {
 
         <div class="detail-divider" />
 
+        <!-- 이미지 첨부파일 -->
+        <div v-if="state.post.files && state.post.files.some(f => f.fileType === 'IMAGE')" class="detail-images">
+          <img
+            v-for="file in state.post.files.filter(f => f.fileType === 'IMAGE')"
+            :key="file.fileId"
+            :src="`${apiBase}/api/files/serve/${file.savedName}`"
+            :alt="file.originName"
+            class="detail-image"
+          />
+        </div>
+
         <!-- 본문 -->
         <div class="detail-body" v-html="state.post.content" />
 
-        <!-- 첨부파일 -->
-        <div v-if="state.post.files && state.post.files.length > 0" class="detail-files">
-          <p class="files-label">첨부파일</p>
-          <div v-for="file in state.post.files" :key="file.fileId" class="file-item">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <!-- 일반 첨부파일 -->
+        <div v-if="state.post.files && state.post.files.some(f => f.fileType === 'FILE')" class="detail-files">
+
+            <a v-for="file in state.post.files.filter(f => f.fileType === 'FILE')"
+            :key="file.fileId"
+            :href="`${apiBase}/api/files/serve/${file.savedName}`"
+            target="_blank"
+            class="file-card"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
             </svg>
-            <span>{{ file.originName }}</span>
-          </div>
+            <span class="file-card-name">{{ file.originName }}</span>
+          </a>
         </div>
 
         <!-- 댓글 섹션 (게시글만) -->
@@ -213,6 +231,7 @@ onMounted(async () => {
                   <div class="comment-header">
                     <span class="comment-author">{{ comment.writerName ?? '알 수 없음' }}</span>
                     <span v-if="isAdminRole(comment.userRole)" class="badge-admin-tag">관리자</span>
+                    <span v-if="comment.userId === state.post.userId && !isAdminRole(comment.userRole)" class="badge-writer-tag">작성자</span>
                     <span class="comment-date">{{ formatDate(comment.createdAt) }}</span>
                     <button class="btn-comment-delete" @click="openDeleteCommentModal(comment.commentId)">삭제</button>
                   </div>
@@ -244,7 +263,6 @@ onMounted(async () => {
 
       <!-- 우측 사이드바 -->
       <div class="detail-sidebar">
-        <!-- 게시글 정보 -->
         <div class="sidebar-card">
           <h3 class="sidebar-title">게시글 정보</h3>
           <div class="info-row">
@@ -279,13 +297,10 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- 관리 -->
         <div class="sidebar-card">
           <h3 class="sidebar-title">관리</h3>
           <button class="btn-back" @click="goBack">목록으로 돌아가기</button>
-          <button v-if="isNotice" class="btn-edit" @click="goEdit">
-            공지 수정
-          </button>
+          <button v-if="isNotice" class="btn-edit" @click="goEdit">공지 수정</button>
           <button class="btn-delete" @click="openDeletePostModal">
             {{ isNotice ? '공지 삭제' : '게시글 삭제' }}
           </button>
@@ -293,7 +308,6 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 게시글 삭제 모달 -->
     <ConfirmModal
       :visible="state.showDeletePostModal"
       :title="isNotice ? '공지를 삭제하시겠습니까?' : '게시글을 삭제하시겠습니까?'"
@@ -307,7 +321,6 @@ onMounted(async () => {
       @cancel="state.showDeletePostModal = false"
     />
 
-    <!-- 댓글 삭제 모달 -->
     <ConfirmModal
       :visible="state.showDeleteCommentModal"
       title="댓글을 삭제하시겠습니까?"
@@ -467,6 +480,19 @@ onMounted(async () => {
   background: var(--color-border);
 }
 
+.detail-images {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.detail-image {
+  width: 100%;
+  border-radius: var(--radius-8);
+  object-fit: cover;
+  display: block;
+}
+
 .detail-body {
   font-size: var(--font-size-body-sm);
   color: var(--color-text-primary);
@@ -483,24 +509,37 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-12);
 }
 
-.files-label {
-  font-size: var(--font-size-detail);
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
-.file-item {
+.file-card {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  font-size: var(--font-size-detail);
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  background: var(--color-bg-muted);
+  text-decoration: none;
   color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
 }
 
-/* 댓글 */
+.file-card:hover {
+  background: #eef3fb;
+  border-color: var(--color-primary);
+}
+
+.file-card-name {
+  flex: 1;
+  font-size: var(--font-size-body-sm);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .comment-section {
   display: flex;
   flex-direction: column;
@@ -597,6 +636,16 @@ onMounted(async () => {
   color: var(--color-text-primary);
 }
 
+.badge-writer-tag {
+  display: inline-block;
+  padding: 1px var(--space-8);
+  border-radius: 99px;
+  background: rgba(73, 115, 229, 0.14);
+  color: #4973E5;
+  font-size: var(--font-size-badge);
+  font-weight: 700;
+}
+
 .badge-admin-tag {
   display: inline-block;
   padding: 1px var(--space-8);
@@ -681,7 +730,6 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
-/* 사이드바 */
 .detail-sidebar {
   display: flex;
   flex-direction: column;

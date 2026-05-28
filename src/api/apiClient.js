@@ -1,7 +1,7 @@
 // 공통 axios 인스턴스. 모든 API 요청은 이 인스턴스만 사용한다.
 import axios from 'axios'
 
-const apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+const apiBaseURL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/api').replace(/\/$/, '')
 
 const SELECTED_COMPLEX_STORAGE_KEY = 'apt_selected_complex'
 const LEGACY_SELECTED_COMPLEX_STORAGE_KEY = 'selectedComplex'
@@ -76,8 +76,8 @@ apiClient.interceptors.request.use(
 
     // MASTER가 관리자 API 또는 board/notice API 호출할 때 선택 단지 ID 헤더 추가
     if (userInfo?.role === 'MASTER' && selectedComplex?.complexId) {
-      const isMasterPath = requestUrl.startsWith('/api/admin/') && !requestUrl.startsWith('/api/admin/master/')
-      const isBoardPath = requestUrl.startsWith('/boards/') || requestUrl.startsWith('/notices/') || requestUrl.startsWith('/api/admin/boards/') || requestUrl.startsWith('/api/admin/notices/')
+      const isMasterPath = requestUrl.startsWith('/admin/') && !requestUrl.startsWith('/admin/master/')
+      const isBoardPath = requestUrl.startsWith('/boards/') || requestUrl.startsWith('/notices/') || requestUrl.startsWith('/admin/boards/') || requestUrl.startsWith('/admin/notices/')
       if (isMasterPath || isBoardPath) {
         config.headers = config.headers || {}
         config.headers['X-Selected-Complex-Id'] = String(selectedComplex.complexId)

@@ -1,5 +1,5 @@
 <script>
-import { reactive, computed, onMounted, watch } from 'vue'
+import { reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useBoardStore } from '@/stores/useBoardStore'
 
@@ -10,6 +10,8 @@ export default {
     const router = useRouter()
     const route = useRoute()
     const boardStore = useBoardStore()
+
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/api').replace(/\/api$/, '')
 
     const state = reactive({
       activeTab: 'free',
@@ -86,6 +88,13 @@ export default {
       return `${String(d.getFullYear()).slice(2)}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
     }
 
+    const getThumbUrl = (post) => {
+      if (post.thumbSavedName) {
+        return `${apiBase}/api/files/serve/${post.thumbSavedName}`
+      }
+      return null
+    }
+
     onMounted(() => {
       const category = route.query.category
       if (category && category !== 'my') {
@@ -99,12 +108,14 @@ export default {
       posts,
       totalPages,
       loading,
+      apiBase,
       onSearch,
       onTabChange,
       goToDetail,
       goToCreate,
       onPageChange,
       formatDate,
+      getThumbUrl,
     }
   },
 }
@@ -114,28 +125,13 @@ export default {
   <div class="board-wrap">
     <!-- 탭 -->
     <div class="tab-row">
-      <button
-        class="tab-pill"
-        :class="{ active: state.activeTab === 'free' }"
-        @click="onTabChange('free')"
-      >자유</button>
-      <button
-        class="tab-pill"
-        :class="{ active: state.activeTab === 'inquiry' }"
-        @click="onTabChange('inquiry')"
-      >문의</button>
-      <button
-        class="tab-pill"
-        :class="{ active: state.activeTab === 'popular' }"
-        @click="onTabChange('popular')"
-      >인기글</button>
-      <button
-        class="tab-pill"
-        @click="onTabChange('my')"
-      >내가 쓴 글</button>
+      <button class="tab-pill" :class="{ active: state.activeTab === 'free' }" @click="onTabChange('free')">자유</button>
+      <button class="tab-pill" :class="{ active: state.activeTab === 'inquiry' }" @click="onTabChange('inquiry')">문의</button>
+      <button class="tab-pill" :class="{ active: state.activeTab === 'popular' }" @click="onTabChange('popular')">인기글</button>
+      <button class="tab-pill" @click="onTabChange('my')">내가 쓴 글</button>
     </div>
 
-    <!-- 검색 (인기글 탭 제외) -->
+    <!-- 검색 -->
     <div v-if="state.activeTab !== 'popular'" class="search-box">
       <input
         v-model="state.keyword"
@@ -166,7 +162,14 @@ export default {
         @click="goToDetail(post.postId)"
       >
         <div class="post-body">
-          <p class="post-title text-ellipsis">{{ post.title }}</p>
+          <p class="post-title">
+            <span class="title-text">{{ post.title }}</span>
+            <span v-if="post.hasFile" class="clip-icon">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+            </span>
+          </p>
           <p v-if="post.preview" class="post-preview">{{ post.preview }}</p>
           <div class="post-stats">
             <span class="stat">
@@ -195,8 +198,9 @@ export default {
           </div>
         </div>
 
-        <div v-if="post.thumbUrl" class="post-thumb">
-          <img :src="post.thumbUrl" alt="" />
+        <!-- 썸네일 이미지 -->
+        <div v-if="getThumbUrl(post)" class="post-thumb">
+          <img :src="getThumbUrl(post)" :alt="post.title" />
         </div>
       </li>
 
@@ -255,7 +259,6 @@ export default {
   color: var(--color-primary);
   border-color: var(--color-primary);
   font-weight: 600;
-  background: var(--white);
 }
 
 .search-box {
@@ -316,7 +319,7 @@ export default {
 
 @keyframes dotBounce {
   from { transform: translateY(0); opacity: 0.3; }
-  to   { transform: translateY(-5px); opacity: 1; }
+  to { transform: translateY(-5px); opacity: 1; }
 }
 
 .post-list {
@@ -326,7 +329,7 @@ export default {
 
 .post-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-12);
   padding: var(--space-12) var(--space-16);
@@ -355,6 +358,23 @@ export default {
   font-size: var(--font-size-body);
   font-weight: 600;
   color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.title-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 12em;
+}
+
+.clip-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
 }
 
 .post-preview {
@@ -407,18 +427,18 @@ export default {
 }
 
 .post-thumb {
-  width: 60px;
-  height: 60px;
+  width: 80px;
+  height: 80px;
   border-radius: var(--radius-8);
-  overflow: hidden;
   flex-shrink: 0;
-  background-color: var(--color-bg-muted);
+  overflow: hidden;
 }
 
 .post-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .post-empty {

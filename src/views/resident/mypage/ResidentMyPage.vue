@@ -35,7 +35,7 @@ const quickMenus = computed(() => [
     label: '관리비 조회',
     path: residentPath('bill'),
     icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
-    highlight: true,
+    highlight: false,
   },
   {
     label: '내 차량',
@@ -72,7 +72,7 @@ const quickMenus = computed(() => [
 // 내 계정 정보 조회 — GET /api/users/me
 async function fetchUserInfo() {
   try {
-    const res = await apiClient.get('/api/users/me')
+    const res = await apiClient.get('/users/me')
     const data = res.data.data
     userInfo.name = data.name
     userInfo.complexId = data.complexId
@@ -102,7 +102,7 @@ async function confirmWithdraw() {
     return
   }
   try {
-    await apiClient.delete('/api/users/me', { data: { password: withdrawPassword.value } })
+    await apiClient.delete('/users/me', { data: { password: withdrawPassword.value } })
     showWithdrawModal.value = false
     authStore.logout()
     router.push('/login')
@@ -359,6 +359,16 @@ onMounted(() => {
 }
 
 .menu-item--highlight .menu-label {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.menu-item:active {
+  background-color: #eef3fb;
+  border-color: var(--color-primary);
+}
+
+.menu-item:active .menu-label {
   color: var(--color-primary);
   font-weight: 600;
 }

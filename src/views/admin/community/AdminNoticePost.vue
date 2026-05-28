@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useNoticeStore } from '@/stores/useNoticeStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import BoardEditor from '@/components/resident/BoardEditor.vue'
+import noticeApi from '@/api/noticeApi'
 
 const router = useRouter()
 const route = useRoute()
@@ -19,6 +20,8 @@ const state = reactive({
   isSubmitting: false,
   createdAt: null,
   updatedAt: null,
+  attachedFiles: [],
+  attachedImages: [],
 })
 
 const isValid = computed(() =>
@@ -45,10 +48,24 @@ const handleSubmit = async () => {
         content: state.content,
       })
     } else {
-      await noticeStore.createNotice({
+      const created = await noticeStore.createNotice({
         title: state.title,
         content: state.content,
       })
+      const newNoticeId = created?.noticeId
+
+      if (newNoticeId) {
+        const allFiles = [
+          ...state.attachedImages.map(f => ({ file: f })),
+          ...state.attachedFiles.map(f => ({ file: f })),
+        ]
+        for (const item of allFiles) {
+          const fd = new FormData()
+          fd.append('noticeId', newNoticeId)
+          fd.append('files', item.file)
+          await noticeApi.uploadNoticeFile(fd)
+        }
+      }
     }
     router.push('/admin/boards/statistics')
   } finally {
@@ -102,7 +119,11 @@ onMounted(async () => {
             <!-- 내용 -->
             <div class="form-group">
               <label class="form-label">내용 <span class="required">*</span></label>
-              <BoardEditor v-model="state.content" />
+              <BoardEditor
+                v-model="state.content"
+                @update:files="(f) => (state.attachedFiles = f)"
+                @update:images="(i) => (state.attachedImages = i)"
+              />
             </div>
 
             <!-- 수정 이력 (수정 모드만) -->
@@ -205,7 +226,6 @@ onMounted(async () => {
   align-items: start;
 }
 
-/* 메인 카드 */
 .card-shell {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -281,7 +301,6 @@ onMounted(async () => {
 .form-input:focus { border-color: var(--color-primary); }
 .form-input::placeholder { color: #a0aec0; }
 
-/* 수정 이력 */
 .history-section {
   border-top: 1px solid #e2e8f0;
   padding-top: var(--space-16);
@@ -324,7 +343,6 @@ onMounted(async () => {
   font-weight: 600;
 }
 
-/* 하단 버튼 */
 .form-footer {
   display: flex;
   align-items: center;
@@ -375,7 +393,6 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
-/* 사이드바 */
 .notice-post__sidebar {
   display: flex;
   flex-direction: column;
@@ -478,7 +495,6 @@ onMounted(async () => {
   color: var(--color-text-secondary);
 }
 
-/* 주의사항 */
 .warning-list {
   display: flex;
   flex-direction: column;

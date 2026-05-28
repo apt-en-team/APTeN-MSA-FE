@@ -143,6 +143,8 @@ export default {
       return !state.showAllComments && comments.value.length > 3
     })
 
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/api').replace(/\/api$/, '')
+
     const avatarLetter = (name) => name?.charAt(0) ?? '?'
 
     onMounted(async () => {
@@ -173,6 +175,7 @@ export default {
       onDeleteComment,
       loadMoreComments,
       avatarLetter,
+      apiBase,
     }
   },
 }
@@ -201,7 +204,6 @@ export default {
         <div class="author-info">
           <span class="author-name">{{ post.writerName ?? '익명' }}</span>
           <span class="author-meta">조회수 {{ post.viewCount }} · {{ formatDate(post.createdAt) }}</span>
-          <span class="author-unit">그린아파트 102동</span>
         </div>
         <button class="more-btn" @click="state.showBottomSheet = true">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -220,7 +222,7 @@ export default {
         <img
           v-for="file in post.files.filter(f => f.fileType === 'IMAGE')"
           :key="file.fileId"
-          :src="file.filePath"
+          :src="`${apiBase}/api/files/serve/${file.savedName}`"
           :alt="file.originName"
           class="post-image"
         />
@@ -230,6 +232,23 @@ export default {
       <div class="post-content">
         <h2 class="post-title">{{ post.title }}</h2>
         <div class="post-body" v-html="post.content"></div>
+      </div>
+
+      <!-- 일반 첨부파일 -->
+      <div v-if="post.files && post.files.some(f => f.fileType === 'FILE')" class="file-section">
+
+          <a v-for="file in post.files.filter(f => f.fileType === 'FILE')"
+          :key="file.fileId"
+          :href="`${apiBase}/api/files/serve/${file.savedName}`"
+          target="_blank"
+          class="file-card"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <span class="file-card-name">{{ file.originName }}</span>
+        </a>
       </div>
 
       <!-- 좋아요/댓글 바 -->
@@ -275,6 +294,8 @@ export default {
             <div class="comment-header">
               <div class="comment-author-wrap">
                 <span class="comment-author">{{ comment.writerName ?? '익명' }}</span>
+                <span v-if="comment.userRole && ['ADMIN', 'MANAGER', 'MASTER'].includes(comment.userRole)" class="badge-admin-tag">관리자</span>
+                <span v-else-if="comment.userId === post.userId" class="badge-writer-tag">작성자</span>
               </div>
               <div class="comment-header-right">
                 <span class="comment-time">{{ formatRelative(comment.createdAt) }}</span>
@@ -287,7 +308,6 @@ export default {
                 </button>
               </div>
             </div>
-            <span class="comment-unit">그린아파트 102동</span>
 
             <!-- 수정 모드 -->
             <div v-if="state.editingCommentId === comment.commentId" class="comment-edit-wrap">
@@ -470,11 +490,6 @@ export default {
   color: var(--color-text-secondary);
 }
 
-.author-unit {
-  font-size: var(--font-size-detail);
-  color: var(--color-text-secondary);
-}
-
 .more-btn {
   color: var(--color-text-secondary);
   cursor: pointer;
@@ -494,6 +509,41 @@ export default {
   max-height: 280px;
   object-fit: cover;
   display: block;
+}
+
+.file-section {
+  padding: var(--space-12) var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  border-top: 1px solid var(--color-border);
+}
+
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  background: var(--color-bg-muted);
+  text-decoration: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.file-card:hover {
+  background: #eef3fb;
+  border-color: var(--color-primary);
+}
+
+.file-card-name {
+  flex: 1;
+  font-size: var(--font-size-body-sm);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .post-content {
@@ -518,8 +568,23 @@ export default {
 :deep(.post-body p) { margin-bottom: var(--space-8); }
 :deep(.post-body strong) { font-weight: 700; }
 :deep(.post-body em) { font-style: italic; }
-:deep(.post-body h1) { font-size: var(--font-size-heading-3); font-weight: 700; margin-bottom: var(--space-8); }
+:deep(.post-body h1) { font-size: 1.6rem; font-weight: 700; margin-bottom: var(--space-8); }
+:deep(.post-body h2) { font-size: 1.3rem; font-weight: 700; margin-bottom: var(--space-8); }
+:deep(.post-body h3) { font-size: 1.1rem; font-weight: 700; margin-bottom: var(--space-8); }
 :deep(.post-body ul) { padding-left: var(--space-20); list-style: disc; }
+:deep(.post-body ol) { padding-left: var(--space-20); list-style: decimal; }
+:deep(.post-body u) { text-decoration: underline; }
+:deep(.post-body s) { text-decoration: line-through; }
+:deep(.post-body hr) { border: none; border-top: 1px solid var(--color-border); margin: var(--space-16) 0; }
+:deep(.post-body p[style*="text-align: center"]) { text-align: center; }
+:deep(.post-body p[style*="text-align: right"]) { text-align: right; }
+:deep(.post-body blockquote) {
+  border-left: 3px solid var(--color-primary);
+  padding-left: var(--space-12);
+  color: var(--color-text-secondary);
+  margin: var(--space-8) 0;
+  font-style: italic;
+}
 
 .reaction-row {
   display: flex;
@@ -586,6 +651,26 @@ export default {
   border-bottom: none;
 }
 
+.badge-admin-tag {
+  display: inline-block;
+  padding: 1px var(--space-8);
+  border-radius: 99px;
+  background: var(--color-primary);
+  color: var(--white);
+  font-size: var(--font-size-badge);
+  font-weight: 700;
+}
+
+.badge-writer-tag {
+  display: inline-block;
+  padding: 1px var(--space-8);
+  border-radius: 99px;
+  background: rgba(73, 115, 229, 0.14);
+  color: #4973E5;
+  font-size: var(--font-size-badge);
+  font-weight: 700;
+}
+
 .comment-avatar {
   width: 34px;
   height: 34px;
@@ -621,7 +706,7 @@ export default {
 }
 
 .comment-author {
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-body-sm);
   font-weight: 700;
   color: var(--color-text-primary);
 }
@@ -642,13 +727,8 @@ export default {
   color: var(--color-text-secondary);
 }
 
-.comment-unit {
-  font-size: var(--font-size-detail);
-  color: var(--color-text-secondary);
-}
-
 .comment-content {
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-body-sm);
   color: var(--color-text-primary);
   line-height: 1.6;
   white-space: pre-wrap;

@@ -57,10 +57,8 @@ export const togglePostLike = async (postId) => {
 
 // 첨부파일 업로드
 export const uploadBoardFile = async (formData) => {
-  const res = await apiClient.post('/boards/files', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+  const res = await apiClient.post('/files', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
   })
   return unwrapApiData(res)
 }
@@ -83,33 +81,45 @@ export const getPopularPosts = async (params) => {
   return unwrapApiData(res)
 }
 
+// 관리자 댓글 목록 조회
+export const getAdminComments = async (postId, params) => {
+  const res = await apiClient.get(`/admin/boards/posts/${postId}/comments`, { params })
+  return unwrapApiData(res)
+}
+
+// 관리자 댓글 작성
+export const createAdminComment = async (postId, body) => {
+  const res = await apiClient.post(`/admin/boards/posts/${postId}/comments`, body)
+  return unwrapApiData(res)
+}
+
 // 관리자 게시글 강제 삭제
 export const deleteAdminPost = async (postId) => {
-  const res = await apiClient.delete(`/api/admin/boards/posts/${postId}`)
+  const res = await apiClient.delete(`/admin/boards/posts/${postId}`)
   return unwrapApiData(res)
 }
 
 // 관리자 게시글 상세 조회
 export const getAdminPostDetail = async (postId) => {
-  const res = await apiClient.get(`/api/admin/boards/posts/${postId}`)
+  const res = await apiClient.get(`/admin/boards/posts/${postId}`)
   return unwrapApiData(res)
 }
 
 // 관리자 댓글 강제 삭제
 export const deleteAdminComment = async (commentId) => {
-  const res = await apiClient.delete(`/api/admin/boards/comments/${commentId}`)
+  const res = await apiClient.delete(`/admin/boards/comments/${commentId}`)
   return unwrapApiData(res)
 }
 
 // 게시판 통계 조회
 export const getBoardStatistics = async (params) => {
-  const res = await apiClient.get('/api/admin/boards/statistics', { params })
+  const res = await apiClient.get('/admin/boards/statistics', { params })
   return unwrapApiData(res)
 }
 
 // 관리자 게시글 목록 조회 (삭제된 글 포함)
 export const getAdminPosts = async (params) => {
-  const res = await apiClient.get('/api/admin/boards/posts', { params })
+  const res = await apiClient.get('/admin/boards/posts', { params })
   return unwrapApiData(res)
 }
 
@@ -133,6 +143,8 @@ export default {
   getMyPosts,
   getMyComments,
   getPopularPosts,
+  getAdminComments,
+  createAdminComment,
   deleteAdminPost,
   getAdminPostDetail,
   deleteAdminComment,

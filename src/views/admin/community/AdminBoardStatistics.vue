@@ -17,6 +17,8 @@ const noticeStore = useNoticeStore()
 const state = reactive({
   activeTab: 'all',
   keyword: '',
+  filterCategory: '',
+  filterDeleted: '',
   page: 1,
   size: 10,
   showDeleteModal: false,
@@ -54,11 +56,31 @@ const currentTotalElements = computed(() => {
   return postsTotalElements.value
 })
 
+const tabCounts = computed(() => ({
+  all: postsTotalElements.value + noticesTotalElements.value,
+  notice: noticesTotalElements.value,
+  free: posts.value.filter(p => p.category === 'FREE').length,
+  inquiry: posts.value.filter(p => p.category === 'INQUIRY').length,
+}))
+
 const filteredList = computed(() => {
-  if (!state.keyword.trim()) return currentList.value
-  return currentList.value.filter(item =>
-    item.title?.includes(state.keyword) || item.writerName?.includes(state.keyword)
-  )
+  let list = currentList.value
+  if (state.keyword.trim()) {
+    list = list.filter(item =>
+      item.title?.includes(state.keyword) || item.writerName?.includes(state.keyword)
+    )
+  }
+  if (state.filterCategory) {
+    list = list.filter(item => {
+      if (state.filterCategory === 'NOTICE') return isNotice(item)
+      return item.category === state.filterCategory
+    })
+  }
+  if (state.filterDeleted !== '') {
+    const deleted = state.filterDeleted === 'true'
+    list = list.filter(item => !!item.isDeleted === deleted)
+  }
+  return list
 })
 
 const summaryItems = computed(() => [
@@ -87,7 +109,7 @@ const fetchData = async () => {
     const category = state.activeTab === 'free' ? 'FREE'
       : state.activeTab === 'inquiry' ? 'INQUIRY'
       : undefined
-    await boardStore.fetchAdminPosts({ page: state.page - 1, size: state.size, category })  // ← 변경
+    await boardStore.fetchAdminPosts({ page: state.page - 1, size: state.size, category })
     if (state.activeTab === 'all') {
       await noticeStore.fetchAdminNotices({ page: 0, size: 100 })
     }
@@ -98,6 +120,8 @@ const onTabChange = (tab) => {
   state.activeTab = tab
   state.page = 1
   state.keyword = ''
+  state.filterCategory = ''
+  state.filterDeleted = ''
   fetchData()
 }
 
@@ -108,6 +132,8 @@ const onPageChange = (page) => {
 
 const onReset = () => {
   state.keyword = ''
+  state.filterCategory = ''
+  state.filterDeleted = ''
   state.page = 1
   fetchData()
 }
@@ -146,7 +172,7 @@ onMounted(() => {
     <StatsCards :stats="summaryItems" />
 
     <!-- 탭 -->
-    <div class="tab-row">
+    <nav class="tab-bar">
       <button
         v-for="tab in [
           { key: 'all', label: '전체' },
@@ -155,13 +181,15 @@ onMounted(() => {
           { key: 'inquiry', label: '문의' },
         ]"
         :key="tab.key"
+        type="button"
         class="tab-btn"
         :class="{ active: state.activeTab === tab.key }"
         @click="onTabChange(tab.key)"
       >
         {{ tab.label }}
+        <span class="tab-badge">{{ tabCounts[tab.key] }}</span>
       </button>
-    </div>
+    </nav>
 
     <!-- 테이블 카드 -->
     <section class="card-shell">
@@ -172,10 +200,21 @@ onMounted(() => {
             v-model="state.keyword"
             class="search-input"
             type="text"
-            placeholder="제목 또는 작성자 검색"
+            placeholder="제목, 작성자 검색"
             @keyup.enter="fetchData"
           />
         </div>
+        <select v-model="state.filterCategory" class="filter-select">
+          <option value="">카테고리</option>
+          <option value="NOTICE">공지</option>
+          <option value="FREE">자유</option>
+          <option value="INQUIRY">문의</option>
+        </select>
+        <select v-model="state.filterDeleted" class="filter-select">
+          <option value="">삭제 여부</option>
+          <option value="false">정상</option>
+          <option value="true">삭제</option>
+        </select>
       </AdminFilterBar>
 
       <!-- 로딩 -->
@@ -190,39 +229,47 @@ onMounted(() => {
         :rows="allRows"
         @row-click="goToDetail"
       >
-        <!-- 카테고리 -->
         <template #cell-category="{ row }">
           <BaseBadge v-if="isNotice(row)" variant="info">공지</BaseBadge>
           <BaseBadge v-else-if="row.category === 'FREE'" variant="neutral">자유</BaseBadge>
           <BaseBadge v-else variant="warning">문의</BaseBadge>
         </template>
 
-        <!-- 제목 -->
+        <<!-- 제목 -->
         <template #cell-title="{ row }">
-          <span class="title-text">{{ row.title }}</span>
+          <span class="title-wrap">
+            <span class="title-text">{{ row.title }}</span>
+            <span v-if="row.thumbSavedName" class="title-icon title-icon--image">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </span>
+            <span v-if="row.hasFile" class="title-icon title-icon--file">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+            </span>
+          </span>
         </template>
 
-        <!-- 작성자 -->
         <template #cell-writerName="{ row }">
           {{ row.writerName ?? '-' }}
         </template>
 
-        <!-- 댓글 -->
         <template #cell-commentCount="{ row }">
           {{ isNotice(row) ? '-' : (row.commentCount ?? 0) }}
         </template>
 
-        <!-- 조회 -->
         <template #cell-viewCount="{ row }">
           {{ isNotice(row) ? '-' : (row.viewCount ?? 0) }}
         </template>
 
-        <!-- 작성일 -->
         <template #cell-createdAt="{ row }">
           {{ formatDate(row.createdAt) }}
         </template>
 
-        <!-- 삭제 여부 -->
         <template #cell-isDeleted="{ row }">
           <BaseBadge v-if="row.isDeleted" variant="danger">삭제</BaseBadge>
           <BaseBadge v-else variant="success">정상</BaseBadge>
@@ -264,33 +311,58 @@ onMounted(() => {
 }
 
 /* 탭 */
-.tab-row {
+.tab-bar {
   display: flex;
-  gap: var(--space-4);
-  border-bottom: 1px solid var(--color-border);
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .tab-btn {
-  height: 36px;
-  padding: 0 var(--space-16);
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #687282;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.15s;
-  margin-bottom: -1px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tab-btn:hover {
+  background: #f5f6f8;
+  color: #2b3a55;
 }
 
 .tab-btn.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  background: #1e2a3e;
+  color: #ffffff;
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 20px;
+  background: #e2e8f0;
+  color: #687282;
+  font-size: 11px;
   font-weight: 700;
 }
 
-.tab-btn:hover:not(.active) {
-  color: var(--color-text-primary);
+.tab-btn.active .tab-badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 /* 카드 */
@@ -322,6 +394,23 @@ onMounted(() => {
   border-color: #a0aec0;
 }
 
+/* 필터 드롭다운 */
+.filter-select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #1a202c;
+  background: #ffffff;
+  outline: none;
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  border-color: #a0aec0;
+}
+
 /* 로딩 */
 .loading-wrap {
   padding: 40px;
@@ -339,5 +428,25 @@ onMounted(() => {
   display: block;
   max-width: 300px;
   text-align: left;
+}
+
+.title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.title-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.title-icon--image {
+  color: var(--color-primary);
+}
+
+.title-icon--file {
+  color: #e67e22;
 }
 </style>

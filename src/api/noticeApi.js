@@ -3,7 +3,7 @@ import { unwrapApiData } from '@/utils/apiResponse'
 
 // 관리자 공지 작성
 export const createNotice = async (body) => {
-  const res = await apiClient.post('/api/admin/notices', body)
+  const res = await apiClient.post('/admin/notices', body)
   return unwrapApiData(res)
 }
 
@@ -21,25 +21,33 @@ export const getNoticeDetail = async (noticeId) => {
 
 // 관리자 공지 수정
 export const updateNotice = async (noticeId, body) => {
-  const res = await apiClient.patch(`/api/admin/notices/${noticeId}`, body)
+  const res = await apiClient.patch(`/admin/notices/${noticeId}`, body)
   return unwrapApiData(res)
 }
 
 // 관리자 공지 삭제
 export const deleteNotice = async (noticeId) => {
-  const res = await apiClient.delete(`/api/admin/notices/${noticeId}`)
+  const res = await apiClient.delete(`/admin/notices/${noticeId}`)
   return unwrapApiData(res)
 }
 
 // 관리자 공지 목록 조회
 export const getAdminNotices = async (params) => {
-  const res = await apiClient.get('/api/admin/notices', { params })
+  const res = await apiClient.get('/admin/notices', { params })
   return unwrapApiData(res)
 }
 
 // 관리자 공지 상세 조회
 export const getAdminNoticeDetail = async (noticeId) => {
-  const res = await apiClient.get(`/api/admin/notices/${noticeId}`)
+  const res = await apiClient.get(`/admin/notices/${noticeId}`)
+  return unwrapApiData(res)
+}
+
+// 공지 파일 업로드
+export const uploadNoticeFile = async (formData) => {
+  const res = await apiClient.post('/files/notices', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
   return unwrapApiData(res)
 }
 
@@ -51,4 +59,5 @@ export default {
   deleteNotice,
   getAdminNotices,
   getAdminNoticeDetail,
+  uploadNoticeFile,
 }
