@@ -78,21 +78,13 @@ export default {
           @click="goToDetail(notice.noticeId)"
         >
           <div class="notice-body">
-            <p class="notice-title">{{ notice.title }}</p>
+            <div class="notice-title-row">
+              <span class="badge-notice">공지</span>
+              <p class="notice-title">{{ notice.title }}</p>
+            </div>
             <div class="notice-meta">
-              <span class="meta-item">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M1 1h10v6.5H7l-1 2-1-2H1V1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-                </svg>
-                {{ notice.commentCount ?? 0 }}
-              </span>
-              <span class="meta-item">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <ellipse cx="6" cy="6" rx="5" ry="3" stroke="currentColor" stroke-width="1.2"/>
-                  <circle cx="6" cy="6" r="1.5" fill="currentColor"/>
-                </svg>
-                {{ notice.viewCount ?? 0 }}
-              </span>
+              <span class="meta-writer">{{ notice.writerName ?? '관리사무소' }}</span>
+              <span class="meta-dot">·</span>
               <span class="meta-date">{{ formatDate(notice.createdAt) }}</span>
             </div>
           </div>
@@ -187,6 +179,35 @@ export default {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+}
+
+.notice-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.badge-notice {
+  display: inline-block;
+  padding: 2px var(--space-8);
+  border-radius: var(--radius-4);
+  background: var(--color-primary);
+  color: var(--white);
+  font-size: var(--font-size-badge);
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.meta-writer {
+  font-size: var(--font-size-detail);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.meta-dot {
+  font-size: var(--font-size-detail);
+  color: var(--color-border-strong);
 }
 
 .notice-title {

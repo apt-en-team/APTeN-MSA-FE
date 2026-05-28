@@ -66,7 +66,7 @@ const onDeletePost = async () => {
     if (isNotice.value) {
       await noticeStore.deleteNotice(noticeId.value)
     } else {
-      await boardApi.deletePost(postId.value)
+      await boardApi.deleteAdminPost(postId.value)  // deletePost → deleteAdminPost
     }
     state.showDeletePostModal = false
     goBack()
@@ -95,7 +95,7 @@ const openDeleteCommentModal = (commentId) => {
 const onDeleteComment = async () => {
   state.isSubmitting = true
   try {
-    await boardApi.deleteComment(state.selectedCommentId)
+    await boardApi.deleteAdminComment(state.selectedCommentId)
     state.showDeleteCommentModal = false
     state.selectedCommentId = null
     await fetchComments()
@@ -283,8 +283,8 @@ onMounted(async () => {
         <div class="sidebar-card">
           <h3 class="sidebar-title">관리</h3>
           <button class="btn-back" @click="goBack">목록으로 돌아가기</button>
-          <button class="btn-edit" @click="goEdit">
-            {{ isNotice ? '공지 수정' : '게시글 수정' }}
+          <button v-if="isNotice" class="btn-edit" @click="goEdit">
+            공지 수정
           </button>
           <button class="btn-delete" @click="openDeletePostModal">
             {{ isNotice ? '공지 삭제' : '게시글 삭제' }}

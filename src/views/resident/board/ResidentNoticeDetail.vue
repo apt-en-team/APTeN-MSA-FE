@@ -75,7 +75,7 @@ export default {
             <span class="author-name">{{ notice.writerName ?? '관리자' }}</span>
             <span class="badge-admin">관리자</span>
           </div>
-          <span class="author-meta">조회수 {{ notice.viewCount ?? 0 }} · {{ formatDate(notice.createdAt) }}</span>
+          <span class="author-meta">{{ formatDate(notice.createdAt) }}</span>
           <span class="author-unit">그린아파트 관리사무소</span>
         </div>
       </div>

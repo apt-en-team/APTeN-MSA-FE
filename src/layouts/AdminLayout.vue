@@ -195,6 +195,9 @@ const canRegisterAdmin = computed(() => {
   return isAdminManagePage && allowedRole
 })
 
+// 게시판 관리 화면에서 공지 작성 버튼 표시
+const canCreateNotice = computed(() => route.path === '/admin/boards/statistics')
+
 // 입출차 기록 화면에서 기록 등록 버튼을 표시할지 판단한다.
 const canRegisterParkingLog = computed(() => route.path === '/admin/parking-logs')
 
@@ -469,6 +472,15 @@ watch(
             @click="handleActionClick"
           >
             + 관리자 등록
+          </button>
+
+          <button
+            v-if="canCreateNotice"
+            type="button"
+            class="admin-layout__action-button"
+            @click="router.push('/admin/notices/create')"
+          >
+            + 공지 작성
           </button>
 
           <button

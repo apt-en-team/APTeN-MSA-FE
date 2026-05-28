@@ -41,11 +41,17 @@ export default {
 
     const formatRelative = (dateStr) => {
       if (!dateStr) return ''
-      const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000)
+      const d = new Date(dateStr)
+      const now = new Date()
+      const diff = Math.floor((now - d) / 1000)
+      const isToday = d.toDateString() === now.toDateString()
+
+      if (!isToday) {
+        return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+      }
       if (diff < 60) return '방금 전'
       if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
-      if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
-      return formatDate(dateStr)
+      return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
     }
 
     const goBack = () => {
@@ -272,7 +278,6 @@ export default {
               </div>
               <div class="comment-header-right">
                 <span class="comment-time">{{ formatRelative(comment.createdAt) }}</span>
-                <span class="comment-date">· {{ formatDate(comment.createdAt) }}</span>
                 <button class="more-btn" @click="openCommentBottomSheet(comment.commentId)">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <circle cx="8" cy="3.5" r="1.3" fill="currentColor"/>

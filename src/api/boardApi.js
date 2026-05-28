@@ -85,7 +85,7 @@ export const getPopularPosts = async (params) => {
 
 // 관리자 게시글 강제 삭제
 export const deleteAdminPost = async (postId) => {
-  const res = await apiClient.delete(`/admin/boards/posts/${postId}`)
+  const res = await apiClient.delete(`/api/admin/boards/posts/${postId}`)
   return unwrapApiData(res)
 }
 
@@ -97,13 +97,19 @@ export const getAdminPostDetail = async (postId) => {
 
 // 관리자 댓글 강제 삭제
 export const deleteAdminComment = async (commentId) => {
-  const res = await apiClient.delete(`/admin/boards/comments/${commentId}`)
+  const res = await apiClient.delete(`/api/admin/boards/comments/${commentId}`)
   return unwrapApiData(res)
 }
 
 // 게시판 통계 조회
 export const getBoardStatistics = async (params) => {
   const res = await apiClient.get('/api/admin/boards/statistics', { params })
+  return unwrapApiData(res)
+}
+
+// 관리자 게시글 목록 조회 (삭제된 글 포함)
+export const getAdminPosts = async (params) => {
+  const res = await apiClient.get('/api/admin/boards/posts', { params })
   return unwrapApiData(res)
 }
 
@@ -131,5 +137,6 @@ export default {
   getAdminPostDetail,
   deleteAdminComment,
   getBoardStatistics,
+  getAdminPosts,
   getComments,
 }
