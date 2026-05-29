@@ -53,6 +53,8 @@ const normalizeSelectedComplex = (complex) => ({
   statusName: complex?.statusName ?? null,
   address: complex?.address ?? null,
   features: normalizeFeatures(complex?.features),
+  parkingTypeCode: complex?.parkingTypeCode ?? null,
+  parkingTypeValue: complex?.parkingTypeValue ?? null,
 })
 
 export const useComplexStore = defineStore('complex', {
