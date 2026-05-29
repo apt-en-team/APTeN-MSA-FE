@@ -29,6 +29,10 @@ const state = reactive({
     building: '',
     status: '',
   },
+  matchFilters: {
+    keyword: '',
+    status: '',
+  },
   buildingOptions: [],
   pagination: {
     currentPage: 1,
@@ -124,6 +128,8 @@ const state = reactive({
   },
   matchForm: {
     rejectReason: '',
+    rejectPreset: '',
+    rejectReasonCode: '',
   },
   selectedHousehold: null,
   selectedMatch: null,
@@ -187,7 +193,7 @@ const matchRequests = computed(() => {
   return []
 })
 
-const pendingCount = computed(() => matchRequests.value.filter((m) => m.matchStatus === 'PENDING').length)
+const pendingCount = computed(() => matchRequests.value.filter((m) => normalizeMatchStatus(m.matchStatus) === 'PENDING').length)
 
 // 세대 상세·이력·세대원 스토어 데이터
 const householdDetail = computed(() => householdStore.householdDetail)
@@ -228,6 +234,12 @@ const buildingOptions = computed(() => {
   const set = new Set(source.filter(Boolean))
   return [...set].sort()
 })
+
+const matchRejectPresets = [
+  { code: 'INFO_MISMATCH', label: '입력한 세대 정보가 일치하지 않습니다.' },
+  { code: 'HOUSEHOLD_NOT_FOUND', label: '신청 세대를 찾을 수 없습니다.' },
+  { code: 'ADMIN_REJECTED', label: '관리자 확인 결과 승인이 어렵습니다.' },
+]
 
 // 통계 카드 — BE summary 값 사용 (단지 전체 기준)
 const summaryItems = computed(() => {
@@ -284,8 +296,18 @@ const pagedHouseholds = computed(() =>
   })),
 )
 
+const filteredMatchRequests = computed(() => {
+  const kw = state.matchFilters.keyword.trim()
+  const st = state.matchFilters.status
+  return matchRequests.value.filter((m) => {
+    const nameMatch = !kw || (m.inputName ?? '').includes(kw)
+    const statusMatch = !st || normalizeMatchStatus(m.matchStatus) === st
+    return nameMatch && statusMatch
+  })
+})
+
 const pagedMatchRequests = computed(() =>
-  matchRequests.value.map((m, i) => ({
+  filteredMatchRequests.value.map((m, i) => ({
     ...m,
     number: i + 1,
     address: `${m.inputBuilding ?? '-'}동 ${m.inputUnit ?? '-'}호`,
@@ -303,12 +325,16 @@ const statusLabel = (s) =>
   ({ OCCUPIED: '입주', VACANT: '공실', MOVED_OUT: '퇴거', MOVING_OUT: '전출예정' })[toStatusCode(s)] ?? s ?? '-'
 const statusClass = (s) =>
   ({ OCCUPIED: 'is-success', VACANT: 'is-gray', MOVED_OUT: 'is-danger', MOVING_OUT: 'is-warning' })[toStatusCode(s)] ?? 'is-gray'
-const matchStatusLabel = (s) => ({ PENDING: '대기', APPROVED: '승인', REJECTED: '거절' })[s] ?? s ?? '-'
-const matchStatusClass = (s) => ({ PENDING: 'is-gray', APPROVED: 'is-success', REJECTED: 'is-danger' })[s] ?? 'is-gray'
+const normalizeMatchStatus = (s) =>
+  ({ '01': 'PENDING', '02': 'APPROVED', '03': 'REJECTED', '승인대기': 'PENDING', '승인완료': 'APPROVED', '승인거절': 'REJECTED' })[s] ?? s
+const matchStatusLabel = (s) =>
+  ({ PENDING: '승인대기', APPROVED: '승인완료', REJECTED: '승인거절' })[normalizeMatchStatus(s)] ?? s ?? '-'
+const matchStatusClass = (s) =>
+  ({ PENDING: 'is-gray', APPROVED: 'is-success', REJECTED: 'is-danger' })[normalizeMatchStatus(s)] ?? 'is-gray'
 const webServiceLabel = (s) =>
-  ({ NOT_SIGNED_UP: '미가입', COMPLETED: '완료', PENDING: '대기', REJECTED: '반려' })[s] ?? s ?? '-'
+  ({ NOT_SIGNED_UP: '미가입', COMPLETED: '가입', PENDING: '대기', REJECTED: '반려', DELETED: '탈퇴' })[s] ?? s ?? '-'
 const webServiceClass = (s) =>
-  ({ NOT_SIGNED_UP: 'is-gray', COMPLETED: 'is-success', PENDING: 'is-warning', REJECTED: 'is-danger' })[s] ?? 'is-gray'
+  ({ NOT_SIGNED_UP: 'is-gray', COMPLETED: 'is-success', PENDING: 'is-warning', REJECTED: 'is-danger', DELETED: 'is-danger' })[s] ?? 'is-gray'
 
 function normalizeHouseholdRole(role) {
   return ({ '세대주': 'HEAD', '세대원': 'MEMBER' })[role] ?? role ?? 'MEMBER'
@@ -411,7 +437,7 @@ async function loadHouseholds() {
 
 async function loadMatchRequests() {
   try {
-    await householdStore.fetchMatchRequests({ matchStatus: 'PENDING', page: 0, size: 50 })
+    await householdStore.fetchMatchRequests({ page: 0, size: 50 })
   } catch (error) {
     console.error(error)
   }
@@ -436,6 +462,11 @@ function resetFilters() {
   state.filters.status = ''
   state.pagination.currentPage = 1
   loadHouseholds()
+}
+
+function resetMatchFilters() {
+  state.matchFilters.keyword = ''
+  state.matchFilters.status = ''
 }
 
 function handlePageChange(page) {
@@ -711,7 +742,15 @@ async function handleEditHousehold() {
 function openMatchModal(row) {
   state.selectedMatch = row
   state.matchForm.rejectReason = ''
+  state.matchForm.rejectPreset = ''
+  state.matchForm.rejectReasonCode = ''
   state.modals.matchProcess = true
+}
+
+function selectMatchRejectPreset(reason) {
+  state.matchForm.rejectPreset = reason.code
+  state.matchForm.rejectReasonCode = reason.code
+  state.matchForm.rejectReason = reason.label
 }
 
 async function handleApprove() {
@@ -720,6 +759,8 @@ async function handleApprove() {
   state.approveSubmitting = true
   try {
     await householdStore.approveMatchRequest(state.selectedMatch.matchRequestId)
+    await loadMatchRequests()
+    await loadHouseholds()
     state.modals.matchProcess = false
     openResultModal({
       type: 'success',
@@ -745,8 +786,9 @@ async function handleReject() {
   state.rejectSubmitting = true
   try {
     await householdStore.rejectMatchRequest(state.selectedMatch.matchRequestId, {
-      reason: state.matchForm.rejectReason,
+      reason: state.matchForm.rejectReasonCode || 'ADMIN_REJECTED',
     })
+    await loadMatchRequests()
     state.modals.matchProcess = false
     openResultModal({
       type: 'danger',
@@ -1437,7 +1479,7 @@ watch(
         :class="{ 'is-active': state.activeTab === 'match' }"
         @click="switchTab('match')"
       >
-        매칭 승인 대기
+        승인 대기
         <span v-if="pendingCount > 0" class="tab-badge">{{ pendingCount }}</span>
       </button>
     </div>
@@ -1507,7 +1549,28 @@ watch(
 
     <!-- 매칭 승인 대기 탭 -->
     <div v-if="state.activeTab === 'match'" class="card-shell">
-      <div v-if="matchRequests.length === 0" class="table-feedback">승인 대기 중인 매칭 요청이 없습니다.</div>
+      <AdminFilterBar @reset="resetMatchFilters">
+        <div class="search-input-wrap">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            v-model="state.matchFilters.keyword"
+            class="filter-input"
+            type="text"
+            placeholder="이름으로 검색"
+          />
+        </div>
+        <select v-model="state.matchFilters.status" class="filter-select">
+          <option value="">전체 상태</option>
+          <option value="PENDING">승인대기</option>
+          <option value="APPROVED">승인완료</option>
+          <option value="REJECTED">승인거절</option>
+        </select>
+      </AdminFilterBar>
+
+      <div v-if="pagedMatchRequests.length === 0" class="table-feedback">조건에 맞는 매칭 요청이 없습니다.</div>
       <AdminTable
         v-else
         :columns="matchColumns"
@@ -1518,7 +1581,15 @@ watch(
         </template>
         <template #action="{ row }">
           <div class="table-actions">
-            <button type="button" class="table-action-button" @click.stop="openMatchModal(row)">처리</button>
+            <button
+              v-if="normalizeMatchStatus(row.matchStatus) === 'PENDING'"
+              type="button"
+              class="table-action-button"
+              @click.stop="openMatchModal(row)"
+            >
+              처리
+            </button>
+            <span v-else class="table-action-text">완료</span>
           </div>
         </template>
       </AdminTable>
@@ -1822,16 +1893,49 @@ watch(
       class="household-modal"
       :visible="state.modals.matchProcess"
       title="매칭 승인 처리"
-      :subtitle="state.selectedMatch ? `${state.selectedMatch.inputName} · ${state.selectedMatch.address}` : ''"
       @close="state.modals.matchProcess = false"
     >
-      <div class="form-grid">
-        <label class="form-field form-field--full">
+      <div v-if="state.selectedMatch" class="match-review">
+        <div class="match-review__person">
+          <strong>{{ state.selectedMatch.inputName }}</strong>
+          <span>{{ state.selectedMatch.address }}</span>
+        </div>
+        <dl class="match-review__meta">
+          <div>
+            <dt>요청일</dt>
+            <dd>{{ state.selectedMatch.createdAt }}</dd>
+          </div>
+          <div>
+            <dt>생년월일</dt>
+            <dd>{{ formatDate(state.selectedMatch.inputBirthDate) }}</dd>
+          </div>
+          <div>
+            <dt>연락처</dt>
+            <dd>{{ state.selectedMatch.inputPhone ?? '-' }}</dd>
+          </div>
+        </dl>
+      </div>
+      <div class="form-grid match-reject-section">
+        <div class="form-field form-field--full">
           <span>거절 사유 <em class="required">*</em></span>
+          <div class="reject-preset-group">
+            <button
+              v-for="reason in matchRejectPresets"
+              :key="reason.code"
+              type="button"
+              :class="['reject-preset-button', { 'is-selected': state.matchForm.rejectPreset === reason.code }]"
+              @click="selectMatchRejectPreset(reason)"
+            >
+              {{ reason.label }}
+            </button>
+          </div>
+        </div>
+        <label class="form-field form-field--full">
+          <span>직접 입력</span>
           <input
             v-model="state.matchForm.rejectReason"
             type="text"
-            placeholder="거절 시 사유를 입력하세요"
+            placeholder="필요 시 사유를 직접 입력하세요"
           />
         </label>
       </div>
@@ -2461,6 +2565,15 @@ watch(
   cursor: pointer;
 }
 
+.table-action-text {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  color: #718096;
+  font-size: 12px;
+}
+
 /* 공실 세대 등록 버튼 */
 .table-action-button--register {
   border-color: #2B3A55;
@@ -2641,6 +2754,86 @@ watch(
 .form-feedback.hint  { color: #A0AEC0; }
 
 /* 세대 상세 모달 X 버튼 */
+.match-review {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #EDF2F7;
+}
+
+.match-review__person {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.match-review__person strong {
+  color: #111827;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.match-review__person span {
+  color: #2B3A55;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.match-review__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.match-review__meta div {
+  padding: 10px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 7px;
+  background: #F8FAFC;
+}
+
+.match-review__meta dt {
+  margin-bottom: 4px;
+  color: #718096;
+  font-size: 11px;
+}
+
+.match-review__meta dd {
+  margin: 0;
+  color: #1A202C;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.match-reject-section {
+  gap: 12px;
+}
+
+.reject-preset-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reject-preset-button {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 7px;
+  background: #FFFFFF;
+  color: #2D3748;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.reject-preset-button.is-selected {
+  border-color: #2B3A55;
+  background: #2B3A55;
+  color: #FFFFFF;
+}
+
 .household-modal :deep(.base-modal__close) {
   width: 32px;
   height: 32px;
