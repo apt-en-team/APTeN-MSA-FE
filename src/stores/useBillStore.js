@@ -54,6 +54,23 @@ export const useBillStore = defineStore('bill', {
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 월별 비용 확정 취소
+    async unconfirmBill(id) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await billApi.unconfirmHouseholdBill(id)
+        this.billDetail = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
       } finally {
         this.loading = false
       }

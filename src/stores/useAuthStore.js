@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import authApi from '@/api/authApi'
 import { useComplexStore } from '@/stores/useComplexStore'
 
+const RESIDENT_RESTRICTED_STATUSES = ['PENDING', 'REJECTED', '01', '03', '대기', '반려', '거절']
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     loading: false,
@@ -46,7 +48,7 @@ export const useAuthStore = defineStore('auth', {
           window.location.href = '/admin/master'
         } else if (this.role === 'MANAGER' || this.role === 'ADMIN') {
           window.location.href = '/admin/dashboard'
-        } else if (this.role === 'USER' && this.status === 'PENDING') {
+        } else if (this.role === 'USER' && RESIDENT_RESTRICTED_STATUSES.includes(this.status)) {
           // PENDING이면 단지 ID 포함 경로로 이동
           window.location.href = `/resident/${this.complexId}/pending`
         } else if (this.role === 'USER') {
