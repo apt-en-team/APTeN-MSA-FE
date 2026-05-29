@@ -19,6 +19,12 @@ export const getMyHouseholdBills = async (params) => {
   return unwrapApiData(res)
 }
 
+// 내 관리비 상세 조회
+export const getMyHouseholdBillDetail = async (billId) => {
+  const res = await apiClient.get(`/household-bills/${billId}`)
+  return unwrapApiData(res)
+}
+
 // 관리자 관리비 목록 조회
 export const getAdminHouseholdBills = async (params) => {
   const res = await apiClient.get('/admin/household-bills', { params })
@@ -35,6 +41,7 @@ export default {
   saveBasicBillPolicy,
   confirmHouseholdBill,
   getMyHouseholdBills,
+  getMyHouseholdBillDetail,
   getAdminHouseholdBills,
   getAdminHouseholdBillDetail,
 }
