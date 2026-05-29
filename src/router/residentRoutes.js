@@ -66,6 +66,11 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'board/my',
+        component: () => import('@/views/resident/board/ResidentMyBoard.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'notice',
         component: () => import('@/views/resident/board/ResidentNoticeList.vue'),
         meta: { requiresAuth: true, roles: ['USER'] },

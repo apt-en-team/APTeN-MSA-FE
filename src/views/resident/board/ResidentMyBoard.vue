@@ -4,68 +4,58 @@ import { useRouter, useRoute } from 'vue-router'
 import { useBoardStore } from '@/stores/useBoardStore'
 
 export default {
-  name: 'ResidentBoardList',
+  name: 'ResidentMyBoard',
 
   setup() {
     const router = useRouter()
     const route = useRoute()
     const boardStore = useBoardStore()
 
-    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/api').replace(/\/api$/, '')
-
     const state = reactive({
-      activeTab: 'free',
+      activeTab: 'posts',
       keyword: '',
       page: 0,
       size: 20,
     })
 
-    const posts = computed(() => {
-      if (state.activeTab === 'popular') return boardStore.popularPosts ?? []
-      return boardStore.posts?.content ?? []
-    })
-
-    const totalPages = computed(() => {
-      if (state.activeTab === 'popular') return 1
-      return boardStore.posts?.totalPages ?? 0
-    })
-
+    const myPosts = computed(() => boardStore.myPosts?.content ?? [])
+    const myComments = computed(() => boardStore.myComments?.content ?? [])
+    const myPostsTotalPages = computed(() => boardStore.myPosts?.totalPages ?? 0)
+    const myCommentsTotalPages = computed(() => boardStore.myComments?.totalPages ?? 0)
     const loading = computed(() => boardStore.loading)
 
-    const fetchPosts = () => {
-      if (state.activeTab === 'popular') {
-        boardStore.fetchPopularPosts({ size: 20 })
+    const filteredPosts = computed(() => {
+      if (!state.keyword.trim()) return myPosts.value
+      return myPosts.value.filter(p =>
+        p.title?.includes(state.keyword) || p.preview?.includes(state.keyword)
+      )
+    })
+
+    const fetchData = () => {
+      if (state.activeTab === 'posts') {
+        boardStore.fetchMyPosts({ page: state.page, size: state.size })
       } else {
-        boardStore.fetchPosts({
-          keyword: state.keyword || undefined,
-          category: state.activeTab === 'inquiry' ? 'INQUIRY' : 'FREE',
-          page: state.page,
-          size: state.size,
-        })
+        boardStore.fetchMyComments({ page: state.page, size: state.size })
       }
+    }
+
+    const onTabChange = (tab) => {
+      state.activeTab = tab
+      state.page = 0
+      state.keyword = ''
+      fetchData()
     }
 
     const onSearch = () => {
       state.page = 0
-      fetchPosts()
     }
 
-    const onTabChange = (tab) => {
-      if (tab === 'my') {
-        router.push(`/resident/${route.params.complexId}/board/my`)
-        return
-      }
-      state.activeTab = tab
-      state.page = 0
-      state.keyword = ''
-      fetchPosts()
+    const goBack = () => {
+      router.push(`/resident/${route.params.complexId}/board`)
     }
 
-    const goToDetail = (postId) => {
-      router.push({
-        path: `/resident/${route.params.complexId}/board/${postId}`,
-        query: { category: state.activeTab }
-      })
+    const goToPost = (postId) => {
+      router.push(`/resident/${route.params.complexId}/board/${postId}`)
     }
 
     const goToCreate = () => {
@@ -74,7 +64,7 @@ export default {
 
     const onPageChange = (p) => {
       state.page = p
-      fetchPosts()
+      fetchData()
     }
 
     const formatDate = (dateStr) => {
@@ -88,51 +78,56 @@ export default {
       return `${String(d.getFullYear()).slice(2)}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
     }
 
-    const getThumbUrl = (post) => {
-      if (post.thumbSavedName) {
-        return `${apiBase}/api/files/serve/${post.thumbSavedName}`
-      }
-      return null
-    }
-
     onMounted(() => {
-      const category = route.query.category
-      if (category && category !== 'my') {
-        state.activeTab = category
-      }
-      fetchPosts()
+      fetchData()
     })
 
     return {
       state,
-      posts,
-      totalPages,
+      myPosts,
+      myComments,
+      filteredPosts,
+      myPostsTotalPages,
+      myCommentsTotalPages,
       loading,
-      apiBase,
-      onSearch,
       onTabChange,
-      goToDetail,
+      onSearch,
+      goBack,
+      goToPost,
       goToCreate,
       onPageChange,
       formatDate,
-      getThumbUrl,
     }
   },
 }
 </script>
 
 <template>
-  <div class="board-wrap">
+  <div class="my-board">
+    <!-- 뒤로가기 -->
+    <button class="back-btn" @click="goBack">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      게시판으로
+    </button>
+
     <!-- 탭 -->
     <div class="tab-row">
-      <button class="tab-pill" :class="{ active: state.activeTab === 'free' }" @click="onTabChange('free')">자유</button>
-      <button class="tab-pill" :class="{ active: state.activeTab === 'inquiry' }" @click="onTabChange('inquiry')">문의</button>
-      <button class="tab-pill" :class="{ active: state.activeTab === 'popular' }" @click="onTabChange('popular')">인기글</button>
-      <button class="tab-pill" @click="onTabChange('my')">내가 쓴 글</button>
+      <button
+        class="tab-pill"
+        :class="{ active: state.activeTab === 'posts' }"
+        @click="onTabChange('posts')"
+      >내가 쓴 글</button>
+      <button
+        class="tab-pill"
+        :class="{ active: state.activeTab === 'comments' }"
+        @click="onTabChange('comments')"
+      >내가 쓴 댓글</button>
     </div>
 
-    <!-- 검색 -->
-    <div v-if="state.activeTab !== 'popular'" class="search-box">
+    <!-- 검색 (내가 쓴 글 탭에서만) -->
+    <div v-if="state.activeTab === 'posts'" class="search-box">
       <input
         v-model="state.keyword"
         class="search-input"
@@ -153,23 +148,16 @@ export default {
       <span class="dot" /><span class="dot" /><span class="dot" />
     </div>
 
-    <!-- 게시글 목록 -->
-    <ul v-else class="post-list card-section">
+    <!-- 내가 쓴 글 목록 -->
+    <ul v-else-if="state.activeTab === 'posts'" class="post-list card-section">
       <li
-        v-for="post in posts"
+        v-for="post in filteredPosts"
         :key="post.postId"
         class="post-item"
-        @click="goToDetail(post.postId)"
+        @click="goToPost(post.postId)"
       >
         <div class="post-body">
-          <p class="post-title">
-            <span class="title-text">{{ post.title }}</span>
-            <span v-if="post.hasFile" class="clip-icon">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-              </svg>
-            </span>
-          </p>
+          <p class="post-title text-ellipsis">{{ post.title }}</p>
           <p v-if="post.preview" class="post-preview">{{ post.preview }}</p>
           <div class="post-stats">
             <span class="stat">
@@ -192,27 +180,48 @@ export default {
               {{ post.viewCount ?? 0 }}
             </span>
             <span class="meta-sep">|</span>
-            <span class="meta-name">{{ post.writerName ?? '익명' }}</span>
-            <span class="meta-dot">·</span>
             <span class="meta-date">{{ formatDate(post.createdAt) }}</span>
           </div>
         </div>
-
-        <!-- 썸네일 이미지 -->
-        <div v-if="getThumbUrl(post)" class="post-thumb">
-          <img :src="getThumbUrl(post)" :alt="post.title" />
+        <div v-if="post.thumbUrl" class="post-thumb">
+          <img :src="post.thumbUrl" alt="" />
         </div>
       </li>
+      <li v-if="filteredPosts.length === 0" class="post-empty">
+        작성한 글이 없습니다.
+      </li>
+    </ul>
 
-      <li v-if="posts.length === 0" class="post-empty">
-        {{ state.activeTab === 'popular' ? '인기글이 없습니다.' : '게시글이 없습니다.' }}
+    <!-- 내가 쓴 댓글 목록 -->
+    <ul v-else class="post-list card-section">
+      <li
+        v-for="comment in myComments"
+        :key="comment.commentId"
+        class="post-item"
+        @click="goToPost(comment.postId)"
+      >
+        <div class="post-body">
+          <p class="comment-post-title text-ellipsis">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M1 1h10v6.5H7l-1 2-1-2H1V1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+            </svg>
+            {{ comment.postTitle ?? '게시글' }}
+          </p>
+          <p class="post-title">{{ comment.content }}</p>
+          <div class="post-stats">
+            <span class="meta-date">{{ formatDate(comment.createdAt) }}</span>
+          </div>
+        </div>
+      </li>
+      <li v-if="myComments.length === 0" class="post-empty">
+        작성한 댓글이 없습니다.
       </li>
     </ul>
 
     <!-- 페이지네이션 -->
-    <div v-if="totalPages > 1" class="pagination">
+    <div v-if="state.activeTab === 'posts' ? myPostsTotalPages > 1 : myCommentsTotalPages > 1" class="pagination">
       <button
-        v-for="p in totalPages"
+        v-for="p in (state.activeTab === 'posts' ? myPostsTotalPages : myCommentsTotalPages)"
         :key="p"
         class="page-btn"
         :class="{ active: state.page === p - 1 }"
@@ -220,8 +229,8 @@ export default {
       >{{ p }}</button>
     </div>
 
-    <!-- FAB -->
-    <button class="fab" @click="goToCreate" aria-label="글쓰기">
+    <!-- FAB (내가 쓴 글 탭에서만) -->
+    <button v-if="state.activeTab === 'posts'" class="fab" @click="goToCreate" aria-label="글쓰기">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <path d="M10 3v14M3 10h14" stroke="white" stroke-width="2" stroke-linecap="round"/>
       </svg>
@@ -230,16 +239,29 @@ export default {
 </template>
 
 <style scoped>
-.board-wrap {
+.my-board {
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
+  padding-bottom: var(--space-32);
 }
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.back-btn:hover { color: var(--color-primary); }
 
 .tab-row {
   display: flex;
   gap: var(--space-8);
-  flex-wrap: wrap;
 }
 
 .tab-pill {
@@ -271,9 +293,7 @@ export default {
   transition: border-color 0.15s;
 }
 
-.search-box:focus-within {
-  border-color: var(--color-primary);
-}
+.search-box:focus-within { border-color: var(--color-primary); }
 
 .search-input {
   flex: 1;
@@ -296,9 +316,7 @@ export default {
   transition: color 0.15s;
 }
 
-.search-icon-btn:hover {
-  color: var(--color-primary);
-}
+.search-icon-btn:hover { color: var(--color-primary); }
 
 .loading-wrap {
   display: flex;
@@ -329,7 +347,7 @@ export default {
 
 .post-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-12);
   padding: var(--space-12) var(--space-16);
@@ -338,13 +356,8 @@ export default {
   transition: background-color 0.12s;
 }
 
-.post-item:last-child {
-  border-bottom: none;
-}
-
-.post-item:hover {
-  background-color: var(--color-bg-muted);
-}
+.post-item:last-child { border-bottom: none; }
+.post-item:hover { background-color: var(--color-bg-muted); }
 
 .post-body {
   flex: 1;
@@ -354,27 +367,20 @@ export default {
   gap: var(--space-4);
 }
 
+.comment-post-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--font-size-detail);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
 .post-title {
   font-size: var(--font-size-body);
   font-weight: 600;
   color: var(--color-text-primary);
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.title-text {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  max-width: 12em;
-}
-
-.clip-icon {
-  display: inline-flex;
-  align-items: center;
-  color: var(--color-text-secondary);
-  flex-shrink: 0;
+  margin: 0;
 }
 
 .post-preview {
@@ -384,6 +390,7 @@ export default {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  margin: 0;
 }
 
 .post-stats {
@@ -401,24 +408,12 @@ export default {
   color: var(--color-text-secondary);
 }
 
-.stat--like {
-  color: var(--color-danger);
-}
+.stat--like { color: var(--color-danger); }
 
 .meta-sep {
   font-size: var(--font-size-detail);
   color: var(--color-border-strong);
   margin: 0 var(--space-4);
-}
-
-.meta-name {
-  font-size: var(--font-size-detail);
-  color: var(--color-text-secondary);
-}
-
-.meta-dot {
-  font-size: var(--font-size-detail);
-  color: var(--color-border-strong);
 }
 
 .meta-date {
@@ -427,18 +422,18 @@ export default {
 }
 
 .post-thumb {
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
   border-radius: var(--radius-8);
-  flex-shrink: 0;
   overflow: hidden;
+  flex-shrink: 0;
+  background-color: var(--color-bg-muted);
 }
 
 .post-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
 
 .post-empty {
@@ -470,9 +465,7 @@ export default {
   font-weight: 700;
 }
 
-.page-btn:hover:not(.active) {
-  background-color: var(--color-bg-muted);
-}
+.page-btn:hover:not(.active) { background-color: var(--color-bg-muted); }
 
 .fab {
   position: fixed;

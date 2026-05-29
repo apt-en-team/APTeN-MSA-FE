@@ -3,8 +3,12 @@ import { reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBoardStore } from '@/stores/useBoardStore'
 import { useNoticeStore } from '@/stores/useNoticeStore'
+import AdminTable from '@/components/admin/AdminTable.vue'
+import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
+import StatsCards from '@/components/admin/StatsCards.vue'
+import BaseBadge from '@/components/common/BaseBadge.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
-import BasePagination from '@/components/common/BasePagination.vue'
 
 const router = useRouter()
 const boardStore = useBoardStore()
@@ -13,6 +17,8 @@ const noticeStore = useNoticeStore()
 const state = reactive({
   activeTab: 'all',
   keyword: '',
+  filterCategory: '',
+  filterDeleted: '',
   page: 1,
   size: 10,
   showDeleteModal: false,
@@ -50,19 +56,50 @@ const currentTotalElements = computed(() => {
   return postsTotalElements.value
 })
 
+const tabCounts = computed(() => ({
+  all: postsTotalElements.value + noticesTotalElements.value,
+  notice: noticesTotalElements.value,
+  free: posts.value.filter(p => p.category === 'FREE').length,
+  inquiry: posts.value.filter(p => p.category === 'INQUIRY').length,
+}))
+
 const filteredList = computed(() => {
-  if (!state.keyword.trim()) return currentList.value
-  return currentList.value.filter(item =>
-    item.title?.includes(state.keyword) || item.writerName?.includes(state.keyword)
-  )
+  let list = currentList.value
+  if (state.keyword.trim()) {
+    list = list.filter(item =>
+      item.title?.includes(state.keyword) || item.writerName?.includes(state.keyword)
+    )
+  }
+  if (state.filterCategory) {
+    list = list.filter(item => {
+      if (state.filterCategory === 'NOTICE') return isNotice(item)
+      return item.category === state.filterCategory
+    })
+  }
+  if (state.filterDeleted !== '') {
+    const deleted = state.filterDeleted === 'true'
+    list = list.filter(item => !!item.isDeleted === deleted)
+  }
+  return list
 })
 
-const statCards = computed(() => [
+const summaryItems = computed(() => [
   { label: '전체 게시글', value: postsTotalElements.value, unit: '개', desc: '자유 + 문의' },
   { label: '전체 공지', value: noticesTotalElements.value, unit: '개', desc: '단지 공지' },
   { label: '전체 댓글', value: statistics.value?.commentCount ?? 0, unit: '개', desc: '' },
-  { label: '삭제된 글', value: 0, unit: '개', desc: '소프트 삭제' },
+  { label: '삭제된 글', value: statistics.value?.deletedPostCount ?? 0, unit: '개', desc: '소프트 삭제' },
 ])
+
+const columns = [
+  { key: 'no', label: '번호' },
+  { key: 'category', label: '카테고리' },
+  { key: 'title', label: '제목' },
+  { key: 'writerName', label: '작성자' },
+  { key: 'commentCount', label: '댓글' },
+  { key: 'viewCount', label: '조회' },
+  { key: 'createdAt', label: '작성일' },
+  { key: 'isDeleted', label: '삭제 여부' },
+]
 
 const fetchData = async () => {
   await boardStore.fetchBoardStatistics({})
@@ -72,7 +109,7 @@ const fetchData = async () => {
     const category = state.activeTab === 'free' ? 'FREE'
       : state.activeTab === 'inquiry' ? 'INQUIRY'
       : undefined
-    await boardStore.fetchPosts({ page: state.page - 1, size: state.size, category })
+    await boardStore.fetchAdminPosts({ page: state.page - 1, size: state.size, category })
     if (state.activeTab === 'all') {
       await noticeStore.fetchAdminNotices({ page: 0, size: 100 })
     }
@@ -83,6 +120,8 @@ const onTabChange = (tab) => {
   state.activeTab = tab
   state.page = 1
   state.keyword = ''
+  state.filterCategory = ''
+  state.filterDeleted = ''
   fetchData()
 }
 
@@ -93,6 +132,8 @@ const onPageChange = (page) => {
 
 const onReset = () => {
   state.keyword = ''
+  state.filterCategory = ''
+  state.filterDeleted = ''
   state.page = 1
   fetchData()
 }
@@ -105,35 +146,6 @@ const goToDetail = (item) => {
   }
 }
 
-const goNoticeCreate = () => {
-  router.push('/admin/notices/create')
-}
-
-const goNoticeEdit = (notice) => {
-  router.push(`/admin/notices/${notice.noticeId}/edit`)
-}
-
-const openDeleteModal = (item) => {
-  state.selectedPost = item
-  state.showDeleteModal = true
-}
-
-const onDeleteConfirm = async () => {
-  state.isSubmitting = true
-  try {
-    if (state.selectedPost.noticeId) {
-      await noticeStore.deleteNotice(state.selectedPost.noticeId)
-    } else {
-      await boardStore.deletePost(state.selectedPost.postId)
-    }
-    state.showDeleteModal = false
-    state.selectedPost = null
-    await fetchData()
-  } finally {
-    state.isSubmitting = false
-  }
-}
-
 const isNotice = (item) => !!item.noticeId
 
 const formatDate = (dateStr) => {
@@ -142,6 +154,13 @@ const formatDate = (dateStr) => {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
+const allRows = computed(() =>
+  filteredList.value.map((item, i) => ({
+    ...item,
+    no: currentTotalElements.value - ((state.page - 1) * state.size + i),
+  }))
+)
+
 onMounted(() => {
   fetchData()
 })
@@ -149,23 +168,11 @@ onMounted(() => {
 
 <template>
   <div class="board-stats">
-    <!-- 헤더 -->
-    <div class="board-stats__header">
-      <h1 class="page-title">게시판 관리</h1>
-      <button class="btn-primary" @click="goNoticeCreate">+ 공지 작성</button>
-    </div>
-
     <!-- 통계 카드 -->
-    <div class="stats-grid">
-      <div v-for="(card, idx) in statCards" :key="idx" class="stat-card">
-        <p class="stat-card__label">{{ card.label }}</p>
-        <p class="stat-card__value">{{ card.value }}<span class="stat-card__unit"> {{ card.unit }}</span></p>
-        <p class="stat-card__desc">{{ card.desc }}</p>
-      </div>
-    </div>
+    <StatsCards :stats="summaryItems" />
 
     <!-- 탭 -->
-    <div class="tab-row">
+    <nav class="tab-bar">
       <button
         v-for="tab in [
           { key: 'all', label: '전체' },
@@ -174,117 +181,111 @@ onMounted(() => {
           { key: 'inquiry', label: '문의' },
         ]"
         :key="tab.key"
+        type="button"
         class="tab-btn"
         :class="{ active: state.activeTab === tab.key }"
         @click="onTabChange(tab.key)"
       >
         {{ tab.label }}
+        <span class="tab-badge">{{ tabCounts[tab.key] }}</span>
       </button>
-    </div>
+    </nav>
 
-    <!-- 필터 -->
-    <div class="card-section filter-bar">
-      <div class="filter-search">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
-        </svg>
-        <input
-          v-model="state.keyword"
-          class="search-input"
-          type="text"
-          placeholder="제목 또는 작성자 검색"
-          @keyup.enter="fetchData"
-        />
-      </div>
-      <button class="btn-reset" @click="onReset">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="23 4 23 10 17 10" />
-          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-        </svg>
-        초기화
-      </button>
-    </div>
+    <!-- 테이블 카드 -->
+    <section class="card-shell">
+      <!-- 필터바 -->
+      <AdminFilterBar @reset="onReset">
+        <div class="search-wrap">
+          <input
+            v-model="state.keyword"
+            class="search-input"
+            type="text"
+            placeholder="제목, 작성자 검색"
+            @keyup.enter="fetchData"
+          />
+        </div>
+        <select v-model="state.filterCategory" class="filter-select">
+          <option value="">카테고리</option>
+          <option value="NOTICE">공지</option>
+          <option value="FREE">자유</option>
+          <option value="INQUIRY">문의</option>
+        </select>
+        <select v-model="state.filterDeleted" class="filter-select">
+          <option value="">삭제 여부</option>
+          <option value="false">정상</option>
+          <option value="true">삭제</option>
+        </select>
+      </AdminFilterBar>
 
-    <!-- 테이블 -->
-    <div class="card-section table-wrap">
+      <!-- 로딩 -->
       <div v-if="loading" class="loading-wrap">
-        <span class="dot" /><span class="dot" /><span class="dot" />
+        <span>불러오는 중...</span>
       </div>
 
-      <table v-else class="board-table">
-        <colgroup>
-          <col style="width: 60px" />
-          <col style="width: 80px" />
-          <col />
-          <col style="width: 120px" />
-          <col style="width: 80px" />
-          <col style="width: 80px" />
-          <col style="width: 120px" />
-          <col style="width: 140px" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>번호</th>
-            <th>카테고리</th>
-            <th>제목</th>
-            <th>작성자</th>
-            <th>댓글</th>
-            <th>조회</th>
-            <th>작성일</th>
-            <th>관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="filteredList.length === 0">
-            <td colspan="8" class="empty-cell">게시글이 없습니다.</td>
-          </tr>
-          <tr
-            v-for="(item, idx) in filteredList"
-            :key="item.noticeId ?? item.postId"
-            class="table-row"
-            @click="goToDetail(item)"
-          >
-            <td class="cell-center">{{ currentTotalElements - ((state.page - 1) * state.size + idx) }}</td>
-            <td class="cell-center">
-              <span v-if="isNotice(item)" class="badge-notice">공지</span>
-              <span v-else-if="item.category === 'FREE'" class="badge-free">자유</span>
-              <span v-else class="badge-inquiry">문의</span>
-            </td>
-            <td class="cell-title">
-              <span class="title-text">{{ item.title }}</span>
-            </td>
-            <td class="cell-center">{{ item.writerName ?? '-' }}</td>
-            <td class="cell-center">{{ item.commentCount ?? '-' }}</td>
-            <td class="cell-center">{{ item.viewCount ?? '-' }}</td>
-            <td class="cell-center">{{ formatDate(item.createdAt) }}</td>
-            <td class="cell-center">
-              <div class="action-btns">
-                <button
-                  v-if="isNotice(item)"
-                  class="btn-edit"
-                  @click.stop="goNoticeEdit(item)"
-                >수정</button>
-                <button
-                  class="btn-delete"
-                  @click.stop="openDeleteModal(item)"
-                >삭제</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- 테이블 -->
+      <AdminTable
+        v-else
+        :columns="columns"
+        :rows="allRows"
+        @row-click="goToDetail"
+      >
+        <template #cell-category="{ row }">
+          <BaseBadge v-if="isNotice(row)" variant="info">공지</BaseBadge>
+          <BaseBadge v-else-if="row.category === 'FREE'" variant="neutral">자유</BaseBadge>
+          <BaseBadge v-else variant="warning">문의</BaseBadge>
+        </template>
 
-      <div class="pagination-wrap">
-        <BasePagination
-          :current-page="state.page"
-          :total-pages="currentTotalPages"
-          :total-all="currentTotalElements"
-          :total-filtered="filteredList.length"
-          unit="건"
-          @change="onPageChange"
-        />
-      </div>
-    </div>
+        <<!-- 제목 -->
+        <template #cell-title="{ row }">
+          <span class="title-wrap">
+            <span class="title-text">{{ row.title }}</span>
+            <span v-if="row.thumbSavedName" class="title-icon title-icon--image">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </span>
+            <span v-if="row.hasFile" class="title-icon title-icon--file">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+            </span>
+          </span>
+        </template>
+
+        <template #cell-writerName="{ row }">
+          {{ row.writerName ?? '-' }}
+        </template>
+
+        <template #cell-commentCount="{ row }">
+          {{ isNotice(row) ? '-' : (row.commentCount ?? 0) }}
+        </template>
+
+        <template #cell-viewCount="{ row }">
+          {{ isNotice(row) ? '-' : (row.viewCount ?? 0) }}
+        </template>
+
+        <template #cell-createdAt="{ row }">
+          {{ formatDate(row.createdAt) }}
+        </template>
+
+        <template #cell-isDeleted="{ row }">
+          <BaseBadge v-if="row.isDeleted" variant="danger">삭제</BaseBadge>
+          <BaseBadge v-else variant="success">정상</BaseBadge>
+        </template>
+      </AdminTable>
+
+      <!-- 페이지네이션 -->
+      <AppPagination
+        :current-page="state.page"
+        :max-page="currentTotalPages"
+        :total-all="currentTotalElements"
+        :total-filtered="filteredList.length"
+        unit="건"
+        @change="onPageChange"
+      />
+    </section>
 
     <!-- 삭제 확인 모달 -->
     <ConfirmModal
@@ -296,7 +297,7 @@ onMounted(() => {
       cancel-text="취소"
       confirm-type="danger"
       :loading="state.isSubmitting"
-      @confirm="onDeleteConfirm"
+      @confirm="() => {}"
       @cancel="state.showDeleteModal = false"
     />
   </div>
@@ -309,326 +310,143 @@ onMounted(() => {
   gap: var(--space-20);
 }
 
-.board-stats__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.btn-primary {
-  height: 36px;
-  padding: 0 var(--space-16);
-  border: none;
-  border-radius: var(--radius-8);
-  background: var(--color-primary);
-  color: var(--white);
-  font-size: var(--font-size-detail);
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.btn-primary:hover { opacity: 0.88; }
-
-/* 통계 카드 */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-16);
-}
-
-.stat-card {
-  padding: var(--space-20) var(--space-24);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-12);
-  background: var(--color-card-bg);
-  box-shadow: var(--shadow-small);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.stat-card__label {
-  font-size: var(--font-size-detail);
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
-.stat-card__value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  margin: 0;
-  line-height: 1.2;
-}
-
-.stat-card__unit {
-  font-size: var(--font-size-detail);
-  color: var(--color-text-secondary);
-  font-weight: 400;
-}
-
-.stat-card__desc {
-  font-size: var(--font-size-detail);
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
 /* 탭 */
-.tab-row {
+.tab-bar {
   display: flex;
-  gap: var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-  padding-bottom: 0;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .tab-btn {
-  height: 36px;
-  padding: 0 var(--space-16);
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #687282;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.15s;
-  margin-bottom: -1px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tab-btn:hover {
+  background: #f5f6f8;
+  color: #2b3a55;
 }
 
 .tab-btn.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  background: #1e2a3e;
+  color: #ffffff;
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 20px;
+  background: #e2e8f0;
+  color: #687282;
+  font-size: 11px;
   font-weight: 700;
 }
 
-.tab-btn:hover:not(.active) {
-  color: var(--color-text-primary);
+.tab-btn.active .tab-badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
-/* 필터 */
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  padding: var(--space-16) var(--space-20);
+/* 카드 */
+.card-shell {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
 }
 
-.filter-search {
+/* 검색 */
+.search-wrap {
   position: relative;
-  flex: 0 0 280px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 14px;
-  height: 14px;
-  stroke: var(--color-border-strong);
 }
 
 .search-input {
-  width: 100%;
-  height: 36px;
-  padding: 0 var(--space-12) 0 32px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-8);
-  font-size: var(--font-size-detail);
-  color: var(--color-text-primary);
+  padding: 7px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #1a202c;
+  background: #ffffff;
+  width: 220px;
   outline: none;
-  transition: border-color 0.15s;
-  box-sizing: border-box;
 }
 
-.search-input:focus { border-color: var(--color-primary); }
-.search-input::placeholder { color: var(--color-border-strong); }
+.search-input:focus {
+  border-color: #a0aec0;
+}
 
-.btn-reset {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 36px;
-  padding: 0 var(--space-12);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-8);
-  background: var(--white);
-  font-size: var(--font-size-detail);
-  color: var(--color-text-secondary);
+/* 필터 드롭다운 */
+.filter-select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #1a202c;
+  background: #ffffff;
+  outline: none;
   cursor: pointer;
-  transition: background 0.15s;
 }
 
-.btn-reset:hover { background: var(--color-bg-muted); }
-
-/* 테이블 */
-.table-wrap {
-  padding: 0;
-  overflow: hidden;
+.filter-select:focus {
+  border-color: #a0aec0;
 }
-
-.board-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.board-table th {
-  padding: 12px var(--space-16);
-  background: var(--color-bg-muted);
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-detail);
-  font-weight: 600;
-  text-align: center;
-}
-
-.board-table td {
-  padding: 14px var(--space-16);
-  border-bottom: 1px solid var(--color-border);
-  font-size: var(--font-size-detail);
-  color: var(--color-text-primary);
-  vertical-align: middle;
-}
-
-.board-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.table-row {
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.table-row:hover {
-  background: var(--color-bg-muted);
-}
-
-.cell-center { text-align: center; }
-
-.cell-title {
-  text-align: left;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.title-text { font-weight: 500; }
-
-.badge-notice {
-  display: inline-block;
-  padding: 2px var(--space-8);
-  border-radius: var(--radius-4);
-  background: var(--color-primary);
-  color: var(--white);
-  font-size: var(--font-size-badge);
-  font-weight: 700;
-}
-
-.badge-free {
-  display: inline-block;
-  padding: 2px var(--space-8);
-  border-radius: var(--radius-4);
-  background: var(--color-bg-muted);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-badge);
-  font-weight: 700;
-}
-
-.badge-inquiry {
-  display: inline-block;
-  padding: 2px var(--space-8);
-  border-radius: var(--radius-4);
-  background: rgba(192, 139, 45, 0.14);
-  color: var(--color-warning);
-  font-size: var(--font-size-badge);
-  font-weight: 700;
-}
-
-.empty-cell {
-  padding: var(--space-48) 0 !important;
-  color: var(--color-text-secondary);
-  text-align: center;
-}
-
-.action-btns {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-8);
-  white-space: nowrap;
-}
-
-.btn-edit {
-  height: 28px;
-  padding: 0 var(--space-12);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-4);
-  background: var(--white);
-  font-size: var(--font-size-detail);
-  color: var(--color-text-primary);
-  cursor: pointer;
-  transition: background 0.12s;
-  white-space: nowrap;
-}
-
-.btn-edit:hover { background: var(--color-bg-muted); }
-
-.btn-delete {
-  height: 28px;
-  padding: 0 var(--space-12);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-4);
-  background: var(--white);
-  font-size: var(--font-size-detail);
-  color: var(--color-danger);
-  cursor: pointer;
-  transition: background 0.12s;
-  white-space: nowrap;
-}
-
-.btn-delete:hover { background: rgba(229, 62, 62, 0.06); }
 
 /* 로딩 */
 .loading-wrap {
-  display: flex;
-  justify-content: center;
-  gap: var(--space-8);
-  padding: var(--space-48);
+  padding: 40px;
+  text-align: center;
+  color: #7b8ea8;
+  font-size: 13px;
 }
 
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
-  background-color: var(--color-primary);
-  animation: dotBounce 0.7s infinite alternate;
-}
-.dot:nth-child(2) { animation-delay: 0.15s; }
-.dot:nth-child(3) { animation-delay: 0.3s; }
-
-@keyframes dotBounce {
-  from { transform: translateY(0); opacity: 0.3; }
-  to { transform: translateY(-5px); opacity: 1; }
-}
-
-/* 페이지네이션 */
-.pagination-wrap {
-  padding: var(--space-16) var(--space-20);
-  border-top: 1px solid var(--color-border);
-}
-
-:deep(.base-pagination) {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-}
-
-:deep(.base-pagination__nav) {
-  justify-content: center;
-}
-
-:deep(.base-pagination__summary) {
+/* 제목 */
+.title-text {
+  font-weight: 500;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 300px;
   text-align: left;
+}
+
+.title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.title-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.title-icon--image {
+  color: var(--color-primary);
+}
+
+.title-icon--file {
+  color: #e67e22;
 }
 </style>

@@ -78,26 +78,29 @@ export default {
           @click="goToDetail(notice.noticeId)"
         >
           <div class="notice-body">
-            <p class="notice-title">{{ notice.title }}</p>
+            <div class="notice-title-row">
+              <span class="badge-notice">공지</span>
+              <p class="notice-title">
+                {{ notice.title }}
+                <span v-if="notice.thumbSavedName" class="attach-icon attach-icon--image">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                </span>
+                <span v-if="notice.hasFile" class="attach-icon attach-icon--file">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                  </svg>
+                </span>
+              </p>
+            </div>
             <div class="notice-meta">
-              <span class="meta-item">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M1 1h10v6.5H7l-1 2-1-2H1V1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-                </svg>
-                {{ notice.commentCount ?? 0 }}
-              </span>
-              <span class="meta-item">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <ellipse cx="6" cy="6" rx="5" ry="3" stroke="currentColor" stroke-width="1.2"/>
-                  <circle cx="6" cy="6" r="1.5" fill="currentColor"/>
-                </svg>
-                {{ notice.viewCount ?? 0 }}
-              </span>
+              <span class="meta-writer">{{ notice.writerName ?? '관리사무소' }}</span>
+              <span class="meta-dot">·</span>
               <span class="meta-date">{{ formatDate(notice.createdAt) }}</span>
             </div>
-          </div>
-          <div v-if="notice.thumbUrl" class="notice-thumb">
-            <img :src="notice.thumbUrl" :alt="notice.title" />
           </div>
         </li>
 
@@ -189,12 +192,47 @@ export default {
   gap: var(--space-8);
 }
 
+.notice-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.badge-notice {
+  display: inline-block;
+  padding: 2px var(--space-8);
+  border-radius: var(--radius-4);
+  background: var(--color-primary);
+  color: var(--white);
+  font-size: var(--font-size-badge);
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .notice-title {
   font-size: var(--font-size-body-sm);
   font-weight: 600;
   color: var(--color-text-primary);
   line-height: 1.5;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.attach-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.attach-icon--image {
+  color: var(--color-primary);
+}
+
+.attach-icon--file {
+  color: #e67e22;
 }
 
 .notice-meta {
@@ -203,12 +241,15 @@ export default {
   gap: var(--space-8);
 }
 
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 3px;
+.meta-writer {
   font-size: var(--font-size-detail);
   color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.meta-dot {
+  font-size: var(--font-size-detail);
+  color: var(--color-border-strong);
 }
 
 .meta-date {
@@ -216,19 +257,12 @@ export default {
   color: var(--color-text-secondary);
 }
 
-.notice-thumb {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-8);
-  overflow: hidden;
-  flex-shrink: 0;
-  background: var(--color-bg-muted);
-}
-
-.notice-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--font-size-detail);
+  color: var(--color-text-secondary);
 }
 
 .notice-empty {

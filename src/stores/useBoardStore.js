@@ -259,5 +259,20 @@ export const useBoardStore = defineStore('board', {
         this.loading = false
       }
     },
+
+    // 관리자 게시글 목록 조회 (삭제된 글 포함)
+    async fetchAdminPosts(params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await boardApi.getAdminPosts(params)
+        this.posts = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
   },
 })

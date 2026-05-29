@@ -11,6 +11,8 @@ import AdminGxProgramList from '@/views/admin/facility/AdminGxProgramList.vue'
 import AdminSubscriptionView from '@/views/admin/facility/AdminSubscriptionView.vue'
 import AdminReservationList from '@/views/admin/facility/AdminReservationList.vue'
 import AdminHouseholdList from '@/views/admin/household/AdminHouseholdList.vue'
+import AdminHouseholdCreate from '@/views/admin/household/AdminHouseholdCreate.vue'
+import AdminHouseholdDetail from '@/views/admin/household/AdminHouseholdDetail.vue'
 import AdminParkingDashboard from '@/views/admin/parking/AdminParkingDashboard.vue'
 import AdminParkingLogList from '@/views/admin/parking/AdminParkingLogList.vue'
 import AdminParkingStatistics from '@/views/admin/parking/AdminParkingStatistics.vue'
@@ -41,7 +43,9 @@ const adminRoutes = [
 
       // 세대 / 관리비 관리
       { path: 'households', component: AdminHouseholdList, meta: { ...adminRouteMeta, title: '세대 관리' } },
-      { path: 'bills', component: AdminBillList, meta: { ...adminRouteMeta, title: '관리비 관리' } },
+      { path: 'households/create', component: AdminHouseholdCreate, meta: { ...adminRouteMeta, title: '세대 등록' } },
+      { path: 'households/:householdId', component: AdminHouseholdDetail, meta: { ...adminRouteMeta, title: '세대 상세' } },
+      { path: 'bills', component: AdminBillList, meta: { ...adminRouteMeta, title: '관리비 정산' } },
 
       // 차량 / 방문차량 관리
       { path: 'vehicles', component: AdminVehicleList, meta: { ...adminRouteMeta, title: '입주민 차량 목록' } },
