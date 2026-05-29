@@ -57,10 +57,8 @@ export const togglePostLike = async (postId) => {
 
 // 첨부파일 업로드
 export const uploadBoardFile = async (formData) => {
-  const res = await apiClient.post('/boards/files', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+  const res = await apiClient.post('/files', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
   })
   return unwrapApiData(res)
 }
@@ -80,6 +78,18 @@ export const getMyComments = async (params) => {
 // 인기글 조회
 export const getPopularPosts = async (params) => {
   const res = await apiClient.get('/boards/posts/popular', { params })
+  return unwrapApiData(res)
+}
+
+// 관리자 댓글 목록 조회
+export const getAdminComments = async (postId, params) => {
+  const res = await apiClient.get(`/admin/boards/posts/${postId}/comments`, { params })
+  return unwrapApiData(res)
+}
+
+// 관리자 댓글 작성
+export const createAdminComment = async (postId, body) => {
+  const res = await apiClient.post(`/admin/boards/posts/${postId}/comments`, body)
   return unwrapApiData(res)
 }
 
@@ -107,6 +117,12 @@ export const getBoardStatistics = async (params) => {
   return unwrapApiData(res)
 }
 
+// 관리자 게시글 목록 조회 (삭제된 글 포함)
+export const getAdminPosts = async (params) => {
+  const res = await apiClient.get('/admin/boards/posts', { params })
+  return unwrapApiData(res)
+}
+
 // 댓글 목록 조회
 export const getComments = async (postId, params) => {
   const res = await apiClient.get(`/boards/posts/${postId}/comments`, { params })
@@ -127,9 +143,12 @@ export default {
   getMyPosts,
   getMyComments,
   getPopularPosts,
+  getAdminComments,
+  createAdminComment,
   deleteAdminPost,
   getAdminPostDetail,
   deleteAdminComment,
   getBoardStatistics,
+  getAdminPosts,
   getComments,
 }

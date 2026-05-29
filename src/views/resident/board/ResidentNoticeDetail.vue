@@ -29,6 +29,8 @@ export default {
       router.push(`/resident/${route.params.complexId}/notice`)
     }
 
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/api').replace(/\/api$/, '')
+
     const avatarLetter = (name) => name?.charAt(0) ?? '관'
 
     onMounted(async () => {
@@ -46,6 +48,7 @@ export default {
       formatDate,
       goBack,
       avatarLetter,
+      apiBase,
     }
   },
 }
@@ -75,8 +78,7 @@ export default {
             <span class="author-name">{{ notice.writerName ?? '관리자' }}</span>
             <span class="badge-admin">관리자</span>
           </div>
-          <span class="author-meta">조회수 {{ notice.viewCount ?? 0 }} · {{ formatDate(notice.createdAt) }}</span>
-          <span class="author-unit">그린아파트 관리사무소</span>
+          <span class="author-meta">{{ formatDate(notice.createdAt) }}</span>
         </div>
       </div>
 
@@ -94,29 +96,27 @@ export default {
         <img
           v-for="file in notice.files.filter(f => f.fileType === 'IMAGE')"
           :key="file.fileId"
-          :src="file.filePath"
+          :src="`${apiBase}/api/files/serve/${file.savedName}`"
           :alt="file.originName"
           class="notice-image"
         />
       </div>
 
       <!-- 일반 첨부파일 -->
-      <div
-        v-if="notice.files && notice.files.some(f => f.fileType === 'FILE')"
-        class="file-section"
-      >
-        <p class="file-label">첨부파일</p>
-        <div
-          v-for="file in notice.files.filter(f => f.fileType === 'FILE')"
+      <div v-if="notice.files && notice.files.some(f => f.fileType === 'FILE')" class="file-section">
+
+          <a v-for="file in notice.files.filter(f => f.fileType === 'FILE')"
           :key="file.fileId"
-          class="file-item"
+          :href="`${apiBase}/api/files/serve/${file.savedName}`"
+          target="_blank"
+          class="file-card"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
           </svg>
-          <span>{{ file.originName }}</span>
-        </div>
+          <span class="file-card-name">{{ file.originName }}</span>
+        </a>
       </div>
     </template>
   </div>
@@ -268,15 +268,15 @@ export default {
 
 /* 이미지 */
 .image-section {
+  margin: 0 calc(-1 * var(--space-20));
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  padding: 0 var(--space-16);
+  gap: 2px;
 }
 
 .notice-image {
   width: 100%;
-  border-radius: var(--radius-8);
+  max-height: 280px;
   object-fit: cover;
   display: block;
 }
@@ -287,28 +287,33 @@ export default {
   flex-direction: column;
   gap: var(--space-8);
   padding: var(--space-12) var(--space-16);
-  background: var(--color-bg-muted);
-  border-radius: var(--radius-8);
-  margin: 0 var(--space-16);
+  border-top: 1px solid var(--color-border);
 }
 
-.file-label {
-  font-size: var(--font-size-detail);
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
-.file-item {
+.file-card {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  font-size: var(--font-size-detail);
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  background: var(--color-bg-muted);
+  text-decoration: none;
   color: var(--color-text-primary);
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
 }
 
-.file-item:hover {
-  color: var(--color-primary);
+.file-card:hover {
+  background: #eef3fb;
+  border-color: var(--color-primary);
+}
+
+.file-card-name {
+  flex: 1;
+  font-size: var(--font-size-body-sm);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 </style>

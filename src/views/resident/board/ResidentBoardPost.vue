@@ -41,45 +41,39 @@ const handleCancel = () => {
 
 const handleSubmit = async () => {
   if (!isValid.value || isSubmitting.value) return
-
   isSubmitting.value = true
   try {
     const complexId = route.params.complexId
 
     if (isEditMode.value) {
-      // 수정 모드
       await boardStore.updatePost(postId.value, {
         title: form.value.title,
         content: form.value.content,
       })
       router.push(`/resident/${complexId}/board/${postId.value}`)
     } else {
-      // 작성 모드
-      const imageFileMetas = []
-      for (let i = 0; i < attachedImages.value.length; i++) {
-        const fd = new FormData()
-        fd.append('file', attachedImages.value[i])
-        fd.append('fileType', 'IMAGE')
-        const res = await boardApi.uploadBoardFile(fd)
-        imageFileMetas.push({ ...res, fileType: 'IMAGE', sortOrder: i })
-      }
-
-      const fileFileMetas = []
-      for (let i = 0; i < attachedFiles.value.length; i++) {
-        const fd = new FormData()
-        fd.append('file', attachedFiles.value[i])
-        fd.append('fileType', 'FILE')
-        const res = await boardApi.uploadBoardFile(fd)
-        fileFileMetas.push({ ...res, fileType: 'FILE', sortOrder: i })
-      }
-
-      await boardStore.createPost({
+      // 1. 게시글 먼저 저장
+      const created = await boardStore.createPost({
         complexId,
         category: form.value.category,
         title: form.value.title,
         content: form.value.content,
-        files: [...imageFileMetas, ...fileFileMetas],
       })
+      const newPostId = created?.postId
+
+      // 2. 파일/이미지 업로드 (postId 포함)
+      if (newPostId) {
+        const allFiles = [
+          ...attachedImages.value.map(f => ({ file: f, fileType: 'IMAGE' })),
+          ...attachedFiles.value.map(f => ({ file: f, fileType: 'FILE' })),
+        ]
+        for (const item of allFiles) {
+          const fd = new FormData()
+          fd.append('postId', newPostId)
+          fd.append('files', item.file)
+          await boardApi.uploadBoardFile(fd)
+        }
+      }
 
       router.push(`/resident/${complexId}/board`)
     }
