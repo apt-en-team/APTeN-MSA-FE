@@ -259,6 +259,7 @@ export const useHouseholdStore = defineStore('household', {
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -270,10 +271,11 @@ export const useHouseholdStore = defineStore('household', {
       this.error = null
       try {
         const res = await householdApi.approveHouseholdMatchRequest(id)
-        this.matchRequests = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -285,10 +287,11 @@ export const useHouseholdStore = defineStore('household', {
       this.error = null
       try {
         const res = await householdApi.rejectHouseholdMatchRequest(id, body)
-        this.matchRequests = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
