@@ -49,6 +49,18 @@ export const getAdminVehicleDetail = async (vehicleId) => {
   return unwrapApiData(res)
 }
 
+// 관리자 차량 상태별 통계 조회
+export const getAdminVehicleStats = async () => {
+  const res = await apiClient.get('/admin/vehicle-stats')
+  return unwrapApiData(res)
+}
+
+// 관리자 차량 화면 동/호 옵션 조회
+export const getVehicleLocations = async () => {
+  const res = await apiClient.get('/admin/vehicle-locations')
+  return unwrapApiData(res)
+}
+
 // 차량 승인
 export const approveVehicle = async (vehicleId) => {
   const res = await apiClient.patch(`/admin/vehicles/${vehicleId}/approve`)
@@ -82,6 +94,8 @@ export default {
   getMyVehicleDetail,
   getAdminVehicles,
   getAdminVehicleDetail,
+  getAdminVehicleStats,
+  getVehicleLocations,
   approveVehicle,
   rejectVehicle,
   saveVehiclePolicies,

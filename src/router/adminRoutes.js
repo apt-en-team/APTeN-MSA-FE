@@ -48,7 +48,7 @@ const adminRoutes = [
       { path: 'bills', component: AdminBillList, meta: { ...adminRouteMeta, title: '관리비 정산' } },
 
       // 차량 / 방문차량 관리
-      { path: 'vehicles', component: AdminVehicleList, meta: { ...adminRouteMeta, title: '입주민 차량 목록' } },
+      { path: 'vehicles', component: AdminVehicleList, meta: { ...adminRouteMeta, title: '차량 관리' } },
       { path: 'visitor-vehicles', component: AdminVisitorVehicleList, meta: { ...adminRouteMeta, title: '방문차량 목록' } },
 
       // 주차 관리

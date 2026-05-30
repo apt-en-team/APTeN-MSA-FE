@@ -10,6 +10,8 @@ export const useVehicleStore = defineStore('vehicle', {
     myVehicles: [],
     vehicleDetail: null,
     adminVehicles: [],
+    adminVehicleStats: null,
+    vehicleLocations: null,
     vehiclePolicies: null,
   }),
   getters: {
@@ -140,6 +142,36 @@ export const useVehicleStore = defineStore('vehicle', {
       try {
         const res = await vehicleApi.getAdminVehicleDetail(vehicleId)
         this.vehicleDetail = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 차량 상태별 통계 조회
+    async fetchAdminVehicleStats() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await vehicleApi.getAdminVehicleStats()
+        this.adminVehicleStats = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 차량 화면 동/호 옵션 조회
+    async fetchVehicleLocations() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await vehicleApi.getVehicleLocations()
+        this.vehicleLocations = res
       } catch (e) {
         console.error(e)
         this.error = e

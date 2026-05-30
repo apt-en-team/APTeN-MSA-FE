@@ -44,7 +44,7 @@ const adminMenuDefinitions = [
   {
     label: 'VEHICLE',
     items: [
-      { label: '입주민 차량 목록', path: 'vehicles', icon: 'car' },
+      { label: '차량 관리', path: 'vehicles', icon: 'car' },
       { label: '방문차량 목록', path: 'visitor-vehicles', icon: 'visitor-car' },
       { label: '입출차 기록', path: 'parking-logs', icon: 'log' },
       { label: '주차 현황', path: 'parking/dashboard', icon: 'parking' },
