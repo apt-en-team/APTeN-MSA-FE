@@ -1,39 +1,43 @@
 <script setup>
 // 입주민 주차 현황 화면이다.
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { useParkingStore } from '@/stores/useParkingStore'
+import { useComplexStore } from '@/stores/useComplexStore'
 
 const parkingStore = useParkingStore()
+const complexStore = useComplexStore()
+const route = useRoute()
+const router = useRouter()
 
 const isFirstLoad = ref(true)
 const selectedZoneIndex = ref(0)
-let refreshTimer = null
+
+// 현재 단지가 SENSOR 운영 타입인지 판별
+const isSensorComplex = computed(() => complexStore.isSensorComplex)
+
+// 현재 단지의 주차 운영 타입이 NONE이 아닌지 판별
+const isParkingActiveComplex = computed(
+  () => complexStore.residentComplex?.parkingTypeCode !== '01',
+)
+
+// 자동 갱신 안내 문구 산출
+const refreshNoteText = computed(() =>
+  isParkingActiveComplex.value
+    ? '주차 현황은 실시간으로 갱신됩니다.'
+    : '주차 현황은 화면을 열 때 갱신됩니다.',
+)
 
 // 입주민 주차 현황 조회
 const loadStatus = () => {
   return parkingStore.fetchResidentParkingStatus()
 }
 
-// 자동 갱신 시작
-const startAutoRefresh = () => {
-  if (refreshTimer) return
-  refreshTimer = setInterval(loadStatus, 30000)
-}
-
-// 자동 갱신 정리
-const stopAutoRefresh = () => {
-  if (refreshTimer) clearInterval(refreshTimer)
-  refreshTimer = null
-}
-
-// 탭 활성화 상태 처리
+// 포그라운드 복귀 시 스냅샷 재동기화
 const handleVisibilityChange = () => {
-  if (document.hidden) {
-    stopAutoRefresh()
-  } else {
+  if (!document.hidden) {
     loadStatus()
-    startAutoRefresh()
   }
 }
 
@@ -88,6 +92,12 @@ const selectedStatusText = computed(() => {
 // 구역 선택 처리
 const handleZoneSelect = (index) => {
   selectedZoneIndex.value = index
+  if (isSensorComplex.value) {
+    const zone = zoneList.value[index]
+    if (zone?.zoneId != null) {
+      router.push(`/resident/${route.params.complexId}/parking/zones/${zone.zoneId}/spots`)
+    }
+  }
 }
 
 // 구역 목록 변동 시 선택 인덱스 보정
@@ -98,14 +108,19 @@ watch(zoneList, () => {
 })
 
 onMounted(async () => {
+  // SSE 먼저 동기 시작, await race 누수 방지
+  // (이 줄 아래에 SSE 새 연결을 여는 코드 추가 금지)
+  // 주차 운영 단지(SENSOR/BASIC)에서 SSE 구독
+  if (isParkingActiveComplex.value) {
+    parkingStore.connectSpotSse()
+  }
   await loadStatus()
   isFirstLoad.value = false
-  startAutoRefresh()
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
-  stopAutoRefresh()
+  parkingStore.disconnectSpotSse()
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
@@ -135,6 +150,10 @@ onUnmounted(() => {
           <p class="parking-header-card__title">{{ selectedZone ? formatZoneLabel(selectedZone) : '' }}</p>
           <p class="parking-header-card__subtitle">실시간 주차 현황</p>
           <div class="parking-header-card__divider"></div>
+
+          <p v-if="isSensorComplex" class="zone-select-hint">
+            구역을 선택하면 자리 현황을 볼 수 있습니다
+          </p>
 
           <div class="zone-toggle">
             <button
@@ -218,7 +237,7 @@ onUnmounted(() => {
             <circle cx="12" cy="12" r="9"/>
             <polyline points="12 7 12 12 15 14"/>
           </svg>
-          <span>주차 현황은 30초마다 자동으로 갱신됩니다.</span>
+          <span>{{ refreshNoteText }}</span>
         </p>
       </template>
     </template>
@@ -274,6 +293,13 @@ onUnmounted(() => {
   height: 1px;
   margin-bottom: 14px;
   background: var(--color-border);
+}
+
+/* 구역 선택 안내 문구 */
+.zone-select-hint {
+  margin: 0 0 var(--space-8);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
 }
 
 /* zone 토글 */
