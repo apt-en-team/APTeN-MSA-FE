@@ -383,7 +383,6 @@ const confirmDelete = async () => {
   flex-direction: column;
   gap: 18px;
   padding: var(--space-20) var(--space-16);
-  background: #F4F6FB;
   min-height: 100%;
 }
 
@@ -391,9 +390,8 @@ const confirmDelete = async () => {
 .vehicle-page__title {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: 25px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: 20px;
+  font-weight: 500;
 }
 
 .vehicle-page__subtitle {
@@ -494,7 +492,7 @@ const confirmDelete = async () => {
 .vehicle-card__value {
   min-width: 0;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
