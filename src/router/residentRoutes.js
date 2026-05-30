@@ -141,6 +141,11 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'vehicles',
+        component: () => import('@/views/resident/vehicle/MyVehicleList.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'vote',
         component: ResidentVoteHome,
         meta: { requiresAuth: true, roles: ['USER'] },
