@@ -51,6 +51,23 @@ const createEmptyResidentParkingStatus = () => ({
   updatedAt: '',
 })
 
+// 빈 관리자 주차 현황 기본값 (유형별 카운트는 SENSOR 단지에서 null로 응답)
+const createEmptyAdminParkingStatus = () => ({
+  totalSlots: 0,
+  currentParkedCount: 0,
+  remainingSlots: 0,
+  occupancyRate: 0,
+  residentCount: null,
+  visitorCount: null,
+  regularVisitorCount: null,
+  unregisteredCount: null,
+  areaCount: 0,
+  zones: [],
+  parkingTypeCode: null,
+  parkingTypeValue: null,
+  updatedAt: null,
+})
+
 export const useParkingStore = defineStore('parking', {
   state: () => ({
     loading: false,
@@ -60,6 +77,7 @@ export const useParkingStore = defineStore('parking', {
     parkingSetting: createEmptyParkingSetting(),
     parkingStatistics: createEmptyParkingStatistics(),
     residentParkingStatus: createEmptyResidentParkingStatus(),
+    adminParkingStatus: createEmptyAdminParkingStatus(),
     parkingZones: [],
     sseConnected: false,
     sseClose: null,
@@ -156,6 +174,21 @@ export const useParkingStore = defineStore('parking', {
       try {
         const res = await parkingApi.getResidentParkingStatus()
         this.residentParkingStatus = res ?? createEmptyResidentParkingStatus()
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 주차 현황 조회
+    async fetchAdminParkingStatus() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await parkingApi.getParkingStatus()
+        this.adminParkingStatus = res ?? createEmptyAdminParkingStatus()
       } catch (e) {
         console.error(e)
         this.error = e
