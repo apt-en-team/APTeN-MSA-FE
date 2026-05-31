@@ -53,7 +53,10 @@ const state = reactive({
     rejectConfirm: false,
     typeManage: false,
     lineDeleteConfirm: false,
+    lineEditConfirm: false,
     bulkDeleteConfirm: false,
+    bulkRangeEditConfirm: false,
+    bulkRangeDeleteConfirm: false,
     memberDeleteConfirm: false,
     residentDeleteConfirm: false,
     createResidentDeleteConfirm: false,
@@ -124,6 +127,7 @@ const state = reactive({
   bulkEditSubmitting: false,
   bulkEditError: '',
   bulkDeleteTarget: null,
+  bulkRangeDeleteTargetId: null,
   editForm: {
     householdId: null,
     building: '',
@@ -275,7 +279,7 @@ const summaryItems = computed(() => {
       label: '이번 달 입주',
       value: thisMonth > 0 ? `+${thisMonth}` : '-',
       unit: '세대',
-      desc: '이번 달 입주 처리 기준',
+      desc: '이번 달 입주일 기준',
       descClass: '',
     },
   ]
@@ -1282,6 +1286,15 @@ function cancelLineEdit() {
   state.editLineError = ''
 }
 
+function openLineEditConfirm() {
+  state.modals.lineEditConfirm = true
+}
+
+async function confirmLineUpdate() {
+  state.modals.lineEditConfirm = false
+  await handleLineUpdate()
+}
+
 async function handleLineUpdate() {
   if (state.editLineSubmitting) return
   state.editLineSubmitting = true
@@ -1481,7 +1494,29 @@ function cancelBulkRangeEdit() {
   state.bulkEditForm = { building: '', floorStart: '', floorEnd: '', lineStart: '', lineEnd: '' }
 }
 
-function saveBulkRangeEdit(rangeId) {
+function openBulkRangeEditConfirm() {
+  state.modals.bulkRangeEditConfirm = true
+}
+
+async function confirmBulkRangeEdit() {
+  state.modals.bulkRangeEditConfirm = false
+  await saveBulkRangeEdit()
+}
+
+function openBulkRangeDeleteConfirm(rangeId) {
+  state.bulkRangeDeleteTargetId = rangeId
+  state.modals.bulkRangeDeleteConfirm = true
+}
+
+async function confirmBulkRangeDelete() {
+  state.modals.bulkRangeDeleteConfirm = false
+  await removeBulkRange(state.bulkRangeDeleteTargetId)
+  state.bulkRangeDeleteTargetId = null
+}
+
+async function saveBulkRangeEdit() {
+  if (state.bulkEditSubmitting) return
+  const currentRange = state.bulkRanges.find((range) => range.id === state.bulkEditingId)
   const { building, floorStart, floorEnd, lineStart, lineEnd } = state.bulkEditForm
   if (!building || !floorEnd || !lineStart || !lineEnd) {
     state.bulkEditError = '동, 종료층, 시작라인, 종료라인은 필수입니다.'
@@ -1505,19 +1540,45 @@ function saveBulkRangeEdit(rangeId) {
     return
   }
 
-  state.bulkRanges = state.bulkRanges.map((range) =>
-    range.id === rangeId
-      ? {
-          ...range,
-          building: building.trim(),
-          floorStart: nextFloorStart,
-          floorEnd: nextFloorEnd,
-          lineStart: nextLineStart,
-          lineEnd: nextLineEnd,
-        }
-      : range,
-  )
-  cancelBulkRangeEdit()
+  state.bulkEditSubmitting = true
+  try {
+    const nextBuilding = building.trim()
+    const removeTargets = currentRange
+      ? state.bulkHouseholds.filter((household) => {
+          const parsed = parseUnitToFloorLine(household.unit)
+          if (!parsed) return false
+
+          const wasInCurrentRange = String(household.building) === String(currentRange.building)
+            && parsed.floor >= currentRange.floorStart
+            && parsed.floor <= currentRange.floorEnd
+            && parsed.line >= currentRange.lineStart
+            && parsed.line <= currentRange.lineEnd
+
+          const isInNextRange = String(household.building) === nextBuilding
+            && parsed.floor >= nextFloorStart
+            && parsed.floor <= nextFloorEnd
+            && parsed.line >= nextLineStart
+            && parsed.line <= nextLineEnd
+
+          return wasInCurrentRange && !isInNextRange
+        })
+      : []
+
+    await householdStore.createHouseholdsBulk({
+      building: nextBuilding,
+      floorStart: nextFloorStart,
+      floorEnd: nextFloorEnd,
+      lineStart: nextLineStart,
+      lineEnd: nextLineEnd,
+    })
+    await Promise.all(removeTargets.map((household) => householdStore.deleteHousehold(household.householdId)))
+    cancelBulkRangeEdit()
+    await Promise.all([loadBulkHouseholds(), loadHouseholds()])
+  } catch (e) {
+    state.bulkEditError = getErrorMessage(e, '동호수 수정에 실패했습니다.')
+  } finally {
+    state.bulkEditSubmitting = false
+  }
 }
 
 async function removeBulkRange(rangeId) {
@@ -2458,7 +2519,7 @@ watch(
               </td>
               <td>
                 <div class="table-actions">
-                  <button type="button" class="table-action-button table-action-button--primary" :disabled="state.editLineSubmitting" @click="handleLineUpdate">
+                  <button type="button" class="table-action-button table-action-button--primary" :disabled="state.editLineSubmitting" @click="openLineEditConfirm">
                     {{ state.editLineSubmitting ? '...' : '저장' }}
                   </button>
                   <button type="button" class="table-action-button" @click="cancelLineEdit">취소</button>
@@ -2559,7 +2620,12 @@ watch(
                 <td><input v-model="state.bulkEditForm.floorEnd" class="inline-input inline-input--sm" type="number" min="1" /></td>
                 <td>
                   <div class="table-actions">
-                    <button type="button" class="table-action-button table-action-button--primary" @click="saveBulkRangeEdit(range.id)">저장</button>
+                    <button
+                      type="button"
+                      class="table-action-button table-action-button--primary"
+                      :disabled="state.bulkEditSubmitting"
+                      @click="openBulkRangeEditConfirm"
+                    >{{ state.bulkEditSubmitting ? '...' : '저장' }}</button>
                     <button type="button" class="table-action-button" @click="cancelBulkRangeEdit">취소</button>
                   </div>
                   <p v-if="state.bulkEditError" class="inline-error">{{ state.bulkEditError }}</p>
@@ -2574,7 +2640,7 @@ watch(
                 <td>
                   <div class="table-actions">
                     <button type="button" class="table-action-button" @click="startBulkRangeEdit(range)">수정</button>
-                    <button type="button" class="table-action-button table-action-button--danger" @click="removeBulkRange(range.id)">삭제</button>
+                    <button type="button" class="table-action-button table-action-button--danger" @click="openBulkRangeDeleteConfirm(range.id)">삭제</button>
                   </div>
                 </td>
               </template>
@@ -2620,6 +2686,52 @@ watch(
     />
 
     <!-- 동호수 삭제 확인 -->
+    <!-- 평형/라인 수정 확인 모달 -->
+    <ConfirmModal
+      :visible="state.modals.lineEditConfirm"
+      title="동 라인 평형을 수정하시겠습니까?"
+      subtitle="저장하면 해당 라인 정보가 변경됩니다."
+      item-label="동 라인 평형"
+      :item-name="`${state.editLineForm.building}동 ${state.editLineForm.lineStart}~${state.editLineForm.lineEnd}호`"
+      action-text="동 라인 평형 수정"
+      confirm-text="저장"
+      cancel-text="취소"
+      confirm-type="primary"
+      @confirm="confirmLineUpdate"
+      @cancel="state.modals.lineEditConfirm = false"
+    />
+
+    <!-- 동호수 수정 확인 모달 -->
+    <ConfirmModal
+      :visible="state.modals.bulkRangeEditConfirm"
+      title="동호수 정보를 수정하시겠습니까?"
+      subtitle="저장하면 해당 동호수 범위가 변경됩니다."
+      item-label="동호수"
+      :item-name="`${state.bulkEditForm.building}동 ${state.bulkEditForm.floorStart || 1}~${state.bulkEditForm.floorEnd}층 / ${state.bulkEditForm.lineStart}~${state.bulkEditForm.lineEnd}라인`"
+      action-text="동호수 수정"
+      confirm-text="저장"
+      cancel-text="취소"
+      confirm-type="primary"
+      :loading="state.bulkEditSubmitting"
+      @confirm="confirmBulkRangeEdit"
+      @cancel="state.modals.bulkRangeEditConfirm = false"
+    />
+
+    <!-- 동호수 삭제 확인 모달 -->
+    <ConfirmModal
+      :visible="state.modals.bulkRangeDeleteConfirm"
+      title="동호수를 삭제하시겠습니까?"
+      subtitle="삭제한 세대는 복구할 수 없습니다."
+      item-label="동호수"
+      :item-name="state.bulkRanges.find(r => r.id === state.bulkRangeDeleteTargetId) ? `${state.bulkRanges.find(r => r.id === state.bulkRangeDeleteTargetId).building}동 ${state.bulkRanges.find(r => r.id === state.bulkRangeDeleteTargetId).lineStart}~${state.bulkRanges.find(r => r.id === state.bulkRangeDeleteTargetId).lineEnd}라인` : ''"
+      action-text="동호수 삭제"
+      confirm-text="삭제"
+      cancel-text="취소"
+      confirm-type="danger"
+      @confirm="confirmBulkRangeDelete"
+      @cancel="state.modals.bulkRangeDeleteConfirm = false"
+    />
+
     <ConfirmModal
       :visible="state.modals.bulkDeleteConfirm"
       title="세대를 삭제하시겠습니까?"
