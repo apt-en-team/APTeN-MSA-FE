@@ -600,7 +600,7 @@ watch(
             class="admin-layout__action-button"
             @click="handleActionClick"
           >
-            + 방문차량 등록
+            {{ route.query.tab === 'regular' ? '+ 고정방문차량 등록' : '+ 방문차량 등록' }}
           </button>
 
           <button

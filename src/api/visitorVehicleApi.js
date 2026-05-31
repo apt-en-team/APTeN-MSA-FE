@@ -49,6 +49,30 @@ export const getAdminVisitorVehicles = async (params) => {
   return unwrapApiData(res)
 }
 
+// 관리자 방문차량 상세 조회
+export const getAdminVisitorVehicleDetail = async (visitorVehicleId) => {
+  const res = await apiClient.get(`/admin/visitor-vehicles/${visitorVehicleId}`)
+  return unwrapApiData(res)
+}
+
+// 관리자 방문차량 통계 조회
+export const getAdminVisitorVehicleStats = async () => {
+  const res = await apiClient.get('/admin/visitor-vehicle-stats')
+  return unwrapApiData(res)
+}
+
+// 관리자 고정 방문차량 목록 조회
+export const getAdminRegularVisitorVehicles = async (params) => {
+  const res = await apiClient.get('/admin/regular-visitor-vehicles', { params })
+  return unwrapApiData(res)
+}
+
+// 관리자 고정 방문차량 등록
+export const createAdminRegularVisitorVehicle = async (body) => {
+  const res = await apiClient.post('/admin/regular-visitor-vehicles', body)
+  return unwrapApiData(res)
+}
+
 // 방문차량 정책 설정
 export const saveVisitorPolicy = async (body) => {
   const res = await apiClient.put('/admin/visitor-policies', body)
@@ -100,6 +124,10 @@ export default {
   reRegisterVisitorVehicle,
   createAdminVisitorVehicle,
   getAdminVisitorVehicles,
+  getAdminVisitorVehicleDetail,
+  getAdminVisitorVehicleStats,
+  getAdminRegularVisitorVehicles,
+  createAdminRegularVisitorVehicle,
   saveVisitorPolicy,
   getVisitorPolicy,
   createRegularVisitorVehicle,

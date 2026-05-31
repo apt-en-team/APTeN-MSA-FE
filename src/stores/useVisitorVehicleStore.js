@@ -9,6 +9,9 @@ export const useVisitorVehicleStore = defineStore('visitorVehicle', {
     visitorVehicles: [],
     regularVisitorVehicles: [],
     adminVisitorVehicles: [],
+    adminVisitorVehicleDetail: null,
+    adminVisitorVehicleStats: null,
+    adminRegularVisitorVehicles: [],
     visitorPolicy: null,
   }),
   getters: {
@@ -172,6 +175,66 @@ export const useVisitorVehicleStore = defineStore('visitorVehicle', {
       try {
         const res = await visitorVehicleApi.createAdminVisitorVehicle(body)
         this.adminVisitorVehicles = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 방문차량 상세 조회
+    async fetchAdminVisitorVehicleDetail(id) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await visitorVehicleApi.getAdminVisitorVehicleDetail(id)
+        this.adminVisitorVehicleDetail = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 방문차량 통계 조회
+    async fetchAdminVisitorVehicleStats() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await visitorVehicleApi.getAdminVisitorVehicleStats()
+        this.adminVisitorVehicleStats = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 고정 방문차량 목록 조회
+    async fetchAdminRegularVisitorVehicles(params) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await visitorVehicleApi.getAdminRegularVisitorVehicles(params)
+        this.adminRegularVisitorVehicles = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 고정 방문차량 등록
+    async createAdminRegularVisitorVehicle(body) {
+      this.loading = true
+      this.error = null
+      try {
+        // 목록 state를 덮어쓰지 않도록 생성 결과만 반환, 갱신은 호출 측 재조회로 처리
+        return await visitorVehicleApi.createAdminRegularVisitorVehicle(body)
       } catch (e) {
         console.error(e)
         this.error = e
