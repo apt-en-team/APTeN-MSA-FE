@@ -208,6 +208,7 @@ const matchRequests = computed(() => {
 })
 
 const pendingCount = computed(() => matchRequests.value.filter((m) => normalizeMatchStatus(m.matchStatus) === 'PENDING').length)
+// 일괄승인은 승인대기이면서 입주민 명부가 등록된 요청만 선택 가능하다.
 const bulkSelectableMatchRequests = computed(() =>
   pagedMatchRequests.value.filter((m) => normalizeMatchStatus(m.matchStatus) === 'PENDING' && m.expectedResidentRegistered),
 )
@@ -510,6 +511,7 @@ function handleMatchPageChange(page) {
   state.matchPagination.currentPage = page
 }
 
+// 수동 승인도 입주민 명부가 등록된 요청만 처리할 수 있다.
 function isMatchBulkSelectable(row) {
   return normalizeMatchStatus(row.matchStatus) === 'PENDING' && row.expectedResidentRegistered
 }
@@ -858,6 +860,7 @@ async function handleBulkApprove() {
   if (state.bulkApproveSubmitting || state.selectedMatchIds.length === 0) return
   state.bulkApproveSubmitting = true
   try {
+    // 선택된 승인대기 요청을 한 번에 승인한 뒤 세대 목록과 매칭 목록을 갱신한다.
     await householdStore.approveMatchRequestsBulk(state.selectedMatchIds)
     const approvedCount = state.selectedMatchIds.length
     state.selectedMatchIds = []
@@ -1514,6 +1517,7 @@ async function confirmBulkRangeDelete() {
   state.bulkRangeDeleteTargetId = null
 }
 
+// 동호수 범위 수정은 새 범위 생성과 기존 범위 밖 세대 삭제를 함께 처리한다.
 async function saveBulkRangeEdit() {
   if (state.bulkEditSubmitting) return
   const currentRange = state.bulkRanges.find((range) => range.id === state.bulkEditingId)
@@ -1543,6 +1547,7 @@ async function saveBulkRangeEdit() {
   state.bulkEditSubmitting = true
   try {
     const nextBuilding = building.trim()
+    // 기존 범위에는 있었지만 수정 후 범위에서 빠지는 세대만 삭제 대상으로 잡는다.
     const removeTargets = currentRange
       ? state.bulkHouseholds.filter((household) => {
           const parsed = parseUnitToFloorLine(household.unit)
