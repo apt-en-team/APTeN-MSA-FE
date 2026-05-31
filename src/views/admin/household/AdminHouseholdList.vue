@@ -33,6 +33,10 @@ const state = reactive({
     keyword: '',
     status: '',
   },
+  matchPagination: {
+    currentPage: 1,
+    pageSize: 10,
+  },
   buildingOptions: [],
   pagination: {
     currentPage: 1,
@@ -52,6 +56,7 @@ const state = reactive({
     bulkDeleteConfirm: false,
     memberDeleteConfirm: false,
     residentDeleteConfirm: false,
+    createResidentDeleteConfirm: false,
   },
   createForm: {
     building: '',
@@ -81,6 +86,7 @@ const state = reactive({
   },
   residentEditSubmitting: false,
   residentDeleteTarget: null,
+  createResidentDeleteIndex: null,
   detailLoading: false,
   lineForm: {
     building: '',
@@ -133,9 +139,11 @@ const state = reactive({
   },
   selectedHousehold: null,
   selectedMatch: null,
+  selectedMatchIds: [],
   editSubmitting: false,
   statusSubmitting: false,
   approveSubmitting: false,
+  bulkApproveSubmitting: false,
   rejectSubmitting: false,
   editErrorMessage: '',
   resultModal: {
@@ -167,10 +175,12 @@ const householdColumns = computed(() => [
 
 // 매칭 요청 테이블 컬럼
 const matchColumns = computed(() => [
-  { key: 'number', label: '#' },
+  { key: 'select', label: '' },
+  { key: 'number', label: 'NO.' },
   { key: 'inputName', label: '이름' },
   { key: 'address', label: '신청 세대' },
   { key: 'createdAt', label: '요청일' },
+  { key: 'expectedResidentRegisteredLabel', label: '세대등록여부' },
   { key: 'matchStatus', label: '상태' },
 ])
 
@@ -194,6 +204,13 @@ const matchRequests = computed(() => {
 })
 
 const pendingCount = computed(() => matchRequests.value.filter((m) => normalizeMatchStatus(m.matchStatus) === 'PENDING').length)
+const bulkSelectableMatchRequests = computed(() =>
+  pagedMatchRequests.value.filter((m) => normalizeMatchStatus(m.matchStatus) === 'PENDING' && m.expectedResidentRegistered),
+)
+const isAllBulkSelected = computed(() =>
+  bulkSelectableMatchRequests.value.length > 0
+  && bulkSelectableMatchRequests.value.every((m) => state.selectedMatchIds.includes(m.matchRequestId)),
+)
 
 // 세대 상세·이력·세대원 스토어 데이터
 const householdDetail = computed(() => householdStore.householdDetail)
@@ -299,22 +316,36 @@ const pagedHouseholds = computed(() =>
 const filteredMatchRequests = computed(() => {
   const kw = state.matchFilters.keyword.trim()
   const st = state.matchFilters.status
-  return matchRequests.value.filter((m) => {
-    const nameMatch = !kw || (m.inputName ?? '').includes(kw)
-    const statusMatch = !st || normalizeMatchStatus(m.matchStatus) === st
-    return nameMatch && statusMatch
-  })
+  return matchRequests.value
+    .filter((m) => {
+      const nameMatch = !kw || (m.inputName ?? '').includes(kw)
+      const statusMatch = !st || normalizeMatchStatus(m.matchStatus) === st
+      return nameMatch && statusMatch
+    })
+    .sort((a, b) => {
+      const aPending = normalizeMatchStatus(a.matchStatus) === 'PENDING' ? 0 : 1
+      const bPending = normalizeMatchStatus(b.matchStatus) === 'PENDING' ? 0 : 1
+      return aPending - bPending
+    })
 })
 
-const pagedMatchRequests = computed(() =>
-  filteredMatchRequests.value.map((m, i) => ({
+const matchTotalPages = computed(() =>
+  Math.ceil(filteredMatchRequests.value.length / state.matchPagination.pageSize) || 1,
+)
+
+const pagedMatchRequests = computed(() => {
+  const { currentPage, pageSize } = state.matchPagination
+  const start = (currentPage - 1) * pageSize
+  return filteredMatchRequests.value.slice(start, start + pageSize).map((m, i) => ({
     ...m,
-    number: i + 1,
+    number: start + i + 1,
     address: `${m.inputBuilding ?? '-'}동 ${m.inputUnit ?? '-'}호`,
     createdAt: formatDate(m.createdAt),
+    expectedResidentRegistered: Boolean(m.expectedResidentRegistered),
+    expectedResidentRegisteredLabel: m.expectedResidentRegistered ? '등록완료' : '미등록',
     matchStatusLabel: matchStatusLabel(m.matchStatus),
-  })),
-)
+  }))
+})
 
 // BE가 @JsonValue로 한글을 응답하므로 한글 → 영문 코드로 정규화한다.
 const toStatusCode = (s) =>
@@ -467,6 +498,38 @@ function resetFilters() {
 function resetMatchFilters() {
   state.matchFilters.keyword = ''
   state.matchFilters.status = ''
+  state.selectedMatchIds = []
+  state.matchPagination.currentPage = 1
+}
+
+function handleMatchPageChange(page) {
+  state.matchPagination.currentPage = page
+}
+
+function isMatchBulkSelectable(row) {
+  return normalizeMatchStatus(row.matchStatus) === 'PENDING' && row.expectedResidentRegistered
+}
+
+function toggleMatchSelection(row) {
+  if (!isMatchBulkSelectable(row)) return
+  const id = row.matchRequestId
+  if (state.selectedMatchIds.includes(id)) {
+    state.selectedMatchIds = state.selectedMatchIds.filter((selectedId) => selectedId !== id)
+  } else {
+    state.selectedMatchIds = [...state.selectedMatchIds, id]
+  }
+}
+
+function toggleAllMatchSelection() {
+  if (isAllBulkSelected.value) {
+    const selectableIds = bulkSelectableMatchRequests.value.map((m) => m.matchRequestId)
+    state.selectedMatchIds = state.selectedMatchIds.filter((id) => !selectableIds.includes(id))
+    return
+  }
+  state.selectedMatchIds = [...new Set([
+    ...state.selectedMatchIds,
+    ...bulkSelectableMatchRequests.value.map((m) => m.matchRequestId),
+  ])]
 }
 
 function handlePageChange(page) {
@@ -775,8 +838,47 @@ async function handleApprove() {
     })
   } catch (error) {
     console.error(error)
+    openResultModal({
+      type: 'danger',
+      title: '매칭 승인에 실패했습니다.',
+      desc: getErrorMessage(error, '입주민 명부를 먼저 등록해야 승인할 수 있습니다.'),
+      itemName: state.selectedMatch?.inputName || '',
+      actionLabel: '세대 매칭 승인',
+    })
   } finally {
     state.approveSubmitting = false
+  }
+}
+
+async function handleBulkApprove() {
+  if (state.bulkApproveSubmitting || state.selectedMatchIds.length === 0) return
+  state.bulkApproveSubmitting = true
+  try {
+    await householdStore.approveMatchRequestsBulk(state.selectedMatchIds)
+    const approvedCount = state.selectedMatchIds.length
+    state.selectedMatchIds = []
+    await loadMatchRequests()
+    await loadHouseholds()
+    openResultModal({
+      type: 'success',
+      title: '매칭 요청을 일괄 승인했습니다.',
+      desc: `${approvedCount}건의 승인대기 요청이 처리되었습니다.`,
+      actionLabel: '세대 매칭 일괄 승인',
+      afterConfirm: async () => {
+        await loadMatchRequests()
+        await loadHouseholds()
+      },
+    })
+  } catch (error) {
+    console.error(error)
+    openResultModal({
+      type: 'danger',
+      title: '일괄 승인에 실패했습니다.',
+      desc: getErrorMessage(error, '입주민 명부를 먼저 등록해야 승인할 수 있습니다.'),
+      actionLabel: '세대 매칭 일괄 승인',
+    })
+  } finally {
+    state.bulkApproveSubmitting = false
   }
 }
 
@@ -915,6 +1017,11 @@ function registerResidentInput() {
     return
   }
 
+  if (householdRole === 'HEAD' && state.createForm.residents.some((resident) => resident.householdRole === 'HEAD')) {
+    state.createErrorMessage = '세대주는 1명만 등록할 수 있습니다.'
+    return
+  }
+
   state.createForm.residents.push({
     name: name.trim(),
     phone: phone.trim(),
@@ -923,6 +1030,17 @@ function registerResidentInput() {
   })
   state.createErrorMessage = ''
   state.createForm.showResidentForm = false
+}
+
+function openCreateResidentDeleteConfirm(index) {
+  state.createResidentDeleteIndex = index
+  state.modals.createResidentDeleteConfirm = true
+}
+
+async function confirmCreateResidentDelete() {
+  await removeResident(state.createResidentDeleteIndex)
+  state.modals.createResidentDeleteConfirm = false
+  state.createResidentDeleteIndex = null
 }
 
 async function removeResident(index) {
@@ -972,6 +1090,11 @@ async function handleHouseholdCreate() {
     return
   }
 
+  if (state.createForm.residents.filter((resident) => resident.householdRole === 'HEAD').length > 1) {
+    state.createErrorMessage = '세대주는 1명만 등록할 수 있습니다.'
+    return
+  }
+
   state.createSubmitting = true
   try {
     const existingHousehold = await findExistingHousehold(building, unit)
@@ -1004,6 +1127,7 @@ async function handleHouseholdCreate() {
     }
     state.modals.create = false
     await loadHouseholds()
+    await loadMatchRequests()
   } catch (e) {
     state.createErrorMessage = getErrorMessage(e, '세대 등록에 실패했습니다.')
   } finally {
@@ -1568,6 +1692,25 @@ watch(
           <option value="APPROVED">승인완료</option>
           <option value="REJECTED">승인거절</option>
         </select>
+        <template #right>
+          <span class="match-bulk-count">선택 {{ state.selectedMatchIds.length }}건</span>
+          <button
+            type="button"
+            class="btn-bulk btn-bulk--ghost"
+            :disabled="bulkSelectableMatchRequests.length === 0"
+            @click="toggleAllMatchSelection"
+          >
+            {{ isAllBulkSelected ? '전체해제' : '전체선택' }}
+          </button>
+          <button
+            type="button"
+            class="btn-bulk btn-bulk--primary"
+            :disabled="state.selectedMatchIds.length === 0 || state.bulkApproveSubmitting"
+            @click="handleBulkApprove"
+          >
+            {{ state.bulkApproveSubmitting ? '처리 중...' : '일괄승인' }}
+          </button>
+        </template>
       </AdminFilterBar>
 
       <div v-if="pagedMatchRequests.length === 0" class="table-feedback">조건에 맞는 매칭 요청이 없습니다.</div>
@@ -1576,6 +1719,20 @@ watch(
         :columns="matchColumns"
         :rows="pagedMatchRequests"
       >
+        <template #cell-select="{ row }">
+          <input
+            type="checkbox"
+            class="match-select-checkbox"
+            :checked="state.selectedMatchIds.includes(row.matchRequestId)"
+            :disabled="!isMatchBulkSelectable(row)"
+            @click.stop="toggleMatchSelection(row)"
+          />
+        </template>
+        <template #cell-expectedResidentRegisteredLabel="{ row }">
+          <span :class="['status-badge', row.expectedResidentRegistered ? 'is-success' : 'is-gray']">
+            {{ row.expectedResidentRegisteredLabel }}
+          </span>
+        </template>
         <template #cell-matchStatus="{ row }">
           <span :class="['status-badge', matchStatusClass(row.matchStatus)]">{{ row.matchStatusLabel }}</span>
         </template>
@@ -1593,6 +1750,18 @@ watch(
           </div>
         </template>
       </AdminTable>
+
+      <div class="manage-page__pagination">
+        <AppPagination
+          v-if="filteredMatchRequests.length > 0"
+          :current-page="state.matchPagination.currentPage"
+          :total-pages="matchTotalPages"
+          :total-all="filteredMatchRequests.length"
+          :total-filtered="filteredMatchRequests.length"
+          unit="건"
+          @change="handleMatchPageChange"
+        />
+      </div>
     </div>
 
     <!-- 세대 등록 모달 -->
@@ -1670,7 +1839,7 @@ watch(
           <span>{{ r.phone }}</span>
           <span>{{ r.birthDate || '-' }}</span>
           <span>{{ r.householdRole === 'HEAD' ? '세대주' : '세대원' }}</span>
-          <button type="button" class="resident-list__remove" @click="removeResident(index)">삭제</button>
+          <button type="button" class="resident-list__remove" @click="openCreateResidentDeleteConfirm(index)">삭제</button>
         </div>
       </div>
 
@@ -1871,6 +2040,21 @@ watch(
       :loading="state.editSubmitting"
       @confirm="handleEditHousehold"
       @cancel="state.modals.editConfirm = false"
+    />
+
+    <!-- 세대 등록 세대원 삭제 확인 모달 -->
+    <ConfirmModal
+      :visible="state.modals.createResidentDeleteConfirm"
+      title="세대원을 삭제하시겠습니까?"
+      subtitle="삭제하면 목록에서 제거됩니다."
+      item-label="세대원"
+      :item-name="state.createForm.residents[state.createResidentDeleteIndex]?.name ?? ''"
+      action-text="세대원 삭제"
+      confirm-text="삭제"
+      cancel-text="취소"
+      confirm-type="danger"
+      @confirm="confirmCreateResidentDelete"
+      @cancel="state.modals.createResidentDeleteConfirm = false"
     />
 
     <!-- 세대원 삭제 확인 모달 -->
@@ -2527,6 +2711,58 @@ watch(
 
 .table-feedback.error {
   color: #E53E3E;
+}
+
+.match-bulk-count {
+  color: #1e2a3e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.btn-bulk {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid #E2E8F0;
+}
+
+.btn-bulk--ghost {
+  background: #FFFFFF;
+  color: #1e2a3e;
+}
+
+.btn-bulk--ghost:hover:not(:disabled) {
+  background: #F5F6F8;
+}
+
+.btn-bulk--primary {
+  background: var(--admin-main-navy);
+  color: #FFFFFF;
+  border-color: var(--admin-main-navy);
+}
+
+.btn-bulk--primary:hover:not(:disabled) {
+  background: var(--admin-sub-blue);
+  border-color: var(--admin-sub-blue);
+}
+
+.btn-bulk:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.match-select-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.match-select-checkbox:disabled {
+  cursor: not-allowed;
 }
 
 /* 상태 배지 */
