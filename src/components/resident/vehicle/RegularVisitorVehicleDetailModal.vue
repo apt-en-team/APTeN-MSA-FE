@@ -40,10 +40,12 @@ const formatDate = (value) => {
   return String(value).slice(0, 10).replace(/-/g, '.')
 }
 
-// 시작일과 종료일을 기간 문자열로 결합
+// 시작일과 종료일을 기간 문자열로 결합, 종료일 미설정은 무기한으로 표기
 const periodText = computed(() => {
   if (!props.vehicle) return '-'
-  return `${formatDate(props.vehicle.startDate)} ~ ${formatDate(props.vehicle.endDate)}`
+  const start = formatDate(props.vehicle.startDate)
+  if (!props.vehicle.endDate) return `${start} ~ 무기한`
+  return `${start} ~ ${formatDate(props.vehicle.endDate)}`
 })
 </script>
 
@@ -91,7 +93,6 @@ const periodText = computed(() => {
     <div v-else class="detail-feedback error">{{ errorMessage || '고정방문차량 정보를 찾을 수 없습니다.' }}</div>
 
     <template #footer>
-      <button type="button" class="detail-btn" @click="emit('close')">닫기</button>
       <button
         v-if="vehicle && isMine"
         type="button"
@@ -103,7 +104,7 @@ const periodText = computed(() => {
       <button
         v-if="vehicle && isMine"
         type="button"
-        class="detail-btn detail-btn--danger"
+        class="detail-btn detail-btn--delete"
         @click="emit('delete', vehicle)"
       >
         삭제
@@ -169,8 +170,11 @@ const periodText = computed(() => {
   background: #F8FAFC;
 }
 
-.detail-btn--danger {
-  color: var(--color-danger);
-  border-color: rgba(231, 76, 60, 0.45);
+/* 삭제는 채운 빨강과 왼쪽 간격으로 다른 버튼과 분리 */
+.detail-btn--delete {
+  margin-left: 8px;
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: #FFFFFF;
 }
 </style>

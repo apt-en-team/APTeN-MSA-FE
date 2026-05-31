@@ -111,7 +111,7 @@ const homeSummaryCards = computed(() => {
     unit: '건',
     desc: '승인 대기',
     descClass: 'stat-card__desc--warn',
-    path: '/resident/visitor-vehicles/list',
+    path: `/resident/${route.params.complexId}/visitor-vehicle`,
     showProgress: false,
     progressValue: 0,
   })

@@ -33,9 +33,6 @@ const STATUS_VARIANT = {
   삭제: 'danger',
 }
 
-// 재등록이 의미 있는 끝난 상태 목록
-const FINISHED_STATUSES = ['자동만료', '사용자취소']
-
 // 상태 뱃지 색상 반환
 const badgeVariant = (status) => STATUS_VARIANT[status] ?? 'neutral'
 
@@ -45,17 +42,14 @@ const isMine = computed(() => props.vehicle?.isMine === true)
 // 진행 중(등록완료) 상태 여부
 const isActive = computed(() => props.vehicle?.status === '등록완료')
 
-// 끝난 상태 여부
-const isFinished = computed(() => FINISHED_STATUSES.includes(props.vehicle?.status))
-
 // 수정 버튼 노출 여부 (본인 건 + 진행 중)
 const canEdit = computed(() => isMine.value && isActive.value)
 
 // 삭제 버튼 노출 여부 (본인 건)
 const canDelete = computed(() => isMine.value)
 
-// 재등록 버튼 노출 여부 (끝난 상태면 세대원 누구나)
-const canReRegister = computed(() => isFinished.value)
+// 재등록 버튼 노출 여부 (상태 무관, 세대원 누구나)
+const canReRegister = computed(() => true)
 
 // 날짜 문자열을 yyyy.MM.dd 형태로 변환
 const formatDate = (value) => {
@@ -108,7 +102,6 @@ const formatDate = (value) => {
     <div v-else class="detail-feedback error">{{ errorMessage || '방문차량 정보를 찾을 수 없습니다.' }}</div>
 
     <template #footer>
-      <button type="button" class="detail-btn" @click="emit('close')">닫기</button>
       <button
         v-if="vehicle && canReRegister"
         type="button"
@@ -128,7 +121,7 @@ const formatDate = (value) => {
       <button
         v-if="vehicle && canDelete"
         type="button"
-        class="detail-btn detail-btn--danger"
+        class="detail-btn detail-btn--delete"
         @click="emit('delete', vehicle)"
       >
         삭제
@@ -190,18 +183,16 @@ const formatDate = (value) => {
   cursor: pointer;
 }
 
-.detail-btn:hover {
-  background: #F8FAFC;
-}
-
 .detail-btn--primary {
-  border: none;
-  background: var(--resident-primary);
-  color: #FFFFFF;
+  border-color: var(--resident-primary);
+  color: var(--resident-primary);
 }
 
-.detail-btn--danger {
-  color: var(--color-danger);
-  border-color: rgba(231, 76, 60, 0.45);
+/* 삭제는 채운 빨강과 왼쪽 간격으로 다른 버튼과 분리 */
+.detail-btn--delete {
+  margin-left: 8px;
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: #FFFFFF;
 }
 </style>

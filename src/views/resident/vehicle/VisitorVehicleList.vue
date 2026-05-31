@@ -1,17 +1,19 @@
 <script setup>
 // 입주민 방문차량 목록 화면입니다.
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useVisitorVehicleStore } from '@/stores/useVisitorVehicleStore'
 import BaseBadge from '@/components/common/BaseBadge.vue'
 import BaseEmpty from '@/components/common/BaseEmpty.vue'
 import BaseLoading from '@/components/common/BaseLoading.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
-import ConfirmModal from '@/components/common/ConfirmModal.vue'
-import ActionResultModal from '@/components/common/ActionResultModal.vue'
-import VisitorVehicleFormModal from '@/components/resident/vehicle/VisitorVehicleFormModal.vue'
+import ResidentModal from '@/components/resident/ResidentModal.vue'
+import VisitorVehicleReRegisterModal from '@/components/resident/vehicle/VisitorVehicleReRegisterModal.vue'
 import VisitorVehicleDetailModal from '@/components/resident/vehicle/VisitorVehicleDetailModal.vue'
 
+const route = useRoute()
+const router = useRouter()
 const visitorVehicleStore = useVisitorVehicleStore()
 const { visitorVehicles } = storeToRefs(visitorVehicleStore)
 
@@ -48,6 +50,9 @@ const initialFilter = () => ({
 
 const filter = reactive(initialFilter())
 
+// 차량번호 검색 확정값 (검색 실행 시점에만 입력값을 반영)
+const appliedPlate = ref('')
+
 // 상세 모달 상태
 const detailModal = reactive({
   open: false,
@@ -56,10 +61,9 @@ const detailModal = reactive({
   data: null,
 })
 
-// 등록/수정/재등록 모달 상태
-const formModal = reactive({
+// 재등록 모달 상태
+const reRegisterModal = reactive({
   open: false,
-  mode: 'create',
   vehicle: null,
   submitting: false,
   errorMessage: '',
@@ -88,9 +92,9 @@ const listData = computed(() => {
   return { content: [], totalElements: 0, totalPages: 1 }
 })
 
-// 차량번호 검색어로 거른 표시 목록
+// 확정된 차량번호 검색어로 거른 표시 목록
 const rows = computed(() => {
-  const keyword = filter.plate.trim().toLowerCase()
+  const keyword = appliedPlate.value.trim().toLowerCase()
   if (!keyword) return listData.value.content
   return listData.value.content.filter((item) =>
     String(item.licensePlate ?? '').toLowerCase().includes(keyword),
@@ -134,8 +138,9 @@ const loadList = async () => {
 
 onMounted(loadList)
 
-// 검색 실행, 1페이지부터 재조회
+// 검색 실행, 입력한 차량번호를 확정값에 반영하고 1페이지부터 재조회
 const handleSearch = () => {
+  appliedPlate.value = filter.plate
   currentPage.value = 1
   loadList()
 }
@@ -143,6 +148,7 @@ const handleSearch = () => {
 // 필터 초기화 후 1페이지부터 재조회
 const handleReset = () => {
   Object.assign(filter, initialFilter())
+  appliedPlate.value = ''
   currentPage.value = 1
   loadList()
 }
@@ -187,81 +193,48 @@ const closeDetail = () => {
   detailModal.data = null
 }
 
-// 등록 모달 열기
+// 등록 페이지로 이동
 const openCreate = () => {
-  formModal.mode = 'create'
-  formModal.vehicle = null
-  formModal.errorMessage = ''
-  formModal.open = true
+  router.push(`/resident/${route.params.complexId}/visitor-vehicle/register`)
 }
 
-// 상세 모달의 수정 요청 처리
+// 상세 모달의 수정 요청 처리, 수정 페이지로 이동
 const handleEdit = (vehicle) => {
   detailModal.open = false
-  formModal.mode = 'edit'
-  formModal.vehicle = vehicle
-  formModal.errorMessage = ''
-  formModal.open = true
+  router.push(`/resident/${route.params.complexId}/visitor-vehicle/${vehicle.visitorVehicleId}/edit`)
 }
 
-// 상세 모달의 재등록 요청 처리
+// 상세 모달의 재등록 요청 처리, 재등록 모달 열기
 const handleReRegister = (vehicle) => {
   detailModal.open = false
-  formModal.mode = 're-register'
-  formModal.vehicle = vehicle
-  formModal.errorMessage = ''
-  formModal.open = true
+  reRegisterModal.vehicle = vehicle
+  reRegisterModal.errorMessage = ''
+  reRegisterModal.open = true
 }
 
-// 등록/수정/재등록 모달 닫기
-const closeForm = () => {
-  formModal.open = false
+// 재등록 모달 닫기
+const closeReRegister = () => {
+  reRegisterModal.open = false
 }
 
-// 등록/수정/재등록 폼 제출 처리
-const submitForm = async (payload) => {
-  formModal.submitting = true
-  formModal.errorMessage = ''
-  const mode = formModal.mode
+// 재등록 제출 처리
+const submitReRegister = async (payload) => {
+  reRegisterModal.submitting = true
+  reRegisterModal.errorMessage = ''
   try {
-    if (mode === 'create') {
-      await visitorVehicleStore.createVisitorVehicle({
-        licensePlate: payload.licensePlate,
-        visitorName: payload.visitorName || null,
-        phone: payload.phone || null,
-        visitPurpose: payload.visitPurpose || null,
-        visitDate: payload.visitDate,
-      })
-    } else if (mode === 'edit') {
-      await visitorVehicleStore.updateVisitorVehicle(formModal.vehicle.visitorVehicleId, {
-        licensePlate: payload.licensePlate,
-        visitorName: payload.visitorName || null,
-        phone: payload.phone || null,
-        visitPurpose: payload.visitPurpose || null,
-        visitDate: payload.visitDate,
-      })
-    } else {
-      await visitorVehicleStore.reRegisterVisitorVehicle(formModal.vehicle.visitorVehicleId, {
-        visitDate: payload.visitDate,
-      })
-    }
+    await visitorVehicleStore.reRegisterVisitorVehicle(reRegisterModal.vehicle.visitorVehicleId, {
+      visitDate: payload.visitDate,
+    })
     // 변이 액션은 에러를 store.error에 담으므로 통일된 처리로 끌어올린다.
     if (visitorVehicleStore.error) throw visitorVehicleStore.error
-    formModal.open = false
-    const successTitle =
-      mode === 'create'
-        ? '방문차량이 등록되었습니다'
-        : mode === 'edit'
-          ? '방문차량 정보가 수정되었습니다'
-          : '방문차량이 재등록되었습니다'
-    openResult('success', successTitle)
+    reRegisterModal.open = false
+    openResult('success', '방문차량이 재등록되었습니다')
     await loadList()
   } catch (e) {
     const message = e?.response?.data?.message || '처리에 실패했습니다.'
-    const failTitle = mode === 'create' ? '등록 실패' : mode === 'edit' ? '수정 실패' : '재등록 실패'
-    openResult('danger', failTitle, message)
+    openResult('danger', '재등록 실패', message)
   } finally {
-    formModal.submitting = false
+    reRegisterModal.submitting = false
   }
 }
 
@@ -280,7 +253,7 @@ const cancelDelete = () => {
 
 // 방문차량 삭제 처리
 const confirmDelete = async () => {
-  if (!deleteModal.target) return
+  if (!deleteModal.target || deleteModal.submitting) return
   deleteModal.submitting = true
   try {
     await visitorVehicleStore.deleteVisitorVehicle(deleteModal.target.visitorVehicleId)
@@ -353,7 +326,6 @@ const confirmDelete = async () => {
           @click="openDetail(item)"
         >
           <div class="visitor-card__main">
-            <span class="visitor-card__id">#{{ item.visitorVehicleId }}</span>
             <span class="visitor-card__plate">{{ item.licensePlate }}</span>
             <BaseBadge :variant="badgeVariant(item.status)">{{ item.status || '-' }}</BaseBadge>
           </div>
@@ -364,16 +336,18 @@ const confirmDelete = async () => {
         </li>
       </ul>
 
-      <!-- 페이지네이션 -->
-      <AppPagination
-        v-if="rows.length > 0"
-        :current-page="currentPage"
-        :total-pages="listData.totalPages"
-        :total-all="listData.totalElements"
-        :total-filtered="rows.length"
-        unit="건"
-        @change="handlePageChange"
-      />
+      <!-- 페이지네이션 (입주민 포인트색 적용, 조회 건수 텍스트 숨김) -->
+      <div v-if="rows.length > 0" class="visitor-pagination">
+        <AppPagination
+          :current-page="currentPage"
+          :total-pages="listData.totalPages"
+          :total-all="listData.totalElements"
+          :total-filtered="rows.length"
+          unit="건"
+          active-color="var(--resident-primary)"
+          @change="handlePageChange"
+        />
+      </div>
     </template>
 
     <!-- 상세 모달 -->
@@ -388,39 +362,40 @@ const confirmDelete = async () => {
       @re-register="handleReRegister"
     />
 
-    <!-- 등록/수정/재등록 모달 -->
-    <VisitorVehicleFormModal
-      :visible="formModal.open"
-      :mode="formModal.mode"
-      :vehicle="formModal.vehicle"
-      :submitting="formModal.submitting"
-      :error-message="formModal.errorMessage"
-      @close="closeForm"
-      @submit="submitForm"
+    <!-- 재등록 모달 -->
+    <VisitorVehicleReRegisterModal
+      :visible="reRegisterModal.open"
+      :vehicle="reRegisterModal.vehicle"
+      :submitting="reRegisterModal.submitting"
+      :error-message="reRegisterModal.errorMessage"
+      @close="closeReRegister"
+      @submit="submitReRegister"
     />
 
     <!-- 삭제 확인 모달 -->
-    <ConfirmModal
+    <ResidentModal
       :visible="deleteModal.open"
+      type="danger"
       title="방문차량을 삭제하시겠습니까?"
       subtitle="삭제하면 해당 방문차량 정보가 제거됩니다."
-      item-label="차량번호"
-      :item-name="deleteModal.target?.licensePlate || ''"
-      action-label="삭제"
+      :info-rows="deleteModal.target ? [{ label: '차량번호', value: deleteModal.target.licensePlate }] : []"
       confirm-text="삭제"
       confirm-type="danger"
-      :loading="deleteModal.submitting"
+      cancel-text="취소"
       @confirm="confirmDelete"
-      @cancel="cancelDelete"
+      @close="cancelDelete"
     />
 
     <!-- 결과 모달 -->
-    <ActionResultModal
+    <ResidentModal
       :visible="resultModal.open"
       :type="resultModal.type"
       :title="resultModal.title"
-      :desc="resultModal.desc"
+      :subtitle="resultModal.desc"
+      :show-cancel="false"
+      confirm-text="확인"
       @close="closeResult"
+      @confirm="closeResult"
     />
   </section>
 </template>
@@ -608,5 +583,10 @@ const confirmDelete = async () => {
   font-size: 14px;
   font-weight: 500;
   color: var(--color-text-primary);
+}
+
+/* 페이지네이션의 조회 건수 텍스트만 감춰 가운데 정렬은 유지 */
+.visitor-pagination :deep(.pagination-info) {
+  visibility: hidden;
 }
 </style>
