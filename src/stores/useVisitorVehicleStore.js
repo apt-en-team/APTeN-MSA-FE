@@ -93,6 +93,38 @@ export const useVisitorVehicleStore = defineStore('visitorVehicle', {
       }
     },
 
+    // 방문차량 상세 조회
+    async fetchVisitorVehicleDetail(id) {
+      this.loading = true
+      this.error = null
+      try {
+        // 목록 state를 덮어쓰지 않도록 상세 결과만 반환
+        return await visitorVehicleApi.getVisitorVehicleDetail(id)
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 방문차량 재등록
+    async reRegisterVisitorVehicle(id, body) {
+      this.loading = true
+      this.error = null
+      try {
+        // 목록 state를 덮어쓰지 않도록 재등록 결과만 반환, 갱신은 호출 측 재조회로 처리
+        return await visitorVehicleApi.reRegisterVisitorVehicle(id, body)
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
     // 고정 방문차량 등록
     async createRegularVisitorVehicle(body) {
       this.loading = true
@@ -118,6 +150,22 @@ export const useVisitorVehicleStore = defineStore('visitorVehicle', {
       } catch (e) {
         console.error(e)
         this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 고정 방문차량 상세 조회
+    async fetchRegularVisitorVehicleDetail(id) {
+      this.loading = true
+      this.error = null
+      try {
+        // 목록 state를 덮어쓰지 않도록 상세 결과만 반환
+        return await visitorVehicleApi.getRegularVisitorVehicleDetail(id)
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
       } finally {
         this.loading = false
       }

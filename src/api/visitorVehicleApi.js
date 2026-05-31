@@ -13,6 +13,12 @@ export const getVisitorVehicles = async (params) => {
   return unwrapApiData(res)
 }
 
+// 방문차량 상세 조회
+export const getVisitorVehicleDetail = async (visitorVehicleId) => {
+  const res = await apiClient.get(`/visitor-vehicles/${visitorVehicleId}`)
+  return unwrapApiData(res)
+}
+
 // 방문차량 수정
 export const updateVisitorVehicle = async (visitorVehicleId, body) => {
   const res = await apiClient.patch(`/visitor-vehicles/${visitorVehicleId}`, body)
@@ -97,6 +103,12 @@ export const getRegularVisitorVehicles = async (params) => {
   return unwrapApiData(res)
 }
 
+// 고정 방문차량 상세 조회
+export const getRegularVisitorVehicleDetail = async (regularVisitorVehicleId) => {
+  const res = await apiClient.get(`/regular-visitor-vehicles/${regularVisitorVehicleId}`)
+  return unwrapApiData(res)
+}
+
 // 고정 방문차량 삭제
 export const deleteRegularVisitorVehicle = async (regularVisitorVehicleId) => {
   const res = await apiClient.delete(`/regular-visitor-vehicles/${regularVisitorVehicleId}`)
@@ -118,6 +130,7 @@ export const updateRegularVisitorVehicle = async (regularVisitorVehicleId, body)
 export default {
   createVisitorVehicle,
   getVisitorVehicles,
+  getVisitorVehicleDetail,
   updateVisitorVehicle,
   cancelVisitorVehicle,
   deleteVisitorVehicle,
@@ -132,6 +145,7 @@ export default {
   getVisitorPolicy,
   createRegularVisitorVehicle,
   getRegularVisitorVehicles,
+  getRegularVisitorVehicleDetail,
   deleteRegularVisitorVehicle,
   deleteAdminRegularVisitorVehicle,
   updateRegularVisitorVehicle,
