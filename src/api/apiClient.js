@@ -44,6 +44,11 @@ function getStoredSelectedComplex() {
 }
 
 // 요청 인터셉터: accessToken을 Authorization 헤더에 자동 첨부
+function ensureHeaders(config) {
+  config.headers = config.headers || {}
+  return config.headers
+}
+
 apiClient.interceptors.request.use(
   (config) => {
     const accessToken = localStorage.getItem('accessToken')
@@ -52,36 +57,41 @@ apiClient.interceptors.request.use(
     const requestUrl = String(config.url || '')
 
     if (accessToken) {
-      config.headers = config.headers || {}
-      config.headers.Authorization = `Bearer ${accessToken}`
+      ensureHeaders(config).Authorization = `Bearer ${accessToken}`
     }
 
     // 로그인 사용자 권한 헤더 주입
+    const userUid = userInfo?.userUid || userInfo?.userId
+    if (userUid) {
+      const headers = ensureHeaders(config)
+      headers['X-User-Uid'] = String(userUid)
+      headers['X-User-Id'] = String(userUid)
+    }
+
     if (userInfo?.role) {
-      config.headers = config.headers || {}
-      config.headers['X-User-Role'] = String(userInfo.role)
+      ensureHeaders(config)['X-User-Role'] = String(userInfo.role)
     }
 
-    // X-User-Id 헤더 주입
-    if (userInfo?.userId) {
-      config.headers = config.headers || {}
-      config.headers['X-User-Id'] = String(userInfo.userId)
-    }
-
-    // X-Complex-Id 헤더 주입
     if (userInfo?.complexId) {
-      config.headers = config.headers || {}
-      config.headers['X-Complex-Id'] = String(userInfo.complexId)
+      ensureHeaders(config)['X-Complex-Id'] = String(userInfo.complexId)
     }
 
-    // MASTER가 관리자 API 또는 board/notice API 호출할 때 선택 단지 ID 헤더 추가
-    if (userInfo?.role === 'MASTER' && selectedComplex?.complexId) {
-      const isMasterPath = requestUrl.startsWith('/admin/') && !requestUrl.startsWith('/admin/master/')
-      const isBoardPath = requestUrl.startsWith('/boards/') || requestUrl.startsWith('/notices/') || requestUrl.startsWith('/admin/boards/') || requestUrl.startsWith('/admin/notices/')
-      if (isMasterPath || isBoardPath) {
-        config.headers = config.headers || {}
-        config.headers['X-Selected-Complex-Id'] = String(selectedComplex.complexId)
-      }
+    // MASTER가 공통 관리자 API를 호출할 때만 선택 단지 ID 헤더 추가.
+    // master 전용 API(/api/admin/master/*)는 단지 무관하므로 제외.
+    // develop과 household 브랜치의 URL 형태를 모두 허용한다.
+    const isCommonAdminApi =
+      (requestUrl.startsWith('/api/admin/') && !requestUrl.startsWith('/api/admin/master/')) ||
+      (requestUrl.startsWith('/admin/') && !requestUrl.startsWith('/admin/master/'))
+    const isBoardPath =
+      requestUrl.startsWith('/boards/') ||
+      requestUrl.startsWith('/notices/') ||
+      requestUrl.startsWith('/admin/boards/') ||
+      requestUrl.startsWith('/admin/notices/') ||
+      requestUrl.startsWith('/api/admin/boards/') ||
+      requestUrl.startsWith('/api/admin/notices/')
+
+    if (userInfo?.role === 'MASTER' && selectedComplex?.complexId && (isCommonAdminApi || isBoardPath)) {
+      ensureHeaders(config)['X-Selected-Complex-Id'] = String(selectedComplex.complexId)
     }
 
     return config

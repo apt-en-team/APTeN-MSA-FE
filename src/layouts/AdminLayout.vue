@@ -5,6 +5,7 @@ import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { FEATURE_CODES } from '@/constants/complexFeatures'
 import { useComplexStore } from '@/stores/useComplexStore'
+import { codeToParkingTypeName } from '@/constants/parkingTypes'
 import { normalizeFeatures, isFeatureEnabled } from '@/utils/featureGate'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import NotificationBadge from '@/components/notification/NotificationBadge.vue'
@@ -37,13 +38,13 @@ const adminMenuDefinitions = [
     label: 'HOUSEHOLD',
     items: [
       { label: '세대 관리', path: 'households', icon: 'home' },
-      { label: '관리비 관리', path: 'bills', icon: 'bill' },
+      { label: '관리비 정산', path: 'bills', icon: 'bill' },
     ],
   },
   {
     label: 'VEHICLE',
     items: [
-      { label: '입주민 차량 목록', path: 'vehicles', icon: 'car' },
+      { label: '차량 관리', path: 'vehicles', icon: 'car' },
       { label: '방문차량 목록', path: 'visitor-vehicles', icon: 'visitor-car' },
       { label: '입출차 기록', path: 'parking-logs', icon: 'log' },
       { label: '주차 현황', path: 'parking/dashboard', icon: 'parking' },
@@ -88,15 +89,23 @@ const currentAdminFeatures = computed(() => {
   return normalizeFeatures(complexStore.myComplex?.features || complexStore.complexDetail?.features)
 })
 
+// 현재 단지 운영 타입을 컨텍스트(MASTER 선택 단지 / 일반 관리자 내 단지) 기준으로 산출한다.
+const currentParkingType = computed(() => {
+  if (isMasterComplexMode.value) {
+    return codeToParkingTypeName(complexStore.selectedComplex?.parkingTypeCode)
+  }
+  return codeToParkingTypeName(complexStore.myComplex?.parkingTypeCode)
+})
+
 // 메뉴 경로별로 단지 기능 사용 여부를 판별한다.
 function isAdminMenuVisible(path) {
   if (['facilities', 'reservations', 'gx-programs'].includes(path)) {
     return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.FACILITY)
   }
 
-  // 주차 관련 메뉴는 단지의 주차 기능이 켜진 경우에만 노출
+  // 주차 관련 메뉴는 단지 운영 타입이 BASIC 또는 SENSOR일 때만 노출 (NONE은 숨김)
   if (['parking-logs', 'parking/dashboard', 'parking/statistics', 'parking/zones'].includes(path)) {
-    return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.PARKING_STATUS)
+    return currentParkingType.value === 'BASIC' || currentParkingType.value === 'SENSOR'
   }
 
   if (path === 'votes') {
@@ -171,7 +180,7 @@ const currentComplexName = computed(() => {
 
 // 상단 보조 문구는 현재 모드와 선택 단지명을 기준으로 표시한다.
 const topbarSub = computed(() => {
-  return `${todayStr.value} · ${currentComplexName.value}`
+  return `${todayStr.value} / ${currentComplexName.value}`
 })
 
 // 기존 store 액션을 사용해 로그아웃 버튼을 연결한다.
@@ -196,6 +205,19 @@ function handleActionClick() {
   }
 }
 
+// 자식 페이지가 등록(create) 버튼에 연결할 모달 열기 함수를 등록한다.
+const createModalFn = ref(null)
+provide('registerCreateModal', (fn) => {
+  createModalFn.value = typeof fn === 'function' ? fn : null
+})
+
+// 등록 버튼 클릭 시 자식 페이지가 등록한 등록 모달 열기 함수를 실행한다.
+function handleCreateClick() {
+  if (createModalFn.value) {
+    createModalFn.value()
+  }
+}
+
 // MASTER 사용자는 어느 관리자 화면에서도 단지 선택 화면으로 돌아갈 수 있다.
 const isMasterUser = computed(() => userRole.value === 'MASTER')
 
@@ -206,7 +228,13 @@ const canRegisterAdmin = computed(() => {
   return isAdminManagePage && allowedRole
 })
 
-// 게시판 관리 화면에서 공지 작성 버튼 표시
+// 세대 관리 화면에서 평형/라인 관리 버튼 노출 여부를 판단한다.
+const canManageHouseholdType = computed(() => {
+  const allowedRole = userRole.value === 'MASTER' || userRole.value === 'MANAGER'
+  return route.path === '/admin/households' && allowedRole
+})
+
+// 게시판 관리 화면에서 공지 작성 버튼 노출 여부를 판단한다.
 const canCreateNotice = computed(() => route.path === '/admin/boards/statistics')
 
 // 입출차 기록 화면에서 기록 등록 버튼을 표시할지 판단한다.
@@ -218,12 +246,17 @@ const canRegisterParkingZone = computed(() => route.path === '/admin/parking/zon
 // 센서 관리 화면에서 센서 등록 버튼을 표시할지 판단한다.
 const canRegisterSensor = computed(() => route.path === '/admin/parking/sensors')
 
+// 세대 관리 화면에서 세대 등록 버튼을 표시할지 판단한다. (모든 관리자 역할)
+const canCreateHousehold = computed(() => route.path === '/admin/households')
+
 // 헤더 공통 버튼 노출 여부를 계산한다.
 const headerActions = computed(() => {
   return {
     showAlert: true,
     showComplexSelector: isMasterUser.value,
     showAdminRegister: canRegisterAdmin.value,
+    showHouseholdTypeManage: canManageHouseholdType.value,
+    showHouseholdCreate: canCreateHousehold.value,
     showParkingLogCreate: canRegisterParkingLog.value,
     showParkingZoneCreate: canRegisterParkingZone.value,
     showSensorCreate: canRegisterSensor.value,
@@ -414,7 +447,6 @@ watch(
                   <line x1="16" y1="2" x2="16" y2="6" />
                   <line x1="8" y1="2" x2="8" y2="6" />
                   <line x1="3" y1="10" x2="21" y2="10" />
-
                 </svg>
                 <svg
                   v-else-if="getMenuIconPath(menu.icon) === 'gx'"
@@ -527,10 +559,19 @@ watch(
           </button>
 
           <button
-            v-if="route.path === '/admin/households'"
+            v-if="headerActions.showHouseholdTypeManage"
             type="button"
             class="admin-layout__action-button"
             @click="handleActionClick"
+          >
+            + 평형/라인 관리
+          </button>
+
+          <button
+            v-if="headerActions.showHouseholdCreate"
+            type="button"
+            class="admin-layout__action-button"
+            @click="handleCreateClick"
           >
             + 세대 등록
           </button>
@@ -559,7 +600,7 @@ watch(
             class="admin-layout__action-button"
             @click="handleActionClick"
           >
-            + 방문차량 등록
+            {{ route.query.tab === 'regular' ? '+ 고정방문차량 등록' : '+ 방문차량 등록' }}
           </button>
 
           <button
@@ -587,15 +628,6 @@ watch(
             @click="handleActionClick"
           >
             + 구역 등록
-          </button>
-
-          <button
-            v-if="headerActions.showSensorCreate"
-            type="button"
-            class="admin-layout__action-button"
-            @click="handleActionClick"
-          >
-            + 센서 등록
           </button>
 
           <button

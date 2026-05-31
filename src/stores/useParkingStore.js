@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import parkingApi from '@/api/parkingApi'
+import { connectParkingSse } from '@/utils/parkingSseClient'
 
 // 빈 페이지 응답 기본값
 const createEmptyPage = () => ({
@@ -60,6 +61,11 @@ export const useParkingStore = defineStore('parking', {
     parkingStatistics: createEmptyParkingStatistics(),
     residentParkingStatus: createEmptyResidentParkingStatus(),
     parkingZones: [],
+    sseConnected: false,
+    sseClose: null,
+    currentZoneSpots: [],
+    currentZoneId: null,
+    spotsLoading: false,
   }),
 
   actions: {
@@ -216,6 +222,101 @@ export const useParkingStore = defineStore('parking', {
       } finally {
         this.loading = false
       }
+    },
+
+    // 입주민 주차 SSE 구독 시작
+    connectSpotSse() {
+      if (this.sseClose) return
+      const close = connectParkingSse({
+        onSpotChanged: (payload) => this.applySpotChanged(payload),
+        onZoneCounterChanged: (payload) => this.applyZoneCounterChanged(payload),
+        onError: () => {
+          this.sseConnected = false
+          this.sseClose = null
+        },
+      })
+      this.sseClose = close
+      this.sseConnected = true
+    },
+
+    // 입주민 주차 SSE 구독 종료
+    disconnectSpotSse() {
+      if (this.sseClose) {
+        this.sseClose()
+        this.sseClose = null
+      }
+      this.sseConnected = false
+    },
+
+    // zone 카운터 갱신 공통 로직
+    applyZoneCounter(payload) {
+      if (!payload || payload.zoneId == null) return
+      const zones = this.residentParkingStatus?.zones
+      if (!Array.isArray(zones) || zones.length === 0) return
+
+      const target = zones.find((zone) => zone.zoneId === payload.zoneId)
+      if (!target) return
+
+      target.currentParkedCount = payload.zoneOccupied
+      target.totalSlots = payload.zoneTotalSlots
+      target.remainingSlots = payload.zoneTotalSlots - payload.zoneOccupied
+
+      const totalSlots = zones.reduce((sum, zone) => sum + (zone.totalSlots || 0), 0)
+      const currentParkedCount = zones.reduce((sum, zone) => sum + (zone.currentParkedCount || 0), 0)
+      const remainingSlots = totalSlots - currentParkedCount
+      const occupancyRate = totalSlots > 0
+        ? Number(((currentParkedCount / totalSlots) * 100).toFixed(1))
+        : 0
+
+      this.residentParkingStatus.totalSlots = totalSlots
+      this.residentParkingStatus.currentParkedCount = currentParkedCount
+      this.residentParkingStatus.remainingSlots = remainingSlots
+      this.residentParkingStatus.occupancyRate = occupancyRate
+      this.residentParkingStatus.updatedAt = payload.changedAt
+    },
+
+    // spot-changed 이벤트 반영
+    applySpotChanged(payload) {
+      this.applyZoneCounter(payload)
+
+      // 자리 맵에 표시 중인 자리도 함께 갱신
+      if (Array.isArray(this.currentZoneSpots) && this.currentZoneSpots.length > 0) {
+        const targetSpot = this.currentZoneSpots.find((spot) => spot.sensorCode === payload.sensorCode)
+        if (targetSpot) {
+          targetSpot.status = payload.status
+          if (payload.isActive !== undefined && payload.isActive !== null) {
+            targetSpot.isActive = payload.isActive
+          }
+        }
+      }
+    },
+
+    // zone-counter-changed 이벤트 반영
+    applyZoneCounterChanged(payload) {
+      this.applyZoneCounter(payload)
+    },
+
+    // 입주민 zone별 자리 목록 조회
+    async fetchZoneSpots(zoneId) {
+      this.spotsLoading = true
+      this.error = null
+      try {
+        const res = await parkingApi.getResidentZoneSpots(zoneId)
+        this.currentZoneSpots = Array.isArray(res) ? res : []
+        this.currentZoneId = zoneId
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        this.currentZoneSpots = []
+      } finally {
+        this.spotsLoading = false
+      }
+    },
+
+    // 현재 자리 목록 비우기
+    clearZoneSpots() {
+      this.currentZoneSpots = []
+      this.currentZoneId = null
     },
   },
 })

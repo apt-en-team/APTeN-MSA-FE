@@ -9,6 +9,7 @@ import {getMyVehicles} from '@/api/vehicleApi'
 import {getMyReservations} from '@/api/reservationApi'
 import {getNotices} from '@/api/noticeApi'
 import {getVisitorVehicles} from '@/api/visitorVehicleApi'
+import {getResidentParkingStatus} from '@/api/parkingApi'
 import { normalizeReservationStatus, normalizeGxReservationStatus } from '@/utils/normalize.js'
 import imgReadingroom from '@/assets/images/readingroom.png'
 import imgGolf from '@/assets/images/golf.png'
@@ -45,8 +46,8 @@ const myReservations = ref([])
 // 이용예정 전체 건수 (PageResponse.totalElements)
 const reservationTotal = ref(0)
 
-// 방문차량 현황 (승인 대기 건수)
-const pendingVisitorCount = ref(0)
+// 예정 방문차량 건수 (등록완료 + 오늘 이후)
+const upcomingVisitorCount = ref(0)
 
 // 주차 현황 (사용률 %)
 const parkingUsageRate = ref(0)
@@ -106,12 +107,12 @@ const homeSummaryCards = computed(() => {
 
   cards.push({
     key: 'visitor',
-    label: '방문차량',
-    value: pendingVisitorCount.value,
+    label: '예정 방문차량',
+    value: upcomingVisitorCount.value,
     unit: '건',
-    desc: '승인 대기',
-    descClass: 'stat-card__desc--warn',
-    path: '/resident/visitor-vehicles/list',
+    desc: '방문 예정',
+    descClass: '',
+    path: `/resident/${route.params.complexId}/visitor-vehicle`,
     showProgress: false,
     progressValue: 0,
   })
@@ -196,12 +197,17 @@ const reservationCount = computed(() => reservationTotal.value)
 async function loadHomeData() {
   loading.value = true
   try {
+    // 오늘 날짜 yyyy-MM-dd (예정 방문차량 fromDate로 사용)
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
     // 병렬 요청으로 성능 최적화
-    const [vehicles, reservations, notices_res, visitors] = await Promise.allSettled([
+    const [vehicles, reservations, notices_res, visitors, parking] = await Promise.allSettled([
       getMyVehicles(),
       getMyReservations({ phase: 'UPCOMING', size: 4 }),
       getNotices({size: 3}),
-      getVisitorVehicles({status: 'PENDING', size: 1}),
+      getVisitorVehicles({ status: 'APPROVED', fromDate: today, size: 1 }),
+      getResidentParkingStatus(),
     ])
 
     // 차량 건수
@@ -224,16 +230,18 @@ async function loadHomeData() {
       notices.value = (Array.isArray(data) ? data : data?.content ?? []).slice(0, 3)
     }
 
-    // 방문차량 승인 대기
+    // 예정 방문차량 건수
     if (visitors.status === 'fulfilled') {
       const data = visitors.value
-      pendingVisitorCount.value = data?.totalElements ?? 0
+      upcomingVisitorCount.value = data?.totalElements ?? 0
     }
 
-    // // 주차 현황
-    // if (parking.status === 'fulfilled') {
-    //   parkingUsageRate.value = parking.value?.usageRate ?? 0
-    // }
+    // 주차 현황 점유율 (활성 구역 전체면수 대비 현재 주차 대수)
+    if (parking.status === 'fulfilled') {
+      const data = parking.value
+      const total = data?.totalSlots ?? 0
+      parkingUsageRate.value = total > 0 ? Math.round((data.currentParkedCount / total) * 100) : 0
+    }
   } finally {
     loading.value = false
   }

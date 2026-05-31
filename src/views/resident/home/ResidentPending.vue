@@ -8,6 +8,7 @@ const router = useRouter()
 
 // 로그인한 사용자 정보
 const userName = computed(() => authStore.name || '입주민')
+const isRejected = computed(() => ['REJECTED', '03', '반려', '거절'].includes(authStore.status))
 
 // 로그아웃 후 로그인 페이지로 이동
 async function handleLogout() {
@@ -42,10 +43,16 @@ async function handleLogout() {
 
     <!-- 안내 메시지 -->
     <div class="pending__content">
-      <h1 class="pending__title">승인 대기 중</h1>
+      <h1 class="pending__title">{{ isRejected ? '승인 거절' : '승인 대기 중' }}</h1>
       <p class="pending__desc">
-        <strong>{{ userName }}</strong>님의 가입 신청이 접수되었습니다.<br>
-        관리자 승인 후 서비스를 이용하실 수 있습니다.
+        <template v-if="isRejected">
+          <strong>{{ userName }}</strong>님의 가입 신청이 승인 거절되었습니다.<br>
+          정보를 확인한 뒤 다시 가입해 주세요.
+        </template>
+        <template v-else>
+          <strong>{{ userName }}</strong>님의 가입 신청이 접수되었습니다.<br>
+          관리자 승인 후 서비스를 이용하실 수 있습니다.
+        </template>
       </p>
     </div>
 
@@ -61,14 +68,22 @@ async function handleLogout() {
       </div>
       <div class="pending__info-row">
         <span class="pending__info-label">상태</span>
-        <span class="pending__info-badge">승인 대기</span>
+        <span class="pending__info-badge" :class="{ 'is-rejected': isRejected }">
+          {{ isRejected ? '승인 거절' : '승인 대기' }}
+        </span>
       </div>
     </div>
 
     <!-- 안내 문구 -->
     <p class="pending__notice">
-      승인까지 1~2 영업일이 소요될 수 있습니다.<br>
-      문의사항은 관리사무소로 연락해주세요.
+      <template v-if="isRejected">
+        입력한 세대 정보와 승인 기준이 일치하지 않습니다.<br>
+        다시 가입하거나 관리사무소로 문의해 주세요.
+      </template>
+      <template v-else>
+        승인까지 1~2 영업일이 소요될 수 있습니다.<br>
+        문의사항은 관리사무소로 연락해주세요.
+      </template>
     </p>
 
     <!-- 로그아웃 버튼 -->
@@ -190,6 +205,11 @@ async function handleLogout() {
   background: rgba(230, 162, 60, 0.12);
   padding: 3px 10px;
   border-radius: 20px;
+}
+
+.pending__info-badge.is-rejected {
+  color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.12);
 }
 
 /* 하단 안내 */

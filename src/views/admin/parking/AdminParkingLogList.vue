@@ -4,20 +4,23 @@
 import { onMounted, reactive, ref, computed, inject } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useParkingStore } from '@/stores/useParkingStore'
+import { useAuthStore } from '@/stores/useAuthStore'
 import StatsCards from '@/components/admin/StatsCards.vue'
 import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
 import AdminTable from '@/components/admin/AdminTable.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
 import BaseBadge from '@/components/common/BaseBadge.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import ActionResultModal from '@/components/common/ActionResultModal.vue'
 import parkingApi from '@/api/parkingApi'
 
 const parkingStore = useParkingStore()
+const authStore = useAuthStore()
 
 // AdminLayout 헤더 액션 버튼이 누를 함수를 등록한다.
 const registerOpenModal = inject('registerOpenModal', null)
 
-const { parkingLogPage, parkingLogSummary } = storeToRefs(parkingStore)
+const { parkingLogPage, parkingLogSummary, parkingZones } = storeToRefs(parkingStore)
 
 // 날짜 프리셋 옵션
 const datePresetOptions = [
@@ -49,6 +52,67 @@ const createForm = reactive({
 })
 const createSubmitting = ref(false)
 const createError = ref('')
+
+// 활성 zone 목록 필터링 결과
+const activeZones = computed(() => (parkingZones.value ?? []).filter((zone) => zone.isActive))
+
+// 구역 표시 라벨 변환
+const formatZoneLabel = (zone) => {
+  if (!zone) return ''
+  return zone.zoneName ? `${zone.areaName} / ${zone.zoneName}` : zone.areaName
+}
+
+// 결과 모달 상태
+const resultModal = reactive({
+  visible: false,
+  type: 'success',
+  title: '',
+  subtitle: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
+})
+
+// 처리 시각 문자열 생성
+const getCurrentTimeText = () => {
+  return new Date().toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+// 처리자 이름 조회
+const getCurrentActorName = () => {
+  return authStore.userInfo?.name || authStore.user?.name || authStore.name || '관리자'
+}
+
+// 결과 모달 열기
+const openResultModal = ({ type, title, subtitle = '', itemName = '', actionLabel = '', afterConfirm = null }) => {
+  resultModal.visible = true
+  resultModal.type = type
+  resultModal.title = title
+  resultModal.subtitle = subtitle
+  resultModal.itemName = itemName
+  resultModal.time = getCurrentTimeText()
+  resultModal.actionLabel = actionLabel
+  resultModal.actor = getCurrentActorName()
+  resultModal.afterConfirm = afterConfirm
+}
+
+// 결과 모달 확인 후 후속 처리 실행
+const handleResultConfirm = async () => {
+  const cb = resultModal.afterConfirm
+  resultModal.visible = false
+  resultModal.afterConfirm = null
+  if (typeof cb === 'function') {
+    await cb()
+  }
+}
 
 // 테이블 컬럼 정의
 const columns = [
@@ -236,15 +300,32 @@ const submitCreate = async () => {
   createError.value = ''
   try {
     await parkingApi.createParkingLog({
-      zoneId: Number(createForm.zoneId),
+      zoneId: String(createForm.zoneId).trim(),
       licensePlate: createForm.licensePlate.trim(),
       entryType: createForm.entryType,
       loggedAt: new Date().toISOString(),
       memo: createForm.memo?.trim() || null,
     })
+    // 등록 시점 폼 값 캡처, 모달이 다시 열리기 전에 안전 확보
+    const licensePlate = createForm.licensePlate.trim()
+    const selectedZone = activeZones.value.find(
+      (zone) => String(zone.zoneId) === createForm.zoneId,
+    )
+    const zoneLabel = formatZoneLabel(selectedZone)
+    const entryTypeText = createForm.entryType === 'IN' ? '입차' : '출차'
+    const itemName = zoneLabel ? `${licensePlate} (${zoneLabel})` : licensePlate
+
     closeCreateModal()
-    // 목록과 통계 다시 조회
-    await Promise.all([loadLogs(), loadSummary()])
+    openResultModal({
+      type: 'success',
+      title: '입출차 기록이 등록되었습니다.',
+      subtitle: '현재 시각으로 기록되었습니다.',
+      itemName,
+      actionLabel: `${entryTypeText} 등록`,
+      afterConfirm: async () => {
+        await Promise.all([loadLogs(), loadSummary()])
+      },
+    })
   } catch (e) {
     console.error(e)
     createError.value = e?.response?.data?.message || '등록 실패'
@@ -260,6 +341,9 @@ onMounted(() => {
   }
   loadLogs()
   loadSummary()
+  if (!parkingZones.value || parkingZones.value.length === 0) {
+    parkingStore.fetchParkingZones()
+  }
 })
 </script>
 
@@ -337,13 +421,17 @@ onMounted(() => {
     >
       <div class="create-form">
         <div class="create-form__row">
-          <label class="create-form__label">주차 구역 ID</label>
-          <input
-            v-model="createForm.zoneId"
-            type="number"
-            class="create-form__input"
-            placeholder="주차 구역 ID 입력"
-          />
+          <label class="create-form__label">주차 구역</label>
+          <select v-model="createForm.zoneId" class="create-form__input">
+            <option value="">구역 선택</option>
+            <option
+              v-for="zone in activeZones"
+              :key="zone.zoneId"
+              :value="String(zone.zoneId)"
+            >
+              {{ formatZoneLabel(zone) }}
+            </option>
+          </select>
         </div>
         <div class="create-form__row">
           <label class="create-form__label">차량번호</label>
@@ -391,6 +479,19 @@ onMounted(() => {
         </button>
       </template>
     </BaseModal>
+
+    <!-- 등록 결과 알림 모달 -->
+    <ActionResultModal
+      :visible="resultModal.visible"
+      :type="resultModal.type"
+      :title="resultModal.title"
+      :subtitle="resultModal.subtitle"
+      :item-name="resultModal.itemName"
+      :time="resultModal.time"
+      :action-label="resultModal.actionLabel"
+      :actor="resultModal.actor"
+      @close="handleResultConfirm"
+    />
   </section>
 </template>
 
