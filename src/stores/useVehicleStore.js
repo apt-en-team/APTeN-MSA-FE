@@ -13,6 +13,7 @@ export const useVehicleStore = defineStore('vehicle', {
     adminVehicleStats: null,
     vehicleLocations: null,
     vehiclePolicies: null,
+    vehicleRegistrationPolicy: null,
   }),
   getters: {
     hasVehicleDetail: (state) => !!state.vehicleDetail,
@@ -232,6 +233,36 @@ export const useVehicleStore = defineStore('vehicle', {
       try {
         const res = await vehicleApi.saveVehiclePolicies(body)
         this.vehiclePolicies = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 차량 등록 한도 정책 조회
+    async fetchVehicleRegistrationPolicy() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await vehicleApi.getVehicleRegistrationPolicy()
+        this.vehicleRegistrationPolicy = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 차량 등록 한도 정책 설정
+    async saveVehicleRegistrationPolicy(body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await vehicleApi.saveVehicleRegistrationPolicy(body)
+        this.vehicleRegistrationPolicy = res
       } catch (e) {
         console.error(e)
         this.error = e
