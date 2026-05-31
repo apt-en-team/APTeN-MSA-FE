@@ -501,7 +501,7 @@ watch(
           <span class="detail-value">{{ detailRow.building || '-' }}동 {{ detailRow.unit || '-' }}호</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">세대주</span>
+          <span class="detail-label">등록자</span>
           <span class="detail-value">{{ detailRow.residentName || '-' }}</span>
         </div>
         <div class="detail-row">
