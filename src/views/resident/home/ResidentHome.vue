@@ -142,6 +142,19 @@ const isBillOverdue = computed(() => {
   return Boolean(homeBill.value?.overdue)
 })
 
+function isConfirmedBillStatus(status) {
+  return status === 'CONFIRMED' || status === '확정완료' || status === '02'
+}
+
+const showHomeBillCard = computed(() => {
+  return Boolean(
+    homeBill.value?.billId &&
+    isConfirmedBillStatus(homeBill.value?.status) &&
+    homeBill.value?.billYear &&
+    homeBill.value?.billMonth,
+  )
+})
+
 // 날짜 포맷 (26.02.15 형식) — 공지사항 등에 사용
 function formatDate(dateStr) {
   if (!dateStr) return ''
@@ -283,7 +296,7 @@ onMounted(() => {
 
     <!-- 관리비 카드 -->
     <section
-      v-if="homeBill"
+      v-if="showHomeBillCard"
       class="bill-card"
       :class="{ 'bill-card--overdue': isBillOverdue }"
       @click="router.push(`/resident/${route.params.complexId}/bill`)"
