@@ -19,6 +19,12 @@ export const confirmHouseholdBill = async (billId) => {
   return unwrapApiData(res)
 }
 
+// 홈 화면 관리비 카드 조회 (표시 조건 만족 시 단건, 없으면 null)
+export const getMyHomeBill = async () => {
+  const res = await apiClient.get('/household-bills/home')
+  return unwrapApiData(res)
+}
+
 // 내 관리비 목록 조회
 export const getMyHouseholdBills = async (params) => {
   const res = await apiClient.get('/household-bills', { params })
@@ -64,6 +70,7 @@ export const reflectBaseFee = async (body) => {
 export default {
   getBasicBillPolicy,
   saveBasicBillPolicy,
+  getMyHomeBill,
   confirmHouseholdBill,
   unconfirmHouseholdBill,
   getMyHouseholdBills,
