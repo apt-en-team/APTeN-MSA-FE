@@ -7,8 +7,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import BaseBadge from '@/components/common/BaseBadge.vue'
 import BaseEmpty from '@/components/common/BaseEmpty.vue'
 import BaseLoading from '@/components/common/BaseLoading.vue'
-import ConfirmModal from '@/components/common/ConfirmModal.vue'
-import ActionResultModal from '@/components/common/ActionResultModal.vue'
+import ResidentModal from '@/components/resident/ResidentModal.vue'
 import VehicleFormModal from '@/components/resident/vehicle/VehicleFormModal.vue'
 import { vehicleImageByModelName } from '@/constants/vehicleImage'
 
@@ -210,7 +209,7 @@ const cancelDelete = () => {
 
 // 차량 삭제 처리
 const confirmDelete = async () => {
-  if (!deleteModal.target) return
+  if (!deleteModal.target || deleteModal.submitting) return
   deleteModal.submitting = true
   try {
     await vehicleStore.deleteVehicle(deleteModal.target.vehicleId)
@@ -352,27 +351,29 @@ const confirmDelete = async () => {
     />
 
     <!-- 삭제 확인 모달 -->
-    <ConfirmModal
+    <ResidentModal
       :visible="deleteModal.open"
+      type="danger"
       title="차량 등록을 취소하시겠습니까?"
       subtitle="취소하면 해당 차량 정보가 삭제됩니다."
-      item-label="차량번호"
-      :item-name="deleteModal.target?.licensePlate || ''"
-      action-label="삭제"
+      :info-rows="deleteModal.target ? [{ label: '차량번호', value: deleteModal.target.licensePlate }] : []"
       confirm-text="등록 취소"
       confirm-type="danger"
-      :loading="deleteModal.submitting"
+      cancel-text="취소"
       @confirm="confirmDelete"
-      @cancel="cancelDelete"
+      @close="cancelDelete"
     />
 
     <!-- 결과 모달 -->
-    <ActionResultModal
+    <ResidentModal
       :visible="resultModal.open"
       :type="resultModal.type"
       :title="resultModal.title"
-      :desc="resultModal.desc"
+      :subtitle="resultModal.desc"
+      :show-cancel="false"
+      confirm-text="확인"
       @close="closeResult"
+      @confirm="closeResult"
     />
   </section>
 </template>

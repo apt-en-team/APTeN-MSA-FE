@@ -85,6 +85,18 @@ export const getVehiclePolicies = async () => {
   return unwrapApiData(res)
 }
 
+// 차량 등록 한도 정책 조회
+export const getVehicleRegistrationPolicy = async () => {
+  const res = await apiClient.get('/admin/vehicle-registration-policies')
+  return unwrapApiData(res)
+}
+
+// 차량 등록 한도 정책 설정
+export const saveVehicleRegistrationPolicy = async (body) => {
+  const res = await apiClient.put('/admin/vehicle-registration-policies', body)
+  return unwrapApiData(res)
+}
+
 export default {
   createVehicle,
   updateVehicle,
@@ -100,4 +112,6 @@ export default {
   rejectVehicle,
   saveVehiclePolicies,
   getVehiclePolicies,
+  getVehicleRegistrationPolicy,
+  saveVehicleRegistrationPolicy,
 }

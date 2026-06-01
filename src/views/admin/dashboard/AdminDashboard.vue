@@ -8,12 +8,16 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { isFeatureEnabled, normalizeFeatures } from '@/utils/featureGate'
 import { useReservationStore } from '@/stores/useReservationStore'
+import { useParkingStore } from '@/stores/useParkingStore'
 import { getAdminFacilities } from '@/api/facilityApi.js'
+import { getAdminVisitorVehicles } from '@/api/visitorVehicleApi'
+import { getParkingLogs } from '@/api/parkingApi'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
 const reservationStore = useReservationStore()
+const parkingStore = useParkingStore()
 
 const todayStr = (() => {
   const d = new Date()
@@ -26,6 +30,8 @@ const state = reactive({
   errorMessage: '',
   pendingApproval: null,
   parkingRate: null,
+  parkingUsed: null,
+  parkingTotal: null,
   todayReservation: null,
   todayReserved: null,
   gxWaiting: null,
@@ -75,7 +81,11 @@ const dashboardStats = computed(() => {
       label: '주차 현황',
       value: state.parkingRate ?? '-',
       unit: state.parkingRate === null ? '' : '%',
-      desc: showParkingSection.value ? '주차 대시보드 API 연결 예정입니다.' : '기능이 비활성화되었습니다.',
+      desc: showParkingSection.value
+        ? (state.parkingRate !== null
+            ? `사용 ${state.parkingUsed} / 전체 ${state.parkingTotal}면`
+            : '주차 현황')
+        : '기능이 비활성화되었습니다.',
       iconClass: 'icon-blue',
     },
     {
@@ -107,6 +117,7 @@ async function fetchDashboard() {
 
   try {
     await fetchStats()
+    await fetchParkingCard()
     await fetchRecentItems()
   } catch (error) {
     console.error('대시보드 조회 실패:', error)
@@ -156,6 +167,29 @@ const reservationStatusLabel = (s) =>
 const reservationStatusClass = (s) =>
   ({ CONFIRMED: 'status-confirmed', COMPLETED: 'status-completed', CANCELLED: 'status-cancelled' })[s] || ''
 
+// 입출차 구분 라벨 반환
+const entryTypeLabel = (t) => (t === 'IN' ? '입차' : t === 'OUT' ? '출차' : '-')
+
+// 기록 시각을 MM.dd HH:mm 형태로 변환
+const formatLoggedAt = (v) => (v ? String(v).replace('T', ' ').slice(5, 16) : '-')
+
+// 방문일을 yyyy.MM.dd 형태로 변환
+const formatVisitDate = (v) => (v ? String(v).slice(0, 10).replace(/-/g, '.') : '-')
+
+// 주차 현황 카드 데이터 조회
+async function fetchParkingCard() {
+  if (!showParkingSection.value) return
+  try {
+    await parkingStore.fetchAdminParkingStatus()
+    const status = parkingStore.adminParkingStatus
+    state.parkingRate = Math.round(Number(status?.occupancyRate || 0))
+    state.parkingUsed = Number(status?.currentParkedCount || 0)
+    state.parkingTotal = Number(status?.totalSlots || 0)
+  } catch {
+    // 실패 시 카드는 '-' 유지
+  }
+}
+
 // 통계 데이터 조회
 async function fetchStats() {
   if (!showFacilitySection.value) return
@@ -184,9 +218,28 @@ async function fetchRecentItems() {
       state.facilitySummary = []
     }
   }
-  state.visitors = []
+  // 방문차량/입출차는 주차 기능 사용 단지에서만 조회
+  if (showParkingSection.value) {
+    // 방문차량 최근 5건 조회
+    try {
+      const res = await getAdminVisitorVehicles({ page: 0, size: 3 })
+      state.visitors = res?.content ?? []
+    } catch {
+      state.visitors = []
+    }
+    // 최근 입출차 기록 5건 조회
+    try {
+      const res = await getParkingLogs({ page: 0, size: 5 })
+      state.records = res?.content ?? []
+    } catch {
+      state.records = []
+    }
+  } else {
+    state.visitors = []
+    state.records = []
+  }
+
   state.reservations = []
-  state.records = []
   state.posts = []
 }
 
@@ -258,7 +311,17 @@ onMounted(() => {
           </div>
 
           <div v-if="state.visitors.length > 0" class="visitor-list">
-            <!-- API 연결 후 방문차량 목록을 표시합니다. -->
+            <div v-for="v in state.visitors" :key="v.visitorVehicleId" class="visitor-item">
+              <div class="visitor-main">
+                <strong class="visitor-plate">{{ v.licensePlate }}</strong>
+                <span class="visitor-badge">{{ v.status || '-' }}</span>
+              </div>
+              <div class="visitor-sub">
+                <span>{{ v.visitorName || '-' }}</span>
+                <span>{{ v.building || '-' }}동 {{ v.unit || '-' }}호</span>
+                <span>{{ formatVisitDate(v.visitDate) }}</span>
+              </div>
+            </div>
           </div>
 
           <div v-else class="empty-state">
@@ -367,12 +430,16 @@ onMounted(() => {
                   <th>구분</th>
                   <th>차량번호</th>
                   <th>유형</th>
-                  <th>세대</th>
                   <th>시각</th>
                 </tr>
               </thead>
               <tbody>
-                <!-- API 연결 후 입출차 기록을 표시합니다. -->
+                <tr v-for="r in state.records" :key="r.parkingLogId">
+                  <td>{{ entryTypeLabel(r.entryType) }}</td>
+                  <td>{{ r.licensePlate }}</td>
+                  <td>{{ r.vehicleCategoryLabel || '-' }}</td>
+                  <td>{{ formatLoggedAt(r.loggedAt) }}</td>
+                </tr>
               </tbody>
             </table>
           </template>
@@ -619,6 +686,42 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* 방문차량 목록 행 */
+.visitor-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 14px;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.visitor-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.visitor-plate {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1A202C;
+}
+
+.visitor-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #3D5170;
+}
+
+.visitor-sub {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: #687282;
 }
 
 .entry-table {

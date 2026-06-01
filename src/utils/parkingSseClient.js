@@ -3,8 +3,8 @@
 // 인증 헤더 주입과 재연결 제어를 한곳에서 캡슐화한다.
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 
-const SSE_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000'
-const SSE_PATH = '/api/parking/spots/sse'
+const SSE_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000/api').replace(/\/$/, '')
+const SSE_PATH = '/parking/spots/sse'
 
 // 재연결을 막아야 하는 치명적 에러 표시용 클래스
 class FatalSseError extends Error {}

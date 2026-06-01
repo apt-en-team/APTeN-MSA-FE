@@ -11,6 +11,7 @@ import AdminTable from '@/components/admin/AdminTable.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
 import BaseBadge from '@/components/common/BaseBadge.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const vehicleStore = useVehicleStore()
 const complexStore = useComplexStore()
@@ -77,6 +78,58 @@ const rejectReason = ref('')
 const actionError = ref('')
 const approveSubmitting = ref(false)
 const rejectSubmitting = ref(false)
+
+// 결과 모달 상태
+const resultModal = reactive({
+  visible: false,
+  type: 'success',
+  title: '',
+  subtitle: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
+})
+
+// 처리 시각 문자열 생성
+const getCurrentTimeText = () => {
+  return new Date().toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+// 처리자 이름 조회
+const getCurrentActorName = () => {
+  return authStore.userInfo?.name || authStore.user?.name || authStore.name || '관리자'
+}
+
+// 결과 모달 열기
+const openResultModal = ({ type, title, subtitle = '', itemName = '', actionLabel = '', afterConfirm = null }) => {
+  resultModal.visible = true
+  resultModal.type = type
+  resultModal.title = title
+  resultModal.subtitle = subtitle
+  resultModal.itemName = itemName
+  resultModal.time = getCurrentTimeText()
+  resultModal.actionLabel = actionLabel
+  resultModal.actor = getCurrentActorName()
+  resultModal.afterConfirm = afterConfirm
+}
+
+// 결과 모달 확인 후 후속 처리 실행
+const handleResultConfirm = async () => {
+  const cb = resultModal.afterConfirm
+  resultModal.visible = false
+  resultModal.afterConfirm = null
+  if (typeof cb === 'function') {
+    await cb()
+  }
+}
 
 // 관리자 차량 페이지 응답 안전 추출
 const vehiclePage = computed(() => {
@@ -217,6 +270,7 @@ const handleApprove = async () => {
   if (approveSubmitting.value || !detail.value) return
   approveSubmitting.value = true
   actionError.value = ''
+  const itemName = detail.value.licensePlate || '-'
   await vehicleStore.approveVehicle(detail.value.vehicleId)
   approveSubmitting.value = false
   if (vehicleStore.error) {
@@ -224,8 +278,16 @@ const handleApprove = async () => {
     return
   }
   closeDetailModal()
-  await loadVehicles()
-  await loadStats()
+  openResultModal({
+    type: 'success',
+    title: '차량이 승인되었습니다.',
+    itemName,
+    actionLabel: '차량 승인',
+    afterConfirm: async () => {
+      await loadVehicles()
+      await loadStats()
+    },
+  })
 }
 
 // 거절 사유 입력 영역 열기
@@ -244,6 +306,7 @@ const handleReject = async () => {
   }
   rejectSubmitting.value = true
   actionError.value = ''
+  const itemName = detail.value.licensePlate || '-'
   await vehicleStore.rejectVehicle(detail.value.vehicleId, { rejectReason: rejectReason.value.trim() })
   rejectSubmitting.value = false
   if (vehicleStore.error) {
@@ -251,8 +314,16 @@ const handleReject = async () => {
     return
   }
   closeDetailModal()
-  await loadVehicles()
-  await loadStats()
+  openResultModal({
+    type: 'success',
+    title: '차량이 거절되었습니다.',
+    itemName,
+    actionLabel: '차량 거절',
+    afterConfirm: async () => {
+      await loadVehicles()
+      await loadStats()
+    },
+  })
 }
 
 // 마운트 시 최초 조회, 동/호 옵션은 목록/통계와 독립적으로 로드
@@ -438,6 +509,19 @@ watch(
         </template>
       </template>
     </BaseModal>
+
+    <!-- 처리 결과 알림 모달 -->
+    <ActionResultModal
+      :visible="resultModal.visible"
+      :type="resultModal.type"
+      :title="resultModal.title"
+      :subtitle="resultModal.subtitle"
+      :item-name="resultModal.itemName"
+      :time="resultModal.time"
+      :action-label="resultModal.actionLabel"
+      :actor="resultModal.actor"
+      @close="handleResultConfirm"
+    />
   </section>
 </template>
 
