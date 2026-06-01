@@ -57,7 +57,7 @@ export const getResidentParkingStatus = async () => {
 
 // 입주민 zone별 자리 목록 조회
 export const getResidentZoneSpots = async (zoneId) => {
-  const res = await apiClient.get(`/api/parking/zones/${zoneId}/spots`)
+  const res = await apiClient.get(`/parking/zones/${zoneId}/spots`)
   return unwrapApiData(res)
 }
 
