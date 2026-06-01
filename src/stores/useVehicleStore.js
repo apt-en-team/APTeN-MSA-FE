@@ -1,6 +1,7 @@
 // 차량 상태를 관리하는 store입니다.
 import { defineStore } from 'pinia'
 import vehicleApi from '@/api/vehicleApi'
+import { toList } from '@/utils/apiResponse'
 
 export const useVehicleStore = defineStore('vehicle', {
   state: () => ({
@@ -9,22 +10,28 @@ export const useVehicleStore = defineStore('vehicle', {
     myVehicles: [],
     vehicleDetail: null,
     adminVehicles: [],
+    adminVehicleStats: null,
+    vehicleLocations: null,
     vehiclePolicies: null,
+    vehicleRegistrationPolicy: null,
   }),
   getters: {
     hasVehicleDetail: (state) => !!state.vehicleDetail,
   },
   actions: {
-    // 내 차량 목록 조회
+    // 내 세대 차량 목록 조회
     async fetchMyVehicles() {
       this.loading = true
       this.error = null
       try {
+        // 응답이 페이지 형태라 content 배열만 추출해 보관
         const res = await vehicleApi.getMyVehicles()
-        this.myVehicles = res
+        this.myVehicles = toList(res)
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -37,9 +44,11 @@ export const useVehicleStore = defineStore('vehicle', {
       try {
         const res = await vehicleApi.getMyVehicleDetail(vehicleId)
         this.vehicleDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -52,9 +61,11 @@ export const useVehicleStore = defineStore('vehicle', {
       try {
         const res = await vehicleApi.createVehicle(body)
         this.vehicleDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -67,9 +78,11 @@ export const useVehicleStore = defineStore('vehicle', {
       try {
         const res = await vehicleApi.updateVehicle(vehicleId, body)
         this.vehicleDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -81,10 +94,11 @@ export const useVehicleStore = defineStore('vehicle', {
       this.error = null
       try {
         const res = await vehicleApi.deleteVehicle(vehicleId)
-        this.vehicleDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -95,11 +109,13 @@ export const useVehicleStore = defineStore('vehicle', {
       this.loading = true
       this.error = null
       try {
+        // 중복 확인 결과는 호출 측에서 사용하도록 그대로 반환
         const res = await vehicleApi.checkLicensePlate(params)
-        this.vehicleDetail = res
+        return res
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
       } finally {
         this.loading = false
       }
@@ -127,6 +143,36 @@ export const useVehicleStore = defineStore('vehicle', {
       try {
         const res = await vehicleApi.getAdminVehicleDetail(vehicleId)
         this.vehicleDetail = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 차량 상태별 통계 조회
+    async fetchAdminVehicleStats() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await vehicleApi.getAdminVehicleStats()
+        this.adminVehicleStats = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 관리자 차량 화면 동/호 옵션 조회
+    async fetchVehicleLocations() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await vehicleApi.getVehicleLocations()
+        this.vehicleLocations = res
       } catch (e) {
         console.error(e)
         this.error = e
@@ -187,6 +233,36 @@ export const useVehicleStore = defineStore('vehicle', {
       try {
         const res = await vehicleApi.saveVehiclePolicies(body)
         this.vehiclePolicies = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 차량 등록 한도 정책 조회
+    async fetchVehicleRegistrationPolicy() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await vehicleApi.getVehicleRegistrationPolicy()
+        this.vehicleRegistrationPolicy = res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 차량 등록 한도 정책 설정
+    async saveVehicleRegistrationPolicy(body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await vehicleApi.saveVehicleRegistrationPolicy(body)
+        this.vehicleRegistrationPolicy = res
       } catch (e) {
         console.error(e)
         this.error = e

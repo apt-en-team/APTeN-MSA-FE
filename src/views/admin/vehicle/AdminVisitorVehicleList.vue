@@ -1,68 +1,111 @@
 <script setup>
-// 방문차량 목록 대표 페이지입니다.
+// 방문차량 관리 컨테이너 화면이다. 방문차량 탭과 고정방문차량 탭을 제공한다.
+import { reactive, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import AdminVisitorVehicleTab from '@/views/admin/vehicle/AdminVisitorVehicleTab.vue'
+import AdminRegularVisitorVehicleTab from '@/views/admin/vehicle/AdminRegularVisitorVehicleTab.vue'
+
+const route = useRoute()
+const router = useRouter()
+
+// 방문차량 관리 탭 목록
+const tabs = [
+  { key: 'visitor', label: '방문차량' },
+  { key: 'regular', label: '고정방문차량' },
+]
+
+const state = reactive({ activeTab: 'visitor' })
+
+// 유효하지 않은 탭 키는 기본값으로 정규화
+const normalizeTab = (tab) => (tabs.some((item) => item.key === tab) ? tab : 'visitor')
+
+// 탭 전환 시 URL 쿼리에 반영
+const changeTab = (tab) => {
+  router.push({ path: '/admin/visitor-vehicles', query: { ...route.query, tab: normalizeTab(tab) } })
+}
+
+// URL 쿼리 변경 시 활성 탭 동기화
+watch(
+  () => route.query.tab,
+  (tab) => {
+    state.activeTab = normalizeTab(tab)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <section class="admin-page">
-    <header class="admin-page__header">
-      <div>
-        <h1 class="admin-page__title">방문차량 목록</h1>
-        <p class="admin-page__description">방문 예약 차량과 출입 관리 현황을 보여줄 대표 페이지를 준비하고 있습니다.</p>
-      </div>
-    </header>
+  <section class="visitor-vehicle-manage">
+    <nav class="tab-bar" aria-label="방문차량관리 탭">
+      <button
+        v-for="tab in tabs"
+        :key="tab.key"
+        type="button"
+        class="tab-btn"
+        :class="{ active: state.activeTab === tab.key }"
+        @click="changeTab(tab.key)"
+      >
+        {{ tab.label }}
+      </button>
+    </nav>
 
-    <section class="admin-page__card">
-      <strong class="admin-page__card-title">준비 중</strong>
-      <p class="admin-page__card-text">방문차량 목록과 운영 기능은 이후 실제 API 흐름에 맞춰 다시 연결할 예정입니다.</p>
-    </section>
+    <div class="tab-panel">
+      <AdminVisitorVehicleTab v-if="state.activeTab === 'visitor'" />
+      <AdminRegularVisitorVehicleTab v-if="state.activeTab === 'regular'" />
+    </div>
   </section>
 </template>
 
 <style scoped>
-.admin-page {
-  display: grid;
-  gap: 20px;
-}
-
-.admin-page__header {
+.visitor-vehicle-manage {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 18px;
 }
 
-.admin-page__title {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 24px;
+.tab-bar {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.tab-btn {
+  min-height: 38px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #687282;
+  font-size: 13px;
   font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.admin-page__description {
-  margin: 8px 0 0;
-  color: var(--color-text-secondary);
-  font-size: 14px;
+.tab-btn:hover {
+  background: #f5f6f8;
+  color: #2b3a55;
 }
 
-.admin-page__card {
-  padding: 24px;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  background: var(--color-card-bg);
-  box-shadow: var(--shadow-card);
+.tab-btn.active {
+  background: #1e2a3e;
+  color: #ffffff;
 }
 
-.admin-page__card-title {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--color-text-primary);
-  font-size: 18px;
+.tab-panel {
+  min-width: 0;
 }
 
-.admin-page__card-text {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  line-height: 1.6;
+@media (max-width: 768px) {
+  .tab-bar {
+    overflow-x: auto;
+  }
+
+  .tab-btn {
+    flex-shrink: 0;
+  }
 }
 </style>

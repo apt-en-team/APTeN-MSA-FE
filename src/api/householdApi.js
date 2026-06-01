@@ -86,6 +86,11 @@ export const approveHouseholdMatchRequest = async (matchRequestId) => {
 }
 
 // 수동 거절 처리
+export const approveHouseholdMatchRequestsBulk = async (matchRequestIds) => {
+  const res = await apiClient.patch('/admin/household-match-requests/approve-bulk', { matchRequestIds })
+  return unwrapApiData(res)
+}
+
 export const rejectHouseholdMatchRequest = async (matchRequestId, body) => {
   const res = await apiClient.patch(`/admin/household-match-requests/${matchRequestId}/reject`, body)
   return unwrapApiData(res)
@@ -200,6 +205,7 @@ export default {
   changeHouseholdHead,
   getHouseholdMatchRequests,
   approveHouseholdMatchRequest,
+  approveHouseholdMatchRequestsBulk,
   rejectHouseholdMatchRequest,
   updateHousehold,
   getMyHousehold,

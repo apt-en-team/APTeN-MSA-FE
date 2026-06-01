@@ -12,6 +12,7 @@
     "lint:eslint": "eslint . --fix --cache"
   },
   "dependencies": {
+    "@microsoft/fetch-event-source": "^2.0.1",
     "@tiptap/extension-horizontal-rule": "^3.23.6",
     "@tiptap/extension-image": "^3.23.6",
     "@tiptap/extension-link": "^3.23.6",
