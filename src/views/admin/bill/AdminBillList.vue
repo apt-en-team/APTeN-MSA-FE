@@ -1,11 +1,12 @@
 <script setup>
-import { computed, inject, onMounted, reactive } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, reactive } from 'vue'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useBillStore } from '@/stores/useBillStore'
 import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
 import AdminTable from '@/components/admin/AdminTable.vue'
 import StatsCards from '@/components/admin/StatsCards.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import BaseBadge from '@/components/common/BaseBadge.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
@@ -98,12 +99,12 @@ const currentPolicy = computed(() => billStore.basicBillPolicy)
 
 const summaryItems = computed(() => {
   const total = totalElements.value
-  const draft = bills.value.filter((b) => b.status === 'DRAFT').length
-  const confirmed = bills.value.filter((b) => b.status === 'CONFIRMED').length
+  const draft = billStore.bills?.draftCount ?? bills.value.filter((b) => b.status === 'DRAFT').length
+  const confirmed = billStore.bills?.confirmedCount ?? bills.value.filter((b) => b.status === 'CONFIRMED').length
   const selectedMonth = state.filters.billMonth ? `${state.filters.billMonth}월` : '전체 월'
   return [
-    { label: '납부 미완', value: draft, unit: '건', desc: '확정 전 상태', descClass: 'warning' },
-    { label: '납부 완료', value: confirmed, unit: '건', desc: '청구 확정된 건', descClass: 'success' },
+    { label: '청구 미확정', value: draft, unit: '건', desc: '확정 전 청구', descClass: 'warning' },
+    { label: '청구 확정', value: confirmed, unit: '건', desc: '입주민 공개 대상', descClass: 'success' },
     { label: '전체 청구', value: total, unit: '건', desc: '조회 조건 기준', descClass: '' },
     { label: '조회 기간', value: state.filters.billYear, unit: '년', desc: selectedMonth, descClass: '' },
   ]
@@ -121,8 +122,8 @@ const monthOptions = [
 
 const statusOptions = [
   { value: '', label: '전체' },
-  { value: 'DRAFT', label: '미확정' },
-  { value: 'CONFIRMED', label: '확정' },
+  { value: 'DRAFT', label: '청구 미확정' },
+  { value: 'CONFIRMED', label: '청구 확정' },
 ]
 
 const pagedBills = computed(() =>
@@ -150,11 +151,11 @@ const detailItems = computed(() => {
 })
 
 function billStatusLabel(s) {
-  return { '임시계산': '미확정', '확정완료': '확정' }[s] ?? s ?? '-'
+  return { DRAFT: '청구 미확정', CONFIRMED: '청구 확정', '임시계산': '청구 미확정', '확정완료': '청구 확정' }[s] ?? s ?? '-'
 }
 
-function billStatusClass(s) {
-  return { '임시계산': 'is-warning', '확정완료': 'is-success' }[s] ?? 'is-gray'
+function billStatusVariant(s) {
+  return { DRAFT: 'warning', CONFIRMED: 'success', '임시계산': 'warning', '확정완료': 'success' }[s] ?? 'neutral'
 }
 
 function itemTypeLabel(t) {
@@ -262,8 +263,17 @@ async function loadPolicy() {
 }
 
 function handleSearch() {
+  if (searchInputTimer) window.clearTimeout(searchInputTimer)
   state.pagination.currentPage = 1
   loadBills()
+}
+
+let searchInputTimer
+function scheduleSearch() {
+  if (searchInputTimer) window.clearTimeout(searchInputTimer)
+  searchInputTimer = window.setTimeout(() => {
+    handleSearch()
+  }, 300)
 }
 
 function handleReset() {
@@ -434,6 +444,10 @@ onMounted(() => {
   loadPolicy()
   loadBills()
 })
+
+onBeforeUnmount(() => {
+  if (searchInputTimer) window.clearTimeout(searchInputTimer)
+})
 </script>
 
 <template>
@@ -468,12 +482,14 @@ onMounted(() => {
             v-model="state.filters.building"
             class="filter-input"
             placeholder="동 검색 (예: 101)"
+            @input="scheduleSearch"
             @keyup.enter="handleSearch"
           />
           <input
             v-model="state.filters.unit"
             class="filter-input"
             placeholder="호수 검색 (예: 101)"
+            @input="scheduleSearch"
             @keyup.enter="handleSearch"
           />
         </AdminFilterBar>
@@ -489,7 +505,7 @@ onMounted(() => {
             @row-click="handleRowClick"
           >
             <template #cell-statusLabel="{ row }">
-              <span :class="['status-badge', billStatusClass(row.status)]">{{ row.statusLabel }}</span>
+              <BaseBadge :variant="billStatusVariant(row.status)">{{ row.statusLabel }}</BaseBadge>
             </template>
           </AdminTable>
         </div>
@@ -519,7 +535,7 @@ onMounted(() => {
         <div class="detail-hero">
           <div class="detail-address-row">
             <h2 class="detail-address">{{ billDetail.building }}동 {{ billDetail.unit }}호</h2>
-            <span :class="['status-badge', billStatusClass(billDetail.status)]">{{ billStatusLabel(billDetail.status) }}</span>
+            <BaseBadge :variant="billStatusVariant(billDetail.status)">{{ billStatusLabel(billDetail.status) }}</BaseBadge>
           </div>
           <p class="detail-sub">{{ billDetail.billYear }}년 {{ billDetail.billMonth }}월 청구</p>
         </div>
@@ -654,7 +670,7 @@ onMounted(() => {
         <label class="form-field">
           <span>기본 관리비<em class="required">*</em></span>
           <div class="form-field-row">
-            <input v-model="state.billSettingForm.baseFee" type="number" min="0" placeholder="10" />
+            <input v-model="state.billSettingForm.baseFee" type="number" min="0" placeholder="(예: 10)" />
             <span class="form-field-unit">만원</span>
           </div>
         </label>
@@ -662,7 +678,7 @@ onMounted(() => {
         <label class="form-field">
           <span>연체료율</span>
           <div class="form-field-row">
-            <input v-model="state.billSettingForm.lateFeeRate" type="number" min="0" placeholder="5" />
+            <input v-model="state.billSettingForm.lateFeeRate" type="number" min="0" placeholder="(예: 5)" />
             <span class="form-field-unit">%</span>
           </div>
         </label>
@@ -671,7 +687,7 @@ onMounted(() => {
           <span>고지서 발송일<em class="required">*</em></span>
           <div class="form-field-row">
             <span class="form-field-prefix">매월</span>
-            <input v-model="state.billSettingForm.sendDay" type="number" min="1" max="31" placeholder="25" />
+            <input v-model="state.billSettingForm.sendDay" type="number" min="1" max="31" placeholder="(예: 25)" />
             <span class="form-field-unit">일</span>
           </div>
         </label>
@@ -680,7 +696,7 @@ onMounted(() => {
           <span>납기일<em class="required">*</em></span>
           <div class="form-field-row">
             <span class="form-field-prefix">매월</span>
-            <input v-model="state.billSettingForm.dueDay" type="number" min="1" max="31" placeholder="31" />
+            <input v-model="state.billSettingForm.dueDay" type="number" min="1" max="31" placeholder="(예: 31)" />
             <span class="form-field-unit">일</span>
           </div>
         </label>
@@ -689,7 +705,7 @@ onMounted(() => {
           <span>홈 화면 노출 종료일<em class="required">*</em></span>
           <div class="form-field-row">
             <span class="form-field-prefix">익월</span>
-            <input v-model="state.billSettingForm.homeDisplayEndDay" type="number" min="1" max="31" placeholder="5" />
+            <input v-model="state.billSettingForm.homeDisplayEndDay" type="number" min="1" max="31" placeholder="(예: 5)" />
             <span class="form-field-unit">일</span>
           </div>
         </label>
@@ -891,21 +907,6 @@ onMounted(() => {
   color: var(--admin-danger);
 }
 
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.status-badge.is-success { background: #d1fae5; color: #065f46; }
-.status-badge.is-warning { background: #fef3c7; color: #92400e; }
-.status-badge.is-gray    { background: #f1f5f9; color: #64748b; }
 
 .policy-inactive-state {
   display: flex;
