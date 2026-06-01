@@ -121,8 +121,8 @@ const monthOptions = [
 
 const statusOptions = [
   { value: '', label: '전체' },
-  { value: 'DRAFT', label: '임시계산' },
-  { value: 'CONFIRMED', label: '확정완료' },
+  { value: 'DRAFT', label: '미확정' },
+  { value: 'CONFIRMED', label: '확정' },
 ]
 
 const pagedBills = computed(() =>
@@ -150,11 +150,11 @@ const detailItems = computed(() => {
 })
 
 function billStatusLabel(s) {
-  return { DRAFT: '임시계산', CONFIRMED: '확정완료' }[s] ?? s ?? '-'
+  return { '임시계산': '미확정', '확정완료': '확정' }[s] ?? s ?? '-'
 }
 
 function billStatusClass(s) {
-  return { DRAFT: 'is-warning', CONFIRMED: 'is-success' }[s] ?? 'is-gray'
+  return { '임시계산': 'is-warning', '확정완료': 'is-success' }[s] ?? 'is-gray'
 }
 
 function itemTypeLabel(t) {
@@ -441,60 +441,71 @@ onMounted(() => {
 
     <StatsCards :stats="summaryItems" />
 
-
     <!-- 필터 / 목록 영역 -->
     <div class="card-shell">
-      <AdminFilterBar @search="handleSearch" @reset="handleReset">
-        <select v-model="state.filters.billYear" class="filter-select" @change="handleSearch">
-          <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
-        <select v-model="state.filters.billMonth" class="filter-select" @change="handleSearch">
-          <option v-for="opt in monthOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
-        <select v-model="state.filters.status" class="filter-select" @change="handleSearch">
-          <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-        </select>
-        <input
-          v-model="state.filters.building"
-          class="filter-input"
-          placeholder="동 검색 (예: 101)"
-          @keyup.enter="handleSearch"
-        />
-        <input
-          v-model="state.filters.unit"
-          class="filter-input"
-          placeholder="호수 검색 (예: 101)"
-          @keyup.enter="handleSearch"
-        />
-      </AdminFilterBar>
+      <template v-if="currentPolicy && !currentPolicy.isActive">
+        <div class="policy-inactive-state">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#E53E3E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <p class="policy-inactive-state__title">관리비 정책이 비활성 상태입니다.</p>
+          <p class="policy-inactive-state__desc">정책을 활성화하면 청구 내역을 조회하고 관리할 수 있습니다.</p>
+        </div>
+      </template>
 
-      <div class="manage-page__table-shell">
-        <div v-if="state.listLoading" class="table-feedback">불러오는 중...</div>
-        <div v-else-if="state.errorMessage" class="table-feedback error">{{ state.errorMessage }}</div>
-        <div v-else-if="pagedBills.length === 0" class="table-feedback">조회된 청구 내역이 없습니다.</div>
-        <AdminTable
-          v-else
-          :columns="billColumns"
-          :rows="pagedBills"
-          @row-click="handleRowClick"
-        >
-          <template #cell-statusLabel="{ row }">
-            <span :class="['status-badge', billStatusClass(row.status)]">{{ row.statusLabel }}</span>
-          </template>
-        </AdminTable>
-      </div>
+      <template v-else>
+        <AdminFilterBar @search="handleSearch" @reset="handleReset">
+          <select v-model="state.filters.billYear" class="filter-select" @change="handleSearch">
+            <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+          <select v-model="state.filters.billMonth" class="filter-select" @change="handleSearch">
+            <option v-for="opt in monthOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+          <select v-model="state.filters.status" class="filter-select" @change="handleSearch">
+            <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+          <input
+            v-model="state.filters.building"
+            class="filter-input"
+            placeholder="동 검색 (예: 101)"
+            @keyup.enter="handleSearch"
+          />
+          <input
+            v-model="state.filters.unit"
+            class="filter-input"
+            placeholder="호수 검색 (예: 101)"
+            @keyup.enter="handleSearch"
+          />
+        </AdminFilterBar>
 
-      <div class="manage-page__pagination">
-        <AppPagination
-          v-if="!state.listLoading && totalElements > 0"
-          :current-page="state.pagination.currentPage"
-          :total-pages="totalPages"
-          :total-all="totalElements"
-          :total-filtered="pagedBills.length"
-          unit="건"
-          @change="handlePageChange"
-        />
-      </div>
+        <div class="manage-page__table-shell">
+          <div v-if="state.listLoading" class="table-feedback">불러오는 중...</div>
+          <div v-else-if="state.errorMessage" class="table-feedback error">{{ state.errorMessage }}</div>
+          <div v-else-if="pagedBills.length === 0" class="table-feedback">조회된 청구 내역이 없습니다.</div>
+          <AdminTable
+            v-else
+            :columns="billColumns"
+            :rows="pagedBills"
+            @row-click="handleRowClick"
+          >
+            <template #cell-statusLabel="{ row }">
+              <span :class="['status-badge', billStatusClass(row.status)]">{{ row.statusLabel }}</span>
+            </template>
+          </AdminTable>
+        </div>
+
+        <div class="manage-page__pagination">
+          <AppPagination
+            v-if="!state.listLoading && totalElements > 0"
+            :current-page="state.pagination.currentPage"
+            :total-pages="totalPages"
+            :total-all="totalElements"
+            :total-filtered="pagedBills.length"
+            unit="건"
+            @change="handlePageChange"
+          />
+        </div>
+      </template>
     </div>
 
     <!-- 상세 모달 -->
@@ -751,6 +762,10 @@ onMounted(() => {
             <span>마지막 수정일</span>
             <strong>{{ formatUpdatedAt(currentPolicy.updatedAt) }}</strong>
           </div>
+          <div :class="['policy-item', 'policy-item--full', currentPolicy.isActive ? 'policy-item--active' : 'policy-item--inactive']">
+            <span>활성 상태</span>
+            <strong>{{ currentPolicy.isActive ? '✓ 활성' : '✕ 비활성' }}</strong>
+          </div>
         </div>
       </div>
 
@@ -846,6 +861,73 @@ onMounted(() => {
   color: var(--admin-deep-text);
   font-size: 14px;
   font-weight: 700;
+}
+
+.policy-item--full {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  min-height: unset;
+  padding: 8px 12px;
+}
+
+.policy-item--active {
+  background: #F0FFF4;
+  border-color: #9AE6B4;
+}
+
+.policy-item--active strong {
+  color: #276749;
+}
+
+.policy-item--inactive {
+  background: #FFF5F5;
+  border-color: #FEB2B2;
+}
+
+.policy-item--inactive strong {
+  color: var(--admin-danger);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-badge.is-success { background: #d1fae5; color: #065f46; }
+.status-badge.is-warning { background: #fef3c7; color: #92400e; }
+.status-badge.is-gray    { background: #f1f5f9; color: #64748b; }
+
+.policy-inactive-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.policy-inactive-state__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--admin-deep-text);
+  margin: 0;
+}
+
+.policy-inactive-state__desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
 }
 
 .policy-empty {

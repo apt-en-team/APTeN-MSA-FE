@@ -41,6 +41,7 @@ const monthLabels = computed(() => {
 })
 
 const avg6Month = computed(() => {
+  if (comparison.value?.myAverage != null) return Number(comparison.value.myAverage)
   const amounts = comparison.value?.myAmounts
   if (!amounts?.length) return null
   return Math.round(amounts.reduce((a, b) => a + b, 0) / amounts.length)
@@ -50,10 +51,21 @@ const hasChartData = computed(() =>
   comparison.value?.myAmounts?.length > 0,
 )
 
-const chartSeries = computed(() => [
-  { name: '우리집', data: comparison.value?.myAmounts ?? Array(6).fill(0) },
-  { name: '평균',   data: comparison.value?.avgAmounts ?? Array(6).fill(0) },
-])
+const chartSeries = computed(() => {
+  const myAmounts = comparison.value?.myAmounts
+    ? [...comparison.value.myAmounts]
+    : Array(6).fill(0)
+
+  // 비교 API 미구현 시 현재 월 금액만 마지막 항목에 반영
+  if (!comparison.value && bill.value?.totalFee != null) {
+    myAmounts[5] = Number(bill.value.totalFee)
+  }
+
+  return [
+    { name: '우리집', data: myAmounts },
+    { name: '동일평형평균', data: comparison.value?.avgAmounts ?? Array(6).fill(0) },
+  ]
+})
 
 const chartOptions = computed(() => ({
   chart: { type: 'bar', height: 220, toolbar: { show: false } },
@@ -107,8 +119,13 @@ async function loadData() {
       const list = Array.isArray(res) ? res : (res?.content ?? [])
       bill.value = list[0] ?? null
     }
-    // TODO: 비교 API 구현 후 아래 주석 해제
-    // comparison.value = await billApi.getMyBillComparison(bill.value?.billId)
+    if (bill.value?.billId) {
+      try {
+        comparison.value = await billApi.getMyHouseholdBillComparison(bill.value.billId)
+      } catch {
+        // 비교 데이터 조회 실패 시 차트 미표시
+      }
+    }
   } catch (e) {
     console.error(e)
   } finally {
@@ -170,6 +187,11 @@ onMounted(loadData)
         <div class="compare-stat-row">
           <span class="compare-stat-label">우리집<br>6개월 평균 금액</span>
           <span class="compare-stat-value">{{ avg6Month !== null ? formatWon(avg6Month) : '—' }}</span>
+        </div>
+
+        <div v-if="comparison?.sameTypeAverage != null" class="compare-stat-row" style="margin-top: 12px;">
+          <span class="compare-stat-label">동일 평형<br>6개월 평균 금액</span>
+          <span class="compare-stat-value compare-stat-value--gray">{{ formatWon(comparison.sameTypeAverage) }}</span>
         </div>
 
         <div v-if="comparison?.rank != null" class="compare-stat-row" style="margin-top: 12px;">
@@ -303,6 +325,12 @@ onMounted(loadData)
   font-weight: 800;
   color: #4A72F4;
   text-align: right;
+}
+
+.compare-stat-value--gray {
+  font-size: 20px;
+  font-weight: 800;
+  color: #94A3B8;
 }
 
 .compare-rank {

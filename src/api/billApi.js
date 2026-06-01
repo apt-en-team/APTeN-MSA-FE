@@ -31,6 +31,12 @@ export const getMyHouseholdBillDetail = async (billId) => {
   return unwrapApiData(res)
 }
 
+// 내 관리비 비교 조회 (동일 평형 6개월 비교)
+export const getMyHouseholdBillComparison = async (billId) => {
+  const res = await apiClient.get(`/household-bills/${billId}/comparison`)
+  return unwrapApiData(res)
+}
+
 // 관리자 관리비 목록 조회
 export const getAdminHouseholdBills = async (params) => {
   const res = await apiClient.get('/admin/household-bills', { params })
@@ -62,6 +68,7 @@ export default {
   unconfirmHouseholdBill,
   getMyHouseholdBills,
   getMyHouseholdBillDetail,
+  getMyHouseholdBillComparison,
   getAdminHouseholdBills,
   getAdminHouseholdBillDetail,
   reflectBaseFee,
