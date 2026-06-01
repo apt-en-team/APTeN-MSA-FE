@@ -282,6 +282,21 @@ export const useHouseholdStore = defineStore('household', {
     },
 
     // 수동 거절 처리
+    async approveMatchRequestsBulk(ids) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await householdApi.approveHouseholdMatchRequestsBulk(ids)
+        return res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
     async rejectMatchRequest(id, body) {
       this.loading = true
       this.error = null
