@@ -98,14 +98,14 @@ const billDetail = computed(() => billStore.billDetail)
 const currentPolicy = computed(() => billStore.basicBillPolicy)
 
 const summaryItems = computed(() => {
-  const total = totalElements.value
+  const total = billStore.bills?.totalBillCount ?? totalElements.value
   const draft = billStore.bills?.draftCount ?? bills.value.filter((b) => b.status === 'DRAFT').length
   const confirmed = billStore.bills?.confirmedCount ?? bills.value.filter((b) => b.status === 'CONFIRMED').length
   const selectedMonth = state.filters.billMonth ? `${state.filters.billMonth}월` : '전체 월'
   return [
     { label: '청구 미확정', value: draft, unit: '건', desc: '확정 전 청구', descClass: 'warning' },
     { label: '청구 확정', value: confirmed, unit: '건', desc: '입주민 공개 대상', descClass: 'success' },
-    { label: '전체 청구', value: total, unit: '건', desc: '조회 조건 기준', descClass: '' },
+    { label: '전체 청구', value: total, unit: '건', desc: '선택 기간 기준', descClass: '' },
     { label: '조회 기간', value: state.filters.billYear, unit: '년', desc: selectedMonth, descClass: '' },
   ]
 })

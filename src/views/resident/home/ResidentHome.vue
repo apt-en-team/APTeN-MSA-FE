@@ -10,6 +10,7 @@ import {getMyReservations} from '@/api/reservationApi'
 import {getNotices} from '@/api/noticeApi'
 import {getVisitorVehicles} from '@/api/visitorVehicleApi'
 import {getResidentParkingStatus} from '@/api/parkingApi'
+import { getMyHomeBill } from '@/api/billApi'
 import { normalizeReservationStatus, normalizeGxReservationStatus } from '@/utils/normalize.js'
 import imgReadingroom from '@/assets/images/readingroom.png'
 import imgGolf from '@/assets/images/golf.png'
@@ -51,6 +52,9 @@ const upcomingVisitorCount = ref(0)
 
 // 주차 현황 (사용률 %)
 const parkingUsageRate = ref(0)
+
+// 홈 관리비 카드
+const homeBill = ref(null)
 
 // 최근 공지사항 목록
 const notices = ref([])
@@ -134,6 +138,23 @@ const homeSummaryCards = computed(() => {
   return cards
 })
 
+const isBillOverdue = computed(() => {
+  return Boolean(homeBill.value?.overdue)
+})
+
+function isConfirmedBillStatus(status) {
+  return status === 'CONFIRMED' || status === '확정완료' || status === '02'
+}
+
+const showHomeBillCard = computed(() => {
+  return Boolean(
+    homeBill.value?.billId &&
+    isConfirmedBillStatus(homeBill.value?.status) &&
+    homeBill.value?.billYear &&
+    homeBill.value?.billMonth,
+  )
+})
+
 // 날짜 포맷 (26.02.15 형식) — 공지사항 등에 사용
 function formatDate(dateStr) {
   if (!dateStr) return ''
@@ -142,6 +163,11 @@ function formatDate(dateStr) {
   const mm = String(date.getMonth() + 1).padStart(2, '0')
   const dd = String(date.getDate()).padStart(2, '0')
   return `${yy}.${mm}.${dd}`
+}
+
+function formatFee(value) {
+  if (value == null) return '-'
+  return Number(value).toLocaleString('ko-KR') + '원'
 }
 
 // 날짜 포맷 (2026.05.23 형식) — 예약 카드에 사용
@@ -202,12 +228,13 @@ async function loadHomeData() {
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
     // 병렬 요청으로 성능 최적화
-    const [vehicles, reservations, notices_res, visitors, parking] = await Promise.allSettled([
+    const [vehicles, reservations, notices_res, visitors, parking, homeBill_res] = await Promise.allSettled([
       getMyVehicles(),
       getMyReservations({ phase: 'UPCOMING', size: 4 }),
       getNotices({size: 3}),
       getVisitorVehicles({ status: 'APPROVED', fromDate: today, size: 1 }),
       getResidentParkingStatus(),
+      getMyHomeBill(),
     ])
 
     // 차량 건수
@@ -242,6 +269,11 @@ async function loadHomeData() {
       const total = data?.totalSlots ?? 0
       parkingUsageRate.value = total > 0 ? Math.round((data.currentParkedCount / total) * 100) : 0
     }
+
+    // 홈 관리비 카드 (BE가 표시 조건 판단, null이면 미표시)
+    if (homeBill_res.status === 'fulfilled') {
+      homeBill.value = homeBill_res.value ?? null
+    }
   } finally {
     loading.value = false
   }
@@ -260,6 +292,22 @@ onMounted(() => {
       <p v-if="complexName" class="home__greeting-complex">{{ complexName }}</p>
       <h1 class="home__greeting-name">안녕하세요, {{ userName }}님</h1>
       <p class="home__greeting-unit">{{ authStore.building }}동 {{ authStore.unit }}호</p>
+    </section>
+
+    <!-- 관리비 카드 -->
+    <section
+      v-if="showHomeBillCard"
+      class="bill-card"
+      :class="{ 'bill-card--overdue': isBillOverdue }"
+      @click="router.push(`/resident/${route.params.complexId}/bill`)"
+    >
+      <div class="bill-card__header">
+        <span class="bill-card__title">{{ homeBill.billYear }}년 {{ homeBill.billMonth }}월 관리비</span>
+        <span v-if="isBillOverdue" class="bill-card__badge bill-card__badge--overdue">연체 중</span>
+        <span v-else class="bill-card__badge bill-card__badge--due">청구 확정</span>
+      </div>
+      <p class="bill-card__amount">{{ formatFee(homeBill.payableAmount ?? homeBill.totalFee) }}</p>
+      <p class="bill-card__due">납기일 {{ formatDateFull(homeBill.dueDate) }}</p>
     </section>
 
     <!-- 통계 카드 2x2 -->
@@ -390,6 +438,71 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-24);
+}
+
+/* 관리비 카드 */
+.bill-card {
+  background: var(--resident-bg-2);
+  border-radius: var(--radius-12);
+  padding: var(--space-16);
+  box-shadow: var(--shadow-small);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  border-left: 4px solid var(--resident-primary);
+  transition: transform 0.15s;
+}
+
+.bill-card--overdue {
+  border-left-color: var(--resident-danger);
+}
+
+.bill-card:active {
+  transform: scale(0.98);
+}
+
+.bill-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bill-card__title {
+  font-size: var(--font-size-detail);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.bill-card__badge {
+  font-size: var(--font-size-badge);
+  font-weight: 700;
+  padding: 2px var(--space-8);
+  border-radius: 999px;
+}
+
+.bill-card__badge--due {
+  background: rgba(73, 115, 229, 0.1);
+  color: var(--resident-primary);
+}
+
+.bill-card__badge--overdue {
+  background: rgba(231, 76, 60, 0.12);
+  color: var(--resident-danger);
+}
+
+.bill-card__amount {
+  font-size: var(--font-size-heading-3);
+  font-weight: 800;
+  color: var(--color-text-primary);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.bill-card__due {
+  font-size: var(--font-size-label);
+  color: var(--color-text-secondary);
+  margin: 0;
 }
 
 /* 인사말 */
