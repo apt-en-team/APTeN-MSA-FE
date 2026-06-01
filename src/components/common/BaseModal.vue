@@ -46,7 +46,12 @@ const handleOverlayClick = () => {
           <strong class="base-modal__title">{{ title }}</strong>
           <p v-if="subtitle" class="base-modal__subtitle">{{ subtitle }}</p>
         </div>
-        <button type="button" class="base-modal__close" @click="emit('close')">X</button>
+        <button type="button" class="base-modal__close" @click="emit('close')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
       </div>
       <div class="base-modal__body modal-section">
         <slot>Modal Content</slot>
@@ -90,7 +95,7 @@ const handleOverlayClick = () => {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-12);
-  padding: var(--space-16) var(--space-20) ;
+  padding: var(--space-16) var(--space-20) var(--space-8);
 }
 
 .base-modal__header-copy {
@@ -110,13 +115,26 @@ const handleOverlayClick = () => {
 }
 
 .base-modal__close {
-  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-8);
+  color: var(--gray-600);
   cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.base-modal__close:hover {
+  background: var(--gray-100);
+  color: var(--gray-800);
 }
 
 .base-modal__body {
   padding-inline: var(--space-20);
-  padding-top: 10px;
+  padding-top: 4px;
   font-size: var(--font-size-detail);
   color: var(--color-text-secondary);
 }

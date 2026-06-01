@@ -8,6 +8,7 @@ import AdminFilterBar from '@/components/admin/AdminFilterBar.vue'
 import AdminTable from '@/components/admin/AdminTable.vue'
 import StatsCards from '@/components/admin/StatsCards.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import BaseBadge from '@/components/common/BaseBadge.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
@@ -359,18 +360,18 @@ const toStatusCode = (s) =>
 // 상태 레이블 / 배지 클래스 (전출예정 추가)
 const statusLabel = (s) =>
   ({ OCCUPIED: '입주', VACANT: '공실', MOVED_OUT: '퇴거', MOVING_OUT: '전출예정' })[toStatusCode(s)] ?? s ?? '-'
-const statusClass = (s) =>
-  ({ OCCUPIED: 'is-success', VACANT: 'is-gray', MOVED_OUT: 'is-danger', MOVING_OUT: 'is-warning' })[toStatusCode(s)] ?? 'is-gray'
+const statusVariant = (s) =>
+  ({ OCCUPIED: 'success', VACANT: 'neutral', MOVED_OUT: 'danger', MOVING_OUT: 'warning' })[toStatusCode(s)] ?? 'neutral'
 const normalizeMatchStatus = (s) =>
   ({ '01': 'PENDING', '02': 'APPROVED', '03': 'REJECTED', '승인대기': 'PENDING', '승인완료': 'APPROVED', '승인거절': 'REJECTED' })[s] ?? s
 const matchStatusLabel = (s) =>
   ({ PENDING: '승인대기', APPROVED: '승인완료', REJECTED: '승인거절' })[normalizeMatchStatus(s)] ?? s ?? '-'
-const matchStatusClass = (s) =>
-  ({ PENDING: 'is-gray', APPROVED: 'is-success', REJECTED: 'is-danger' })[normalizeMatchStatus(s)] ?? 'is-gray'
+const matchStatusVariant = (s) =>
+  ({ PENDING: 'neutral', APPROVED: 'success', REJECTED: 'danger' })[normalizeMatchStatus(s)] ?? 'neutral'
 const webServiceLabel = (s) =>
   ({ NOT_SIGNED_UP: '미가입', COMPLETED: '가입', PENDING: '대기', REJECTED: '반려', DELETED: '탈퇴' })[s] ?? s ?? '-'
-const webServiceClass = (s) =>
-  ({ NOT_SIGNED_UP: 'is-gray', COMPLETED: 'is-success', PENDING: 'is-warning', REJECTED: 'is-danger', DELETED: 'is-danger' })[s] ?? 'is-gray'
+const webServiceVariant = (s) =>
+  ({ NOT_SIGNED_UP: 'neutral', COMPLETED: 'success', PENDING: 'warning', REJECTED: 'danger', DELETED: 'danger' })[s] ?? 'neutral'
 
 function normalizeHouseholdRole(role) {
   return ({ '세대주': 'HEAD', '세대원': 'MEMBER' })[role] ?? role ?? 'MEMBER'
@@ -1719,7 +1720,7 @@ watch(
           @row-click="handleRowClick"
         >
           <template #cell-status="{ row }">
-            <span :class="['status-badge', statusClass(row.status)]">{{ statusLabel(row.status) }}</span>
+            <BaseBadge :variant="statusVariant(row.status)">{{ statusLabel(row.status) }}</BaseBadge>
           </template>
         </AdminTable>
       </div>
@@ -1795,12 +1796,12 @@ watch(
           />
         </template>
         <template #cell-expectedResidentRegisteredLabel="{ row }">
-          <span :class="['status-badge', row.expectedResidentRegistered ? 'is-success' : 'is-gray']">
+          <BaseBadge :variant="row.expectedResidentRegistered ? 'success' : 'neutral'">
             {{ row.expectedResidentRegisteredLabel }}
-          </span>
+          </BaseBadge>
         </template>
         <template #cell-matchStatus="{ row }">
-          <span :class="['status-badge', matchStatusClass(row.matchStatus)]">{{ row.matchStatusLabel }}</span>
+          <BaseBadge :variant="matchStatusVariant(row.matchStatus)">{{ row.matchStatusLabel }}</BaseBadge>
         </template>
         <template #action="{ row }">
           <div class="table-actions">
@@ -2271,9 +2272,9 @@ watch(
         <div class="detail-hero">
           <div class="detail-address-row">
             <h2 class="detail-address">{{ householdDetail.building }}동 {{ householdDetail.unit }}호</h2>
-            <span :class="['detail-status-badge', statusClass(householdDetail.status)]">
+            <BaseBadge :variant="statusVariant(householdDetail.status)">
               {{ statusLabel(householdDetail.status) }}
-            </span>
+            </BaseBadge>
           </div>
           <p class="detail-sub">세대 정보</p>
         </div>
@@ -2333,9 +2334,9 @@ watch(
                 <td>{{ isHeadRole(m.householdRole) ? '세대주' : '세대원' }}</td>
                 <td>{{ m.moveInDate ? formatDate(m.moveInDate) : '-' }}</td>
                 <td>
-                  <span :class="['web-service-badge', webServiceClass(m.webServiceStatus)]">
+                  <BaseBadge :variant="webServiceVariant(m.webServiceStatus)">
                     {{ webServiceLabel(m.webServiceStatus) }}
-                  </span>
+                  </BaseBadge>
                 </td>
               </tr>
             </tbody>
@@ -2882,23 +2883,6 @@ watch(
   cursor: not-allowed;
 }
 
-/* 상태 배지 */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.status-badge.is-success { background: #d1fae5; color: #065f46; }
-.status-badge.is-danger  { background: #fee2e2; color: #b91c1c; }
-.status-badge.is-warning { background: #fef3c7; color: #92400e; }
-.status-badge.is-gray    { background: #f1f5f9; color: #64748b; }
 
 /* 테이블 액션 */
 .table-actions {
@@ -3229,19 +3213,6 @@ watch(
   margin-bottom: 2px;
 }
 
-.detail-status-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.detail-status-badge.is-success { background: #d1fae5; color: #065f46; }
-.detail-status-badge.is-danger  { background: #fee2e2; color: #b91c1c; }
-.detail-status-badge.is-warning { background: #fef3c7; color: #92400e; }
-.detail-status-badge.is-gray    { background: #f1f5f9; color: #64748b; }
 
 .detail-address {
   font-size: 26px;
@@ -3411,18 +3382,6 @@ watch(
 .resident-tag.is-head   { background: #c6f6d5; color: #276749; }
 .resident-tag.is-member { background: #EDF2F7; color: #687282; }
 
-.web-service-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 10px;
-  flex-shrink: 0;
-}
-
-.web-service-badge.is-success { background: #d1fae5; color: #065f46; }
-.web-service-badge.is-warning { background: #fef3c7; color: #92400e; }
-.web-service-badge.is-danger { background: #fee2e2; color: #b91c1c; }
-.web-service-badge.is-gray { background: #f1f5f9; color: #64748b; }
 
 /* 수정 트리거 버튼 */
 .resident-edit-trigger {

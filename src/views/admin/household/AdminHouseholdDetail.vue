@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useHouseholdStore } from '@/stores/useHouseholdStore'
 import AdminTable from '@/components/admin/AdminTable.vue'
+import BaseBadge from '@/components/common/BaseBadge.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
@@ -102,7 +103,7 @@ const pagedMembers = computed(() =>
 )
 
 const statusLabel = (s) => ({ OCCUPIED: '입주', VACANT: '공실', MOVED_OUT: '퇴거' }[s] ?? s ?? '-')
-const statusClass = (s) => ({ OCCUPIED: 'is-success', VACANT: 'is-gray', MOVED_OUT: 'is-danger' }[s] ?? 'is-gray')
+const statusVariant = (s) => ({ OCCUPIED: 'success', VACANT: 'neutral', MOVED_OUT: 'danger' }[s] ?? 'neutral')
 
 function formatDate(value) {
   if (!value) return '-'
@@ -446,9 +447,9 @@ onMounted(async () => {
           <div class="info-item">
             <dt>입주 상태</dt>
             <dd>
-              <span :class="['status-badge', statusClass(household.status)]">
+              <BaseBadge :variant="statusVariant(household.status)">
                 {{ statusLabel(household.status) }}
-              </span>
+              </BaseBadge>
             </dd>
           </div>
           <div class="info-item">
@@ -473,14 +474,14 @@ onMounted(async () => {
         <div v-if="members.length === 0" class="feedback-text">등록된 세대원이 없습니다.</div>
         <AdminTable v-else :columns="memberColumns" :rows="pagedMembers">
           <template #cell-roleLabel="{ row }">
-            <span :class="['role-badge', row.role === 'HEAD' ? 'is-head' : 'is-member']">
+            <BaseBadge :variant="row.role === 'HEAD' ? 'info' : 'neutral'">
               {{ row.roleLabel }}
-            </span>
+            </BaseBadge>
           </template>
           <template #cell-activeLabel="{ row }">
-            <span :class="['active-badge', row.isActive ? 'is-active' : 'is-inactive']">
+            <BaseBadge :variant="row.isActive ? 'success' : 'danger'">
               {{ row.activeLabel }}
-            </span>
+            </BaseBadge>
           </template>
           <template #action="{ row }">
             <div class="table-actions">
@@ -852,39 +853,6 @@ onMounted(async () => {
   color: var(--admin-deep-text);
 }
 
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: var(--font-size-badge);
-  font-weight: 600;
-}
-
-.status-badge.is-success { background: rgba(77, 139, 90, 0.12); color: var(--admin-success); }
-.status-badge.is-danger  { background: rgba(229, 62, 62, 0.12); color: var(--admin-danger); }
-.status-badge.is-gray    { background: var(--gray-100); color: var(--gray-600); }
-
-.role-badge,
-.active-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: var(--font-size-badge);
-  font-weight: 600;
-}
-
-.role-badge.is-head   { background: rgba(43, 58, 85, 0.1); color: var(--admin-sub-blue); }
-.role-badge.is-member { background: var(--gray-100); color: var(--gray-600); }
-.active-badge.is-active   { background: rgba(77, 139, 90, 0.12); color: var(--admin-success); }
-.active-badge.is-inactive { background: rgba(229, 62, 62, 0.12); color: var(--admin-danger); }
 
 .action-btn {
   height: 32px;

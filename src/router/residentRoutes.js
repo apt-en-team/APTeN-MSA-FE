@@ -185,6 +185,16 @@ const residentRoutes = [
         component: () => import('@/views/resident/mypage/ResidentMyPageEdit.vue'),
         meta: { requiresAuth: true, roles: ['USER'] },
       },
+      {
+        path: 'bill',
+        component: () => import('@/views/resident/bill/ResidentBillHome.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'bill/detail',
+        component: () => import('@/views/resident/bill/ResidentBillDetail.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
     ],
   },
 ]
