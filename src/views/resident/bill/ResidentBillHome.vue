@@ -23,14 +23,24 @@ const ITEM_META = {
 }
 
 const totalAmount = computed(() =>
-  currentBill.value?.totalFee
-    ? Number(currentBill.value.totalFee)
+  currentBill.value?.payableAmount ?? currentBill.value?.totalFee
+    ? Number(currentBill.value.payableAmount ?? currentBill.value.totalFee)
     : billItems.value.reduce((s, i) => s + Number(i.amount ?? 0), 0),
 )
 
 function formatWon(amount) {
   const man = Math.round(Number(amount) / 10000)
   return `${man}만원`
+}
+
+function isVisibleOnHome(bill) {
+  if (!bill) return false
+  const today = new Date()
+  const sendDate = bill.sendDate ? new Date(`${bill.sendDate}T00:00:00`) : null
+  const displayUntil = bill.homeDisplayUntil ? new Date(`${bill.homeDisplayUntil}T23:59:59`) : null
+  if (sendDate && today < sendDate) return false
+  if (displayUntil && today > displayUntil) return false
+  return true
 }
 
 const chartSeries = computed(() =>
@@ -70,13 +80,13 @@ async function loadBill() {
   loading.value = true
   try {
     const res = await billApi.getMyHouseholdBills({
-      year: currentYear,
-      month: currentMonth,
+      billYear: currentYear,
+      billMonth: currentMonth,
       page: 0,
       size: 1,
     })
     const list = Array.isArray(res) ? res : (res?.content ?? [])
-    currentBill.value = list[0] ?? null
+    currentBill.value = list.find(isVisibleOnHome) ?? null
 
     if (currentBill.value?.billId) {
       try {

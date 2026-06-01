@@ -15,10 +15,16 @@ const billYear = computed(() => bill.value?.billYear ?? now.getFullYear())
 const billMonth = computed(() => bill.value?.billMonth ?? (now.getMonth() + 1))
 
 const payBefore = computed(() => Number(bill.value?.totalFee ?? 0))
-const payAfter = computed(() => payBefore.value)
+const payAfter = computed(() => Number(bill.value?.payableAmount ?? bill.value?.totalFee ?? 0))
+const lateFee = computed(() => Number(bill.value?.lateFee ?? 0))
 
 function formatWon(amount) {
   return Number(amount).toLocaleString('ko-KR') + '원'
+}
+
+function formatDate(value) {
+  if (!value) return '-'
+  return String(value).slice(0, 10).replace(/-/g, '.')
 }
 
 function formatWonShort(val) {
@@ -93,8 +99,8 @@ async function loadData() {
     }
     if (!bill.value) {
       const res = await billApi.getMyHouseholdBills({
-        year: now.getFullYear(),
-        month: now.getMonth() + 1,
+        billYear: now.getFullYear(),
+        billMonth: now.getMonth() + 1,
         page: 0,
         size: 1,
       })
@@ -131,6 +137,16 @@ onMounted(loadData)
         <div class="detail-fee-row">
           <span class="detail-fee-label">납기내 금액</span>
           <span class="detail-fee-value">{{ bill ? formatWon(payBefore) : '—' }}</span>
+        </div>
+
+        <div class="detail-fee-row">
+          <span class="detail-fee-label">납기일</span>
+          <span class="detail-fee-value">{{ bill ? formatDate(bill.dueDate) : '-' }}</span>
+        </div>
+
+        <div v-if="lateFee > 0" class="detail-fee-row">
+          <span class="detail-fee-label">연체료</span>
+          <span class="detail-fee-value">{{ formatWon(lateFee) }}</span>
         </div>
 
         <div class="detail-divider" />

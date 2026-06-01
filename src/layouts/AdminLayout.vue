@@ -582,7 +582,7 @@ watch(
             class="admin-layout__action-button"
             @click="handleActionClick"
           >
-            + 비용 확정
+            + 관리비 설정
           </button>
 
           <button

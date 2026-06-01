@@ -14,6 +14,22 @@ export const useBillStore = defineStore('bill', {
     hasBillDetail: (state) => !!state.billDetail,
   },
   actions: {
+    async fetchBasicBillPolicy() {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await billApi.getBasicBillPolicy()
+        this.basicBillPolicy = res
+        return res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
     // 관리자 관리비 목록 조회
     async fetchAdminBills(params) {
       this.loading = true
@@ -101,6 +117,23 @@ export const useBillStore = defineStore('bill', {
       } catch (e) {
         console.error(e)
         this.error = e
+        throw e
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 기본 관리비 전 세대 청구서 반영
+    async reflectBaseFee(body) {
+      this.loading = true
+      this.error = null
+      try {
+        const res = await billApi.reflectBaseFee(body)
+        return res
+      } catch (e) {
+        console.error(e)
+        this.error = e
+        throw e
       } finally {
         this.loading = false
       }

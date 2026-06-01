@@ -7,6 +7,12 @@ export const saveBasicBillPolicy = async (body) => {
   return unwrapApiData(res)
 }
 
+export const getBasicBillPolicy = async () => {
+  const res = await apiClient.get('/admin/household-bill-policies/basic')
+  return unwrapApiData(res)
+}
+
+
 // 월별 비용 확정
 export const confirmHouseholdBill = async (billId) => {
   const res = await apiClient.patch(`/admin/household-bills/${billId}/confirm`)
@@ -39,11 +45,18 @@ export const getAdminHouseholdBillDetail = async (billId) => {
 
 // 월별 비용 확정 취소
 export const unconfirmHouseholdBill = async (billId) => {
-  const res = await apiClient.patch(`/api/admin/household-bills/${billId}/unconfirm`)
+  const res = await apiClient.patch(`/admin/household-bills/${billId}/unconfirm`)
+  return unwrapApiData(res)
+}
+
+// 기본 관리비 전 세대 청구서 반영
+export const reflectBaseFee = async (body) => {
+  const res = await apiClient.post('/admin/household-bills/base-fees', body)
   return unwrapApiData(res)
 }
 
 export default {
+  getBasicBillPolicy,
   saveBasicBillPolicy,
   confirmHouseholdBill,
   unconfirmHouseholdBill,
@@ -51,4 +64,5 @@ export default {
   getMyHouseholdBillDetail,
   getAdminHouseholdBills,
   getAdminHouseholdBillDetail,
+  reflectBaseFee,
 }
