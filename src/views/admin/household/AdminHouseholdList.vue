@@ -33,6 +33,10 @@ const state = reactive({
     keyword: '',
     status: '',
   },
+  matchPagination: {
+    currentPage: 1,
+    pageSize: 10,
+  },
   buildingOptions: [],
   pagination: {
     currentPage: 1,
@@ -49,9 +53,13 @@ const state = reactive({
     rejectConfirm: false,
     typeManage: false,
     lineDeleteConfirm: false,
+    lineEditConfirm: false,
     bulkDeleteConfirm: false,
+    bulkRangeEditConfirm: false,
+    bulkRangeDeleteConfirm: false,
     memberDeleteConfirm: false,
     residentDeleteConfirm: false,
+    createResidentDeleteConfirm: false,
   },
   createForm: {
     building: '',
@@ -81,6 +89,7 @@ const state = reactive({
   },
   residentEditSubmitting: false,
   residentDeleteTarget: null,
+  createResidentDeleteIndex: null,
   detailLoading: false,
   lineForm: {
     building: '',
@@ -118,6 +127,7 @@ const state = reactive({
   bulkEditSubmitting: false,
   bulkEditError: '',
   bulkDeleteTarget: null,
+  bulkRangeDeleteTargetId: null,
   editForm: {
     householdId: null,
     building: '',
@@ -133,9 +143,11 @@ const state = reactive({
   },
   selectedHousehold: null,
   selectedMatch: null,
+  selectedMatchIds: [],
   editSubmitting: false,
   statusSubmitting: false,
   approveSubmitting: false,
+  bulkApproveSubmitting: false,
   rejectSubmitting: false,
   editErrorMessage: '',
   resultModal: {
@@ -167,10 +179,12 @@ const householdColumns = computed(() => [
 
 // 매칭 요청 테이블 컬럼
 const matchColumns = computed(() => [
-  { key: 'number', label: '#' },
+  { key: 'select', label: '' },
+  { key: 'number', label: 'NO.' },
   { key: 'inputName', label: '이름' },
   { key: 'address', label: '신청 세대' },
   { key: 'createdAt', label: '요청일' },
+  { key: 'expectedResidentRegisteredLabel', label: '세대등록여부' },
   { key: 'matchStatus', label: '상태' },
 ])
 
@@ -194,6 +208,14 @@ const matchRequests = computed(() => {
 })
 
 const pendingCount = computed(() => matchRequests.value.filter((m) => normalizeMatchStatus(m.matchStatus) === 'PENDING').length)
+// 일괄승인은 승인대기이면서 입주민 명부가 등록된 요청만 선택 가능하다.
+const bulkSelectableMatchRequests = computed(() =>
+  pagedMatchRequests.value.filter((m) => normalizeMatchStatus(m.matchStatus) === 'PENDING' && m.expectedResidentRegistered),
+)
+const isAllBulkSelected = computed(() =>
+  bulkSelectableMatchRequests.value.length > 0
+  && bulkSelectableMatchRequests.value.every((m) => state.selectedMatchIds.includes(m.matchRequestId)),
+)
 
 // 세대 상세·이력·세대원 스토어 데이터
 const householdDetail = computed(() => householdStore.householdDetail)
@@ -258,7 +280,7 @@ const summaryItems = computed(() => {
       label: '이번 달 입주',
       value: thisMonth > 0 ? `+${thisMonth}` : '-',
       unit: '세대',
-      desc: '이번 달 입주 처리 기준',
+      desc: '이번 달 입주일 기준',
       descClass: '',
     },
   ]
@@ -299,22 +321,36 @@ const pagedHouseholds = computed(() =>
 const filteredMatchRequests = computed(() => {
   const kw = state.matchFilters.keyword.trim()
   const st = state.matchFilters.status
-  return matchRequests.value.filter((m) => {
-    const nameMatch = !kw || (m.inputName ?? '').includes(kw)
-    const statusMatch = !st || normalizeMatchStatus(m.matchStatus) === st
-    return nameMatch && statusMatch
-  })
+  return matchRequests.value
+    .filter((m) => {
+      const nameMatch = !kw || (m.inputName ?? '').includes(kw)
+      const statusMatch = !st || normalizeMatchStatus(m.matchStatus) === st
+      return nameMatch && statusMatch
+    })
+    .sort((a, b) => {
+      const aPending = normalizeMatchStatus(a.matchStatus) === 'PENDING' ? 0 : 1
+      const bPending = normalizeMatchStatus(b.matchStatus) === 'PENDING' ? 0 : 1
+      return aPending - bPending
+    })
 })
 
-const pagedMatchRequests = computed(() =>
-  filteredMatchRequests.value.map((m, i) => ({
+const matchTotalPages = computed(() =>
+  Math.ceil(filteredMatchRequests.value.length / state.matchPagination.pageSize) || 1,
+)
+
+const pagedMatchRequests = computed(() => {
+  const { currentPage, pageSize } = state.matchPagination
+  const start = (currentPage - 1) * pageSize
+  return filteredMatchRequests.value.slice(start, start + pageSize).map((m, i) => ({
     ...m,
-    number: i + 1,
+    number: start + i + 1,
     address: `${m.inputBuilding ?? '-'}동 ${m.inputUnit ?? '-'}호`,
     createdAt: formatDate(m.createdAt),
+    expectedResidentRegistered: Boolean(m.expectedResidentRegistered),
+    expectedResidentRegisteredLabel: m.expectedResidentRegistered ? '등록완료' : '미등록',
     matchStatusLabel: matchStatusLabel(m.matchStatus),
-  })),
-)
+  }))
+})
 
 // BE가 @JsonValue로 한글을 응답하므로 한글 → 영문 코드로 정규화한다.
 const toStatusCode = (s) =>
@@ -467,6 +503,39 @@ function resetFilters() {
 function resetMatchFilters() {
   state.matchFilters.keyword = ''
   state.matchFilters.status = ''
+  state.selectedMatchIds = []
+  state.matchPagination.currentPage = 1
+}
+
+function handleMatchPageChange(page) {
+  state.matchPagination.currentPage = page
+}
+
+// 수동 승인도 입주민 명부가 등록된 요청만 처리할 수 있다.
+function isMatchBulkSelectable(row) {
+  return normalizeMatchStatus(row.matchStatus) === 'PENDING' && row.expectedResidentRegistered
+}
+
+function toggleMatchSelection(row) {
+  if (!isMatchBulkSelectable(row)) return
+  const id = row.matchRequestId
+  if (state.selectedMatchIds.includes(id)) {
+    state.selectedMatchIds = state.selectedMatchIds.filter((selectedId) => selectedId !== id)
+  } else {
+    state.selectedMatchIds = [...state.selectedMatchIds, id]
+  }
+}
+
+function toggleAllMatchSelection() {
+  if (isAllBulkSelected.value) {
+    const selectableIds = bulkSelectableMatchRequests.value.map((m) => m.matchRequestId)
+    state.selectedMatchIds = state.selectedMatchIds.filter((id) => !selectableIds.includes(id))
+    return
+  }
+  state.selectedMatchIds = [...new Set([
+    ...state.selectedMatchIds,
+    ...bulkSelectableMatchRequests.value.map((m) => m.matchRequestId),
+  ])]
 }
 
 function handlePageChange(page) {
@@ -775,8 +844,48 @@ async function handleApprove() {
     })
   } catch (error) {
     console.error(error)
+    openResultModal({
+      type: 'danger',
+      title: '매칭 승인에 실패했습니다.',
+      desc: getErrorMessage(error, '입주민 명부를 먼저 등록해야 승인할 수 있습니다.'),
+      itemName: state.selectedMatch?.inputName || '',
+      actionLabel: '세대 매칭 승인',
+    })
   } finally {
     state.approveSubmitting = false
+  }
+}
+
+async function handleBulkApprove() {
+  if (state.bulkApproveSubmitting || state.selectedMatchIds.length === 0) return
+  state.bulkApproveSubmitting = true
+  try {
+    // 선택된 승인대기 요청을 한 번에 승인한 뒤 세대 목록과 매칭 목록을 갱신한다.
+    await householdStore.approveMatchRequestsBulk(state.selectedMatchIds)
+    const approvedCount = state.selectedMatchIds.length
+    state.selectedMatchIds = []
+    await loadMatchRequests()
+    await loadHouseholds()
+    openResultModal({
+      type: 'success',
+      title: '매칭 요청을 일괄 승인했습니다.',
+      desc: `${approvedCount}건의 승인대기 요청이 처리되었습니다.`,
+      actionLabel: '세대 매칭 일괄 승인',
+      afterConfirm: async () => {
+        await loadMatchRequests()
+        await loadHouseholds()
+      },
+    })
+  } catch (error) {
+    console.error(error)
+    openResultModal({
+      type: 'danger',
+      title: '일괄 승인에 실패했습니다.',
+      desc: getErrorMessage(error, '입주민 명부를 먼저 등록해야 승인할 수 있습니다.'),
+      actionLabel: '세대 매칭 일괄 승인',
+    })
+  } finally {
+    state.bulkApproveSubmitting = false
   }
 }
 
@@ -915,6 +1024,11 @@ function registerResidentInput() {
     return
   }
 
+  if (householdRole === 'HEAD' && state.createForm.residents.some((resident) => resident.householdRole === 'HEAD')) {
+    state.createErrorMessage = '세대주는 1명만 등록할 수 있습니다.'
+    return
+  }
+
   state.createForm.residents.push({
     name: name.trim(),
     phone: phone.trim(),
@@ -923,6 +1037,17 @@ function registerResidentInput() {
   })
   state.createErrorMessage = ''
   state.createForm.showResidentForm = false
+}
+
+function openCreateResidentDeleteConfirm(index) {
+  state.createResidentDeleteIndex = index
+  state.modals.createResidentDeleteConfirm = true
+}
+
+async function confirmCreateResidentDelete() {
+  await removeResident(state.createResidentDeleteIndex)
+  state.modals.createResidentDeleteConfirm = false
+  state.createResidentDeleteIndex = null
 }
 
 async function removeResident(index) {
@@ -972,6 +1097,11 @@ async function handleHouseholdCreate() {
     return
   }
 
+  if (state.createForm.residents.filter((resident) => resident.householdRole === 'HEAD').length > 1) {
+    state.createErrorMessage = '세대주는 1명만 등록할 수 있습니다.'
+    return
+  }
+
   state.createSubmitting = true
   try {
     const existingHousehold = await findExistingHousehold(building, unit)
@@ -1004,6 +1134,7 @@ async function handleHouseholdCreate() {
     }
     state.modals.create = false
     await loadHouseholds()
+    await loadMatchRequests()
   } catch (e) {
     state.createErrorMessage = getErrorMessage(e, '세대 등록에 실패했습니다.')
   } finally {
@@ -1156,6 +1287,15 @@ function startLineEdit(line) {
 function cancelLineEdit() {
   state.editingLineId = null
   state.editLineError = ''
+}
+
+function openLineEditConfirm() {
+  state.modals.lineEditConfirm = true
+}
+
+async function confirmLineUpdate() {
+  state.modals.lineEditConfirm = false
+  await handleLineUpdate()
 }
 
 async function handleLineUpdate() {
@@ -1357,7 +1497,30 @@ function cancelBulkRangeEdit() {
   state.bulkEditForm = { building: '', floorStart: '', floorEnd: '', lineStart: '', lineEnd: '' }
 }
 
-function saveBulkRangeEdit(rangeId) {
+function openBulkRangeEditConfirm() {
+  state.modals.bulkRangeEditConfirm = true
+}
+
+async function confirmBulkRangeEdit() {
+  state.modals.bulkRangeEditConfirm = false
+  await saveBulkRangeEdit()
+}
+
+function openBulkRangeDeleteConfirm(rangeId) {
+  state.bulkRangeDeleteTargetId = rangeId
+  state.modals.bulkRangeDeleteConfirm = true
+}
+
+async function confirmBulkRangeDelete() {
+  state.modals.bulkRangeDeleteConfirm = false
+  await removeBulkRange(state.bulkRangeDeleteTargetId)
+  state.bulkRangeDeleteTargetId = null
+}
+
+// 동호수 범위 수정은 새 범위 생성과 기존 범위 밖 세대 삭제를 함께 처리한다.
+async function saveBulkRangeEdit() {
+  if (state.bulkEditSubmitting) return
+  const currentRange = state.bulkRanges.find((range) => range.id === state.bulkEditingId)
   const { building, floorStart, floorEnd, lineStart, lineEnd } = state.bulkEditForm
   if (!building || !floorEnd || !lineStart || !lineEnd) {
     state.bulkEditError = '동, 종료층, 시작라인, 종료라인은 필수입니다.'
@@ -1381,19 +1544,46 @@ function saveBulkRangeEdit(rangeId) {
     return
   }
 
-  state.bulkRanges = state.bulkRanges.map((range) =>
-    range.id === rangeId
-      ? {
-          ...range,
-          building: building.trim(),
-          floorStart: nextFloorStart,
-          floorEnd: nextFloorEnd,
-          lineStart: nextLineStart,
-          lineEnd: nextLineEnd,
-        }
-      : range,
-  )
-  cancelBulkRangeEdit()
+  state.bulkEditSubmitting = true
+  try {
+    const nextBuilding = building.trim()
+    // 기존 범위에는 있었지만 수정 후 범위에서 빠지는 세대만 삭제 대상으로 잡는다.
+    const removeTargets = currentRange
+      ? state.bulkHouseholds.filter((household) => {
+          const parsed = parseUnitToFloorLine(household.unit)
+          if (!parsed) return false
+
+          const wasInCurrentRange = String(household.building) === String(currentRange.building)
+            && parsed.floor >= currentRange.floorStart
+            && parsed.floor <= currentRange.floorEnd
+            && parsed.line >= currentRange.lineStart
+            && parsed.line <= currentRange.lineEnd
+
+          const isInNextRange = String(household.building) === nextBuilding
+            && parsed.floor >= nextFloorStart
+            && parsed.floor <= nextFloorEnd
+            && parsed.line >= nextLineStart
+            && parsed.line <= nextLineEnd
+
+          return wasInCurrentRange && !isInNextRange
+        })
+      : []
+
+    await householdStore.createHouseholdsBulk({
+      building: nextBuilding,
+      floorStart: nextFloorStart,
+      floorEnd: nextFloorEnd,
+      lineStart: nextLineStart,
+      lineEnd: nextLineEnd,
+    })
+    await Promise.all(removeTargets.map((household) => householdStore.deleteHousehold(household.householdId)))
+    cancelBulkRangeEdit()
+    await Promise.all([loadBulkHouseholds(), loadHouseholds()])
+  } catch (e) {
+    state.bulkEditError = getErrorMessage(e, '동호수 수정에 실패했습니다.')
+  } finally {
+    state.bulkEditSubmitting = false
+  }
 }
 
 async function removeBulkRange(rangeId) {
@@ -1568,6 +1758,25 @@ watch(
           <option value="APPROVED">승인완료</option>
           <option value="REJECTED">승인거절</option>
         </select>
+        <template #right>
+          <span class="match-bulk-count">선택 {{ state.selectedMatchIds.length }}건</span>
+          <button
+            type="button"
+            class="btn-bulk btn-bulk--ghost"
+            :disabled="bulkSelectableMatchRequests.length === 0"
+            @click="toggleAllMatchSelection"
+          >
+            {{ isAllBulkSelected ? '전체해제' : '전체선택' }}
+          </button>
+          <button
+            type="button"
+            class="btn-bulk btn-bulk--primary"
+            :disabled="state.selectedMatchIds.length === 0 || state.bulkApproveSubmitting"
+            @click="handleBulkApprove"
+          >
+            {{ state.bulkApproveSubmitting ? '처리 중...' : '일괄승인' }}
+          </button>
+        </template>
       </AdminFilterBar>
 
       <div v-if="pagedMatchRequests.length === 0" class="table-feedback">조건에 맞는 매칭 요청이 없습니다.</div>
@@ -1576,6 +1785,20 @@ watch(
         :columns="matchColumns"
         :rows="pagedMatchRequests"
       >
+        <template #cell-select="{ row }">
+          <input
+            type="checkbox"
+            class="match-select-checkbox"
+            :checked="state.selectedMatchIds.includes(row.matchRequestId)"
+            :disabled="!isMatchBulkSelectable(row)"
+            @click.stop="toggleMatchSelection(row)"
+          />
+        </template>
+        <template #cell-expectedResidentRegisteredLabel="{ row }">
+          <span :class="['status-badge', row.expectedResidentRegistered ? 'is-success' : 'is-gray']">
+            {{ row.expectedResidentRegisteredLabel }}
+          </span>
+        </template>
         <template #cell-matchStatus="{ row }">
           <span :class="['status-badge', matchStatusClass(row.matchStatus)]">{{ row.matchStatusLabel }}</span>
         </template>
@@ -1593,6 +1816,18 @@ watch(
           </div>
         </template>
       </AdminTable>
+
+      <div class="manage-page__pagination">
+        <AppPagination
+          v-if="filteredMatchRequests.length > 0"
+          :current-page="state.matchPagination.currentPage"
+          :total-pages="matchTotalPages"
+          :total-all="filteredMatchRequests.length"
+          :total-filtered="filteredMatchRequests.length"
+          unit="건"
+          @change="handleMatchPageChange"
+        />
+      </div>
     </div>
 
     <!-- 세대 등록 모달 -->
@@ -1670,7 +1905,7 @@ watch(
           <span>{{ r.phone }}</span>
           <span>{{ r.birthDate || '-' }}</span>
           <span>{{ r.householdRole === 'HEAD' ? '세대주' : '세대원' }}</span>
-          <button type="button" class="resident-list__remove" @click="removeResident(index)">삭제</button>
+          <button type="button" class="resident-list__remove" @click="openCreateResidentDeleteConfirm(index)">삭제</button>
         </div>
       </div>
 
@@ -1871,6 +2106,21 @@ watch(
       :loading="state.editSubmitting"
       @confirm="handleEditHousehold"
       @cancel="state.modals.editConfirm = false"
+    />
+
+    <!-- 세대 등록 세대원 삭제 확인 모달 -->
+    <ConfirmModal
+      :visible="state.modals.createResidentDeleteConfirm"
+      title="세대원을 삭제하시겠습니까?"
+      subtitle="삭제하면 목록에서 제거됩니다."
+      item-label="세대원"
+      :item-name="state.createForm.residents[state.createResidentDeleteIndex]?.name ?? ''"
+      action-text="세대원 삭제"
+      confirm-text="삭제"
+      cancel-text="취소"
+      confirm-type="danger"
+      @confirm="confirmCreateResidentDelete"
+      @cancel="state.modals.createResidentDeleteConfirm = false"
     />
 
     <!-- 세대원 삭제 확인 모달 -->
@@ -2274,7 +2524,7 @@ watch(
               </td>
               <td>
                 <div class="table-actions">
-                  <button type="button" class="table-action-button table-action-button--primary" :disabled="state.editLineSubmitting" @click="handleLineUpdate">
+                  <button type="button" class="table-action-button table-action-button--primary" :disabled="state.editLineSubmitting" @click="openLineEditConfirm">
                     {{ state.editLineSubmitting ? '...' : '저장' }}
                   </button>
                   <button type="button" class="table-action-button" @click="cancelLineEdit">취소</button>
@@ -2375,7 +2625,12 @@ watch(
                 <td><input v-model="state.bulkEditForm.floorEnd" class="inline-input inline-input--sm" type="number" min="1" /></td>
                 <td>
                   <div class="table-actions">
-                    <button type="button" class="table-action-button table-action-button--primary" @click="saveBulkRangeEdit(range.id)">저장</button>
+                    <button
+                      type="button"
+                      class="table-action-button table-action-button--primary"
+                      :disabled="state.bulkEditSubmitting"
+                      @click="openBulkRangeEditConfirm"
+                    >{{ state.bulkEditSubmitting ? '...' : '저장' }}</button>
                     <button type="button" class="table-action-button" @click="cancelBulkRangeEdit">취소</button>
                   </div>
                   <p v-if="state.bulkEditError" class="inline-error">{{ state.bulkEditError }}</p>
@@ -2390,7 +2645,7 @@ watch(
                 <td>
                   <div class="table-actions">
                     <button type="button" class="table-action-button" @click="startBulkRangeEdit(range)">수정</button>
-                    <button type="button" class="table-action-button table-action-button--danger" @click="removeBulkRange(range.id)">삭제</button>
+                    <button type="button" class="table-action-button table-action-button--danger" @click="openBulkRangeDeleteConfirm(range.id)">삭제</button>
                   </div>
                 </td>
               </template>
@@ -2436,6 +2691,52 @@ watch(
     />
 
     <!-- 동호수 삭제 확인 -->
+    <!-- 평형/라인 수정 확인 모달 -->
+    <ConfirmModal
+      :visible="state.modals.lineEditConfirm"
+      title="동 라인 평형을 수정하시겠습니까?"
+      subtitle="저장하면 해당 라인 정보가 변경됩니다."
+      item-label="동 라인 평형"
+      :item-name="`${state.editLineForm.building}동 ${state.editLineForm.lineStart}~${state.editLineForm.lineEnd}호`"
+      action-text="동 라인 평형 수정"
+      confirm-text="저장"
+      cancel-text="취소"
+      confirm-type="primary"
+      @confirm="confirmLineUpdate"
+      @cancel="state.modals.lineEditConfirm = false"
+    />
+
+    <!-- 동호수 수정 확인 모달 -->
+    <ConfirmModal
+      :visible="state.modals.bulkRangeEditConfirm"
+      title="동호수 정보를 수정하시겠습니까?"
+      subtitle="저장하면 해당 동호수 범위가 변경됩니다."
+      item-label="동호수"
+      :item-name="`${state.bulkEditForm.building}동 ${state.bulkEditForm.floorStart || 1}~${state.bulkEditForm.floorEnd}층 / ${state.bulkEditForm.lineStart}~${state.bulkEditForm.lineEnd}라인`"
+      action-text="동호수 수정"
+      confirm-text="저장"
+      cancel-text="취소"
+      confirm-type="primary"
+      :loading="state.bulkEditSubmitting"
+      @confirm="confirmBulkRangeEdit"
+      @cancel="state.modals.bulkRangeEditConfirm = false"
+    />
+
+    <!-- 동호수 삭제 확인 모달 -->
+    <ConfirmModal
+      :visible="state.modals.bulkRangeDeleteConfirm"
+      title="동호수를 삭제하시겠습니까?"
+      subtitle="삭제한 세대는 복구할 수 없습니다."
+      item-label="동호수"
+      :item-name="state.bulkRanges.find(r => r.id === state.bulkRangeDeleteTargetId) ? `${state.bulkRanges.find(r => r.id === state.bulkRangeDeleteTargetId).building}동 ${state.bulkRanges.find(r => r.id === state.bulkRangeDeleteTargetId).lineStart}~${state.bulkRanges.find(r => r.id === state.bulkRangeDeleteTargetId).lineEnd}라인` : ''"
+      action-text="동호수 삭제"
+      confirm-text="삭제"
+      cancel-text="취소"
+      confirm-type="danger"
+      @confirm="confirmBulkRangeDelete"
+      @cancel="state.modals.bulkRangeDeleteConfirm = false"
+    />
+
     <ConfirmModal
       :visible="state.modals.bulkDeleteConfirm"
       title="세대를 삭제하시겠습니까?"
@@ -2527,6 +2828,58 @@ watch(
 
 .table-feedback.error {
   color: #E53E3E;
+}
+
+.match-bulk-count {
+  color: #1e2a3e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.btn-bulk {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid #E2E8F0;
+}
+
+.btn-bulk--ghost {
+  background: #FFFFFF;
+  color: #1e2a3e;
+}
+
+.btn-bulk--ghost:hover:not(:disabled) {
+  background: #F5F6F8;
+}
+
+.btn-bulk--primary {
+  background: var(--admin-main-navy);
+  color: #FFFFFF;
+  border-color: var(--admin-main-navy);
+}
+
+.btn-bulk--primary:hover:not(:disabled) {
+  background: var(--admin-sub-blue);
+  border-color: var(--admin-sub-blue);
+}
+
+.btn-bulk:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.match-select-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.match-select-checkbox:disabled {
+  cursor: not-allowed;
 }
 
 /* 상태 배지 */
