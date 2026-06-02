@@ -81,6 +81,16 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'vote',
+        component: ResidentVoteHome,
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'vote/:voteId',
+        component: () => import('@/views/resident/vote/ResidentVoteDetail.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'notifications',
         component: NotificationList,
         meta: { requiresAuth: true, roles: ['USER'] },

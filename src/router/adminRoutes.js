@@ -65,6 +65,9 @@ const adminRoutes = [
       { path: 'notices/:noticeId/edit', component: () => import('@/views/admin/community/AdminNoticePost.vue'), meta: { ...adminRouteMeta, title: '공지사항 수정' } },
       { path: 'boards/:postId', component: () => import('@/views/admin/community/AdminBoardDetail.vue'), meta: { ...adminRouteMeta, title: '게시글 상세' } },
       { path: 'notices/:noticeId', component: () => import('@/views/admin/community/AdminBoardDetail.vue'), meta: { ...adminRouteMeta, title: '공지 상세' } },
+      { path: 'votes', component: AdminVoteList, meta: { ...adminRouteMeta, title: '투표 관리' } },
+      { path: 'votes/create', component: () => import('@/views/admin/community/AdminVotePost.vue'), meta: { ...adminRouteMeta, title: '투표 등록' }, },
+      { path: 'votes/:voteId/edit', component: () => import('@/views/admin/community/AdminVotePost.vue'), meta: { ...adminRouteMeta, title: '투표 수정' }, },
 
       // 알림 — ADMIN/MANAGER만 (MASTER는 라우터 canAccess를 통과하지만 UI에서 배제)
       {

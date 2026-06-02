@@ -8,6 +8,7 @@ import TextAlign from '@tiptap/extension-text-align'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
+  hideAttach: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['update:modelValue', 'update:files', 'update:images'])
@@ -186,55 +187,58 @@ onBeforeUnmount(() => editor.value?.destroy())
         </button>
       </div>
 
-      <div class="toolbar-divider" />
-
-      <!-- 파일/이미지 첨부 -->
-      <div class="toolbar-group">
-        <button type="button" class="toolbar-btn" @click="triggerImageInput" title="이미지 첨부">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-        </button>
-        <button type="button" class="toolbar-btn" @click="triggerFileInput" title="파일 첨부">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-        </button>
-      </div>
+      <!-- 파일/이미지 첨부 — hideAttach가 true면 숨긴다 -->
+      <template v-if="!hideAttach">
+        <div class="toolbar-divider" />
+        <div class="toolbar-group">
+          <button type="button" class="toolbar-btn" @click="triggerImageInput" title="이미지 첨부">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </button>
+          <button type="button" class="toolbar-btn" @click="triggerFileInput" title="파일 첨부">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+        </div>
+      </template>
     </div>
 
     <!-- 에디터 본문 -->
     <editor-content :editor="editor" class="editor-content" />
 
-    <!-- 숨김 파일 인풋 -->
-    <input ref="fileInputRef" type="file" style="display: none" multiple
-      accept=".pdf,.doc,.docx,.zip,.txt,.hwp,.xls,.xlsx,.ppt,.pptx" @change="handleFileAttach" />
-    <input ref="imageInputRef" type="file" style="display: none" multiple
-      accept="image/*" @change="handleImageAttach" />
+    <!-- 숨김 파일 인풋 — hideAttach가 false일 때만 렌더링 -->
+    <template v-if="!hideAttach">
+      <input ref="fileInputRef" type="file" style="display: none" multiple
+        accept=".pdf,.doc,.docx,.zip,.txt,.hwp,.xls,.xlsx,.ppt,.pptx" @change="handleFileAttach" />
+      <input ref="imageInputRef" type="file" style="display: none" multiple
+        accept="image/*" @change="handleImageAttach" />
 
-    <!-- 첨부 파일 목록 -->
-    <div v-if="attachedFiles.length > 0" class="attached-section">
-      <div class="attached-title">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-        첨부파일
-      </div>
-      <div v-for="(file, idx) in attachedFiles" :key="idx" class="attached-file-item">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <span class="file-name">{{ file.name }}</span>
-        <span class="file-size">{{ formatFileSize(file.size) }}</span>
-        <button type="button" class="remove-btn" @click="removeFile(idx)">✕</button>
-      </div>
-    </div>
-
-    <!-- 이미지 미리보기 -->
-    <div v-if="attachedImages.length > 0" class="attached-section">
-      <div class="attached-title">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-        이미지
-      </div>
-      <div class="image-preview-grid">
-        <div v-for="(img, idx) in attachedImages" :key="idx" class="image-preview-item">
-          <img :src="img.preview" :alt="img.name" class="preview-img" />
-          <button type="button" class="image-remove-btn" @click="removeImage(idx)">✕</button>
+      <!-- 첨부 파일 목록 -->
+      <div v-if="attachedFiles.length > 0" class="attached-section">
+        <div class="attached-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          첨부파일
+        </div>
+        <div v-for="(file, idx) in attachedFiles" :key="idx" class="attached-file-item">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span class="file-name">{{ file.name }}</span>
+          <span class="file-size">{{ formatFileSize(file.size) }}</span>
+          <button type="button" class="remove-btn" @click="removeFile(idx)">✕</button>
         </div>
       </div>
-    </div>
+
+      <!-- 이미지 미리보기 -->
+      <div v-if="attachedImages.length > 0" class="attached-section">
+        <div class="attached-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          이미지
+        </div>
+        <div class="image-preview-grid">
+          <div v-for="(img, idx) in attachedImages" :key="idx" class="image-preview-item">
+            <img :src="img.preview" :alt="img.name" class="preview-img" />
+            <button type="button" class="image-remove-btn" @click="removeImage(idx)">✕</button>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
