@@ -1,8 +1,7 @@
 <script setup>
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import facilityApi from '@/api/facilityApi'
-import reservationApi from '@/api/reservationApi'
 import { toList } from '@/utils/apiResponse'
 import AdminSeatStatus from '@/components/admin/facility/AdminSeatStatus.vue'
 import AdminSeatTimeStatus from '@/components/admin/facility/AdminSeatTimeStatus.vue'
@@ -26,22 +25,7 @@ const state = reactive({
   seatSummary: { reservedCount: 0, totalCount: 0 },
   countSummary: { maxCount: 0, reservedCount: 0, availableCount: 0 },
 
-  // 오른쪽 패널 서브탭: 'status'=운영현황 | 'reservations'=예약목록
-  rightPanelTab: 'status',
 })
-
-// 예약 목록 서브탭 전용 상태
-const reservations = reactive({ items: [], loading: false, error: '' })
-
-// 예약 상태 코드 → 한글 매핑
-const STATUS_LABEL = {
-  CONFIRMED: '예약완료',
-  COMPLETED: '이용완료',
-  CANCELLED: '취소',
-  HOLDING: '좌석선점',
-}
-
-const formatStatus = (s) => STATUS_LABEL[s] || s || '-'
 
 const selectedFacility = computed(() =>
   state.facilityList.find((f) => String(f.facilityId) === String(state.selectedFacilityId)) || null,
@@ -110,34 +94,6 @@ const updateCountSummary = (summary) => {
   }
 }
 
-// 선택 시설 + 날짜 기준 예약 목록 조회 (서브탭 전환 시 호출)
-const fetchFacilityReservations = async () => {
-  if (!state.selectedFacilityId) return
-  reservations.loading = true
-  reservations.error = ''
-  try {
-    const res = await reservationApi.getAdminReservationOverview({
-      facilityId: state.selectedFacilityId,
-      reservationDate: state.selectedDate,
-      page: 0,
-      size: 50,
-    })
-    reservations.items = res?.content || []
-  } catch {
-    reservations.error = '예약 목록을 불러오지 못했습니다.'
-    reservations.items = []
-  } finally {
-    reservations.loading = false
-  }
-}
-
-// 예약목록 서브탭이 활성화된 상태에서 시설/날짜가 바뀌면 자동 재조회
-watch(
-  () => [state.selectedFacilityId, state.selectedDate],
-  () => {
-    if (state.rightPanelTab === 'reservations') fetchFacilityReservations()
-  },
-)
 
 onMounted(fetchFacilities)
 </script>
@@ -212,20 +168,6 @@ onMounted(fetchFacilities)
       <div class="right-panel">
         <div v-if="!selectedFacility" class="panel-empty">왼쪽에서 시설을 선택하세요.</div>
         <template v-else>
-          <!-- 서브탭 바 -->
-          <div class="sub-tab-bar">
-            <button
-              :class="['sub-tab', { active: state.rightPanelTab === 'status' }]"
-              @click="state.rightPanelTab = 'status'"
-            >운영 현황</button>
-            <button
-              :class="['sub-tab', { active: state.rightPanelTab === 'reservations' }]"
-              @click="state.rightPanelTab = 'reservations'; fetchFacilityReservations()"
-            >예약 목록</button>
-          </div>
-
-          <!-- 운영 현황 서브탭 -->
-          <template v-if="state.rightPanelTab === 'status'">
             <AdminSeatTimeStatus
               v-if="reservationType === 'SEAT' && selectedFacility.usageUnitType === 'MINUTE'"
               :facility-id="selectedFacility.facilityId"
@@ -253,38 +195,6 @@ onMounted(fetchFacilities)
             <div v-else class="panel-empty">
               이 시설의 예약 방식({{ selectedFacility.reservationType }})은 현황 조회가 지원되지 않습니다.
             </div>
-          </template>
-
-          <!-- 예약 목록 서브탭 -->
-          <template v-else-if="state.rightPanelTab === 'reservations'">
-            <div v-if="reservations.loading" class="panel-empty">조회 중...</div>
-            <div v-else-if="reservations.error" class="panel-error">{{ reservations.error }}</div>
-            <div v-else-if="reservations.items.length === 0" class="panel-empty">해당 날짜 예약이 없습니다.</div>
-            <table v-else class="res-table">
-              <thead>
-                <tr>
-                  <th>번호</th>
-                  <th>예약자</th>
-                  <th>동호수</th>
-                  <th>시간</th>
-                  <th>상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(r, i) in reservations.items" :key="r.reservationId">
-                  <td>{{ i + 1 }}</td>
-                  <td>{{ r.residentName || '-' }}</td>
-                  <td>{{ r.unit || '-' }}</td>
-                  <td>{{ formatTime(r.startTime) }} ~ {{ formatTime(r.endTime) }}</td>
-                  <td>
-                    <span :class="['res-status', `is-${r.status?.toLowerCase()}`]">
-                      {{ formatStatus(r.status) }}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </template>
         </template>
       </div>
     </div>
@@ -505,69 +415,4 @@ onMounted(fetchFacilities)
   }
 }
 
-/* ── 서브탭 ─────────────────────────────────────────────── */
-.sub-tab-bar {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 0;
-}
-
-.sub-tab {
-  padding: 8px 16px;
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  font-weight: 600;
-  color: #94a3b8;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  font-family: 'Noto Sans KR', sans-serif;
-  transition: all 0.15s;
-}
-
-.sub-tab:hover { color: #4973e5; }
-.sub-tab.active { color: #4973e5; border-bottom-color: #4973e5; }
-
-/* ── 예약 목록 테이블 ──────────────────────────────────── */
-.res-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  font-family: 'Noto Sans KR', sans-serif;
-}
-
-.res-table th {
-  padding: 8px 12px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  text-align: left;
-  font-weight: 700;
-  color: #64748b;
-  white-space: nowrap;
-}
-
-.res-table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #374151;
-}
-
-/* 예약 상태 뱃지 */
-.res-status {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 700;
-  background: #edf2f7;
-  color: #718096;
-}
-
-.res-status.is-confirmed { background: #e6f4ea; color: #2e7d32; }
-.res-status.is-completed { background: #e8eaf6; color: #3949ab; }
-.res-status.is-cancelled { background: #fff5f5; color: #e53e3e; }
-.res-status.is-holding   { background: #fff8e1; color: #b7791f; }
 </style>
