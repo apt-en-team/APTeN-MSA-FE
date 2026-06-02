@@ -7,6 +7,8 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
+const RESIDENT_RESTRICTED_STATUSES = ['PENDING', 'REJECTED', '01', '03', '대기', '반려', '거절']
+
 onMounted(() => {
   const { accessToken, refreshToken, userId, userUid, name, role, status, building, unit, complexId } = route.query
 
@@ -31,7 +33,7 @@ onMounted(() => {
   })
 
   // 역할별 페이지로 이동
-  if (role === 'USER' && status === 'PENDING') {
+  if (role === 'USER' && RESIDENT_RESTRICTED_STATUSES.includes(status)) {
     router.replace(`/resident/${complexId}/pending`)
   } else if (role === 'USER') {
     router.replace(`/resident/${complexId}/home`)

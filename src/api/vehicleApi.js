@@ -49,6 +49,18 @@ export const getAdminVehicleDetail = async (vehicleId) => {
   return unwrapApiData(res)
 }
 
+// 관리자 차량 상태별 통계 조회
+export const getAdminVehicleStats = async () => {
+  const res = await apiClient.get('/admin/vehicle-stats')
+  return unwrapApiData(res)
+}
+
+// 관리자 차량 화면 동/호 옵션 조회
+export const getVehicleLocations = async () => {
+  const res = await apiClient.get('/admin/vehicle-locations')
+  return unwrapApiData(res)
+}
+
 // 차량 승인
 export const approveVehicle = async (vehicleId) => {
   const res = await apiClient.patch(`/admin/vehicles/${vehicleId}/approve`)
@@ -73,6 +85,18 @@ export const getVehiclePolicies = async () => {
   return unwrapApiData(res)
 }
 
+// 차량 등록 한도 정책 조회
+export const getVehicleRegistrationPolicy = async () => {
+  const res = await apiClient.get('/admin/vehicle-registration-policies')
+  return unwrapApiData(res)
+}
+
+// 차량 등록 한도 정책 설정
+export const saveVehicleRegistrationPolicy = async (body) => {
+  const res = await apiClient.put('/admin/vehicle-registration-policies', body)
+  return unwrapApiData(res)
+}
+
 export default {
   createVehicle,
   updateVehicle,
@@ -82,8 +106,12 @@ export default {
   getMyVehicleDetail,
   getAdminVehicles,
   getAdminVehicleDetail,
+  getAdminVehicleStats,
+  getVehicleLocations,
   approveVehicle,
   rejectVehicle,
   saveVehiclePolicies,
   getVehiclePolicies,
+  getVehicleRegistrationPolicy,
+  saveVehicleRegistrationPolicy,
 }

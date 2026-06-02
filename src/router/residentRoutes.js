@@ -146,6 +146,46 @@ const residentRoutes = [
         meta: { requiresAuth: true, roles: ['USER'] },
       },
       {
+        path: 'parking/zones/:zoneId/spots',
+        component: () => import('@/views/resident/parking/ResidentParkingSpotMap.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'vehicles',
+        component: () => import('@/views/resident/vehicle/MyVehicleList.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'visitor-vehicle',
+        component: () => import('@/views/resident/vehicle/VisitorVehicleList.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'regular-visitor-vehicle',
+        component: () => import('@/views/resident/vehicle/RegularVisitorVehicleList.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'visitor-vehicle/register',
+        component: () => import('@/views/resident/vehicle/VisitorVehicleForm.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'visitor-vehicle/:visitorVehicleId/edit',
+        component: () => import('@/views/resident/vehicle/VisitorVehicleForm.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'regular-visitor-vehicle/register',
+        component: () => import('@/views/resident/vehicle/RegularVisitorVehicleForm.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'regular-visitor-vehicle/:regularVisitorVehicleId/edit',
+        component: () => import('@/views/resident/vehicle/RegularVisitorVehicleForm.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
         path: 'vote',
         component: ResidentVoteHome,
         meta: { requiresAuth: true, roles: ['USER'] },
@@ -153,6 +193,16 @@ const residentRoutes = [
       {
         path: 'mypage/edit',
         component: () => import('@/views/resident/mypage/ResidentMyPageEdit.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'bill',
+        component: () => import('@/views/resident/bill/ResidentBillHome.vue'),
+        meta: { requiresAuth: true, roles: ['USER'] },
+      },
+      {
+        path: 'bill/detail',
+        component: () => import('@/views/resident/bill/ResidentBillDetail.vue'),
         meta: { requiresAuth: true, roles: ['USER'] },
       },
     ],

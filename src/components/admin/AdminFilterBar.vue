@@ -17,6 +17,9 @@ const emit = defineEmits(['search', 'reset'])
         초기화
       </button>
     </div>
+    <div v-if="$slots.right" class="filter-right">
+      <slot name="right" />
+    </div>
   </div>
 </template>
 
@@ -24,6 +27,7 @@ const emit = defineEmits(['search', 'reset'])
 .filter-bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 14px 20px;
   border-bottom: 1px solid #E2E8F0;
 }
@@ -33,6 +37,13 @@ const emit = defineEmits(['search', 'reset'])
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.filter-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .btn-reset {
@@ -51,4 +62,5 @@ const emit = defineEmits(['search', 'reset'])
 .btn-reset:hover {
   background: #F5F6F8;
 }
+
 </style>

@@ -109,20 +109,20 @@ const isActive = (path) => route.path.includes(path)
 </template>
 
 <style scoped>
-/* 하단 네비게이션 — 5탭 고정 배치 */
+/* 하단 네비게이션, 탭 개수에 따라 균등 분배되도록 flex 사용 */
 .bottom-nav {
   position: sticky;
   bottom: 0;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  display: flex;
   padding: var(--space-4) var(--space-8) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid rgba(73, 115, 229, 0.12);
   background-color: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(10px);
 }
 
-/* 개별 탭 버튼 공통 스타일 */
+/* 개별 탭 버튼 공통 스타일, flex: 1로 탭 개수와 무관하게 모든 탭이 동일 너비를 차지 */
 .bottom-nav__item {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;

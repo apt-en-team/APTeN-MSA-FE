@@ -68,7 +68,6 @@ spec:
                     /kaniko/executor --context ${WORKSPACE} \
                         --dockerfile ${WORKSPACE}/Dockerfile \
                         --destination ${REGISTRY}/${PROJECT}/${IMAGE_NAME}:${env.BUILD_NUMBER} \
-                        --destination ${REGISTRY}/${PROJECT}/${IMAGE_NAME}:latest \
                         --skip-tls-verify
                     """
                 }
