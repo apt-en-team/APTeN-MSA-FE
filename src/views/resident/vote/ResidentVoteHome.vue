@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, computed, onMounted } from 'vue'
+import { reactive, computed, onMounted, onActivated } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useVoteStore } from '@/stores/useVoteStore'
 
@@ -8,7 +8,7 @@ const route = useRoute()
 const voteStore = useVoteStore()
 
 const state = reactive({
-  activeTab: 'OPEN', // OPEN | CLOSED
+  activeTab: 'OPEN',
   page: 0,
   size: 20,
 })
@@ -19,7 +19,7 @@ const loading = computed(() => voteStore.loading)
 
 const fetchVotes = async () => {
   await voteStore.fetchVotes({
-    status: state.activeTab,
+    status: state.activeTab === 'OPEN' ? undefined : 'CLOSED',
     page: state.page,
     size: state.size,
   })
@@ -37,7 +37,7 @@ const onPageChange = (p) => {
 }
 
 const goToDetail = (voteId) => {
-  router.push(`/resident/${route.params.complexId}/vote/${voteId}`)
+  router.push(`/resident/${route.params.complexId}/vote/${voteId}?tab=${state.activeTab}`)
 }
 
 const formatPeriod = (startAt, endAt) => {
@@ -50,23 +50,28 @@ const formatPeriod = (startAt, endAt) => {
 }
 
 const statusLabel = (status) => {
-  if (status === 'OPEN') return '투표중'
-  if (status === 'CLOSED') return '결과 발표'
-  return '시작 전'
+  if (status === '진행 중' || status === 'OPEN') return '투표중'
+  if (status === '종료' || status === 'CLOSED') return '결과 발표'
+  return '진행중' // READY이면서 시작일 지난 것
 }
 
-const statusVariantClass = (status) => {
-  if (status === 'OPEN') return 'badge--open'
-  if (status === 'CLOSED') return 'badge--closed'
-  return 'badge--ready'
+const statusVariantClass = () => {
+  if (state.activeTab === 'OPEN') return 'badge--open'
+  return 'badge--closed'
 }
 
-const participationRate = (vote) => {
-  if (!vote.householdCount || vote.householdCount === 0) return null
-  return vote.householdCount
-}
-
+// 마운트 시 최초 조회 — 쿼리 파라미터로 탭 복원
 onMounted(() => {
+  const tab = route.query.tab
+  if (tab === 'CLOSED') state.activeTab = 'CLOSED'
+  fetchVotes()
+})
+
+// 투표 상세에서 목록으로 돌아올 때 재조회 — keep-alive 사용 시 동작
+onActivated(() => {
+  const tab = route.query.tab
+  if (tab === 'CLOSED') state.activeTab = 'CLOSED'
+  else if (tab === 'OPEN') state.activeTab = 'OPEN'
   fetchVotes()
 })
 </script>
@@ -103,7 +108,6 @@ onMounted(() => {
     </div>
 
     <template v-else>
-      <!-- 투표 목록 -->
       <ul class="vote-list">
         <li
           v-for="vote in votes"
@@ -112,7 +116,7 @@ onMounted(() => {
           @click="goToDetail(vote.voteId)"
         >
           <div class="vote-card__top">
-            <span class="vote-badge" :class="statusVariantClass(vote.status)">
+            <span class="vote-badge" :class="statusVariantClass()">
               {{ statusLabel(vote.status) }}
             </span>
             <span v-if="vote.isParticipated" class="voted-badge">참여완료</span>
@@ -128,15 +132,23 @@ onMounted(() => {
             <span>{{ formatPeriod(vote.startAt, vote.endAt) }}</span>
           </div>
 
-          <!-- 종료된 투표: 간단한 결과 바 표시 -->
-          <div v-if="vote.status === 'CLOSED' && (vote.agreeCount + vote.disagreeCount) > 0" class="result-bar-wrap">
+          <!-- 종료된 투표: 찬반 바 -->
+          <div v-if="state.activeTab === 'CLOSED' && (vote.agreeCount + vote.disagreeCount) > 0" class="result-bar-wrap">
             <div class="result-bar">
-              <div
-                class="result-bar__agree"
-                :style="{
-                  width: `${Math.round((vote.agreeCount / (vote.agreeCount + vote.disagreeCount)) * 100)}%`
-                }"
-              />
+              <!-- 동률: 파랑 반 + 빨강 반 -->
+              <template v-if="vote.agreeCount === vote.disagreeCount">
+                <div class="result-bar__agree" style="width: 50%" />
+                <div class="result-bar__disagree" style="width: 50%" />
+              </template>
+              <!-- 일반: 우세한 쪽 비율로 -->
+              <template v-else>
+                <div
+                  class="result-bar__agree"
+                  :style="{
+                    width: `${Math.round((vote.agreeCount / (vote.agreeCount + vote.disagreeCount)) * 100)}%`
+                  }"
+                />
+              </template>
             </div>
             <div class="result-labels">
               <span class="label-agree">찬성 {{ vote.agreeCount }}</span>
@@ -145,7 +157,7 @@ onMounted(() => {
           </div>
 
           <!-- 투표중: 참여 세대 수 -->
-          <div v-else-if="vote.status === 'OPEN'" class="participation-info">
+          <div v-else-if="state.activeTab === 'OPEN'" class="participation-info">
             <span>{{ vote.householdCount ?? 0 }}세대 참여</span>
           </div>
 
@@ -186,17 +198,13 @@ onMounted(() => {
   gap: var(--space-16);
 }
 
-.vote-home__header {
-  padding: 0 var(--space-4);
-}
-
+.vote-home__header { padding: 0 var(--space-4); }
 .vote-home__title {
   font-size: var(--font-size-heading-3);
   font-weight: 700;
   color: var(--color-text-primary);
   margin: 0 0 var(--space-4);
 }
-
 .vote-home__desc {
   font-size: var(--font-size-body-sm);
   color: var(--color-text-secondary);
@@ -204,11 +212,7 @@ onMounted(() => {
 }
 
 /* 탭 */
-.tab-row {
-  display: flex;
-  gap: var(--space-8);
-}
-
+.tab-row { display: flex; gap: var(--space-8); }
 .tab-pill {
   padding: var(--space-8) var(--space-16);
   font-size: var(--font-size-body-sm);
@@ -220,7 +224,6 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.15s;
 }
-
 .tab-pill.active {
   color: var(--color-primary);
   border-color: var(--color-primary);
@@ -234,7 +237,6 @@ onMounted(() => {
   gap: var(--space-8);
   padding: var(--space-48);
 }
-
 .dot {
   width: 6px;
   height: 6px;
@@ -244,7 +246,6 @@ onMounted(() => {
 }
 .dot:nth-child(2) { animation-delay: 0.15s; }
 .dot:nth-child(3) { animation-delay: 0.3s; }
-
 @keyframes dotBounce {
   from { transform: translateY(0); opacity: 0.3; }
   to { transform: translateY(-5px); opacity: 1; }
@@ -267,18 +268,10 @@ onMounted(() => {
   transition: background 0.12s;
   position: relative;
 }
+.vote-card:hover { background: var(--color-bg-muted); }
 
-.vote-card:hover {
-  background: var(--color-bg-muted);
-}
+.vote-card__top { display: flex; align-items: center; gap: var(--space-8); }
 
-.vote-card__top {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-}
-
-/* 상태 배지 */
 .vote-badge {
   display: inline-block;
   padding: 2px var(--space-8);
@@ -286,21 +279,8 @@ onMounted(() => {
   font-size: var(--font-size-badge);
   font-weight: 700;
 }
-
-.badge--open {
-  background: rgba(73, 115, 229, 0.12);
-  color: #4973e5;
-}
-
-.badge--closed {
-  background: rgba(80, 200, 120, 0.14);
-  color: #2f855a;
-}
-
-.badge--ready {
-  background: rgba(148, 163, 184, 0.14);
-  color: #64748b;
-}
+.badge--open { background: rgba(73, 115, 229, 0.12); color: #4973e5; }
+.badge--closed { background: rgba(80, 200, 120, 0.14); color: #2f855a; }
 
 .voted-badge {
   display: inline-block;
@@ -330,40 +310,30 @@ onMounted(() => {
 }
 
 /* 결과 바 */
-.result-bar-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
+.result-bar-wrap { display: flex; flex-direction: column; gap: var(--space-4); }
 .result-bar {
   width: 100%;
   height: 6px;
   border-radius: 3px;
   background: #fed7d7;
   overflow: hidden;
+  display: flex;
 }
-
 .result-bar__agree {
   height: 100%;
-  border-radius: 3px;
   background: #4973e5;
-  transition: width 0.4s ease;
+  flex-shrink: 0;
 }
-
-.result-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--font-size-detail);
+.result-bar__disagree {
+  height: 100%;
+  background: #e53e3e;
+  flex-shrink: 0;
 }
-
+.result-labels { display: flex; justify-content: space-between; font-size: var(--font-size-detail); }
 .label-agree { color: #4973e5; font-weight: 600; }
 .label-disagree { color: #e53e3e; font-weight: 600; }
 
-.participation-info {
-  font-size: var(--font-size-detail);
-  color: var(--color-text-secondary);
-}
+.participation-info { font-size: var(--font-size-detail); color: var(--color-text-secondary); }
 
 .vote-card__arrow {
   position: absolute;
@@ -384,16 +354,10 @@ onMounted(() => {
   font-size: var(--font-size-body-sm);
   text-align: center;
 }
-
 .vote-empty p { margin: 0; }
 
 /* 페이지네이션 */
-.pagination {
-  display: flex;
-  justify-content: center;
-  gap: var(--space-4);
-}
-
+.pagination { display: flex; justify-content: center; gap: var(--space-4); }
 .page-btn {
   width: 30px;
   height: 30px;
@@ -403,14 +367,6 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.15s;
 }
-
-.page-btn.active {
-  background-color: var(--color-primary);
-  color: var(--white);
-  font-weight: 700;
-}
-
-.page-btn:hover:not(.active) {
-  background-color: var(--color-bg-muted);
-}
+.page-btn.active { background-color: var(--color-primary); color: var(--white); font-weight: 700; }
+.page-btn:hover:not(.active) { background-color: var(--color-bg-muted); }
 </style>

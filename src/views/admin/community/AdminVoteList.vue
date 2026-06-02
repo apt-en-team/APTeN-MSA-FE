@@ -70,7 +70,7 @@ const tableRows = computed(() =>
     ...v,
     no: totalElements.value - ((state.page - 1) * state.size + i),
     period: `${formatDate(v.startAt)} ~ ${formatDate(v.endAt)}`,
-    result: v.status === 'CLOSED'
+    result: (v.status === 'CLOSED' || v.status === '종료')
       ? `찬 ${v.agreeCount ?? 0} / 반 ${v.disagreeCount ?? 0}`
       : '-',
   }))
@@ -95,8 +95,31 @@ const donutData = computed(() => {
 
 const donutDasharray = computed(() => {
   if (donutData.value.total === 0) return `0 ${circumference}`
-  const agreeLen = (donutData.value.agree / 100) * circumference
-  return `${agreeLen} ${circumference - agreeLen}`
+  const dominant = donutData.value.agree >= donutData.value.disagree
+    ? donutData.value.agree
+    : donutData.value.disagree
+  const dominantLen = (dominant / 100) * circumference
+  return `${dominantLen} ${circumference - dominantLen}`
+})
+
+const isTie = computed(() =>
+  donutData.value.total > 0 && donutData.value.agree === donutData.value.disagree
+)
+
+const isDominantAgree = computed(() =>
+  donutData.value.agree > donutData.value.disagree
+)
+
+const donutCenterText = computed(() => {
+  if (donutData.value.total === 0) return '-'
+  if (isTie.value) return '50%'
+  return isDominantAgree.value ? `${donutData.value.agree}%` : `${donutData.value.disagree}%`
+})
+
+const donutCenterLabel = computed(() => {
+  if (donutData.value.total === 0) return '데이터 없음'
+  if (isTie.value) return '동률'
+  return isDominantAgree.value ? '찬성' : '반대'
 })
 
 // ── API 호출 ──────────────────────────────────────────
@@ -189,14 +212,14 @@ const formatDateTime = (dateStr) => {
 }
 
 const statusVariant = (status) => {
-  if (status === 'OPEN') return 'success'
-  if (status === 'CLOSED') return 'neutral'
+  if (status === 'OPEN' || status === '진행 중') return 'success'
+  if (status === 'CLOSED' || status === '종료') return 'neutral'
   return 'info'
 }
 
 const statusLabel = (status) => {
-  if (status === 'OPEN') return '투표중'
-  if (status === 'CLOSED') return '결과 발표'
+  if (status === 'OPEN' || status === '진행 중') return '투표중'
+  if (status === 'CLOSED' || status === '종료') return '결과 발표'
   return '시작 전'
 }
 
@@ -309,38 +332,45 @@ onMounted(() => {
             <div class="donut-section">
               <div class="donut-wrap">
                 <svg class="donut-svg" viewBox="0 0 130 130">
-                  <!-- 배경 링 -->
-                  <circle
-                    cx="65" cy="65" r="52" fill="none"
-                    :stroke="donutData.total === 0 ? '#e2e8f0' : '#FED7D7'"
-                    stroke-width="16"
-                  />
-                  <!-- 찬성 링 -->
-                  <circle
-                    cx="65" cy="65" r="52" fill="none"
-                    :stroke="donutData.total === 0 ? '#e2e8f0' : '#4973E5'"
-                    stroke-width="16"
-                    :stroke-dasharray="donutDasharray"
-                    stroke-linecap="round"
-                    transform="rotate(-90 65 65)"
-                  />
+                  <!-- 데이터 없음: 회색 -->
+                  <template v-if="donutData.total === 0">
+                    <circle cx="65" cy="65" r="52" fill="none" stroke="#e2e8f0" stroke-width="16"/>
+                  </template>
+                  <!-- 동률: 파랑 반 + 빨강 반 -->
+                  <template v-else-if="isTie">
+                    <circle cx="65" cy="65" r="52" fill="none" stroke="#E53E3E" stroke-width="16"
+                      :stroke-dasharray="`${circumference / 2} ${circumference / 2}`"
+                      stroke-linecap="butt"
+                      transform="rotate(-90 65 65)"
+                    />
+                    <circle cx="65" cy="65" r="52" fill="none" stroke="#4973E5" stroke-width="16"
+                      :stroke-dasharray="`${circumference / 2} ${circumference / 2}`"
+                      stroke-linecap="butt"
+                      transform="rotate(90 65 65)"
+                    />
+                  </template>
+                  <!-- 일반: 우세 색 앞링 + 배경링 -->
+                  <template v-else>
+                    <circle cx="65" cy="65" r="52" fill="none"
+                      :stroke="isDominantAgree ? '#FED7D7' : '#BEE3F8'"
+                      stroke-width="16"
+                    />
+                    <circle cx="65" cy="65" r="52" fill="none"
+                      :stroke="isDominantAgree ? '#4973E5' : '#E53E3E'"
+                      stroke-width="16"
+                      :stroke-dasharray="donutDasharray"
+                      stroke-linecap="round"
+                      transform="rotate(-90 65 65)"
+                    />
+                  </template>
                   <!-- 중앙 텍스트 -->
-                  <text
-                    x="65" y="60"
-                    text-anchor="middle"
-                    font-size="20"
-                    font-weight="700"
-                    :fill="donutData.total === 0 ? '#CBD5E0' : '#1A202C'"
-                  >
-                    {{ donutData.total === 0 ? '-' : `${donutData.agree}%` }}
+                  <text x="65" y="65" text-anchor="middle" font-size="20" font-weight="700"
+                    :fill="donutData.total === 0 ? '#CBD5E0' : '#1A202C'">
+                    {{ donutCenterText }}
                   </text>
-                  <text
-                    x="65" y="78"
-                    text-anchor="middle"
-                    font-size="11"
-                    :fill="donutData.total === 0 ? '#CBD5E0' : '#718096'"
-                  >
-                    {{ donutData.total === 0 ? '데이터 없음' : '찬성' }}
+                  <text x="65" y="85" text-anchor="middle" font-size="11"
+                    :fill="donutData.total === 0 ? '#CBD5E0' : '#718096'">
+                    {{ donutCenterLabel }}
                   </text>
                 </svg>
               </div>
@@ -379,14 +409,14 @@ onMounted(() => {
           <!-- 관리 버튼 -->
           <div class="panel-actions">
             <button
-              v-if="state.selectedVote.status !== 'CLOSED'"
+              v-if="state.selectedVote.status !== 'CLOSED' && state.selectedVote.status !== '종료'"
               class="btn-action btn-edit"
               @click="goToEdit"
             >
               수정
             </button>
             <button
-              v-if="state.selectedVote.status === 'OPEN'"
+              v-if="state.selectedVote.status === 'OPEN' || state.selectedVote.status === '진행 중'"
               class="btn-action btn-close"
               @click="state.showCloseModal = true"
             >

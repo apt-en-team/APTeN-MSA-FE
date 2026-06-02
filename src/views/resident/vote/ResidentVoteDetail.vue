@@ -44,7 +44,7 @@ const isActive = computed(() => {
   return false
 })
 
-const isParticipated = computed(() => !!vote.value?.isParticipated)
+const isParticipated = computed(() => !!vote.value?.participated)
 const canVote = computed(() => isActive.value && !isParticipated.value)
 
 // 도넛 차트
@@ -54,10 +54,39 @@ const agreePercent = computed(() => {
   return Math.round(((vote.value?.agreeCount ?? 0) / totalVotes.value) * 100)
 })
 const disagreePercent = computed(() => totalVotes.value ? 100 - agreePercent.value : 0)
+
+// 우세한 쪽 계산
+const isDominantAgree = computed(() => agreePercent.value > disagreePercent.value)
+const isTie = computed(() => totalVotes.value > 0 && agreePercent.value === disagreePercent.value)
+const dominantPercent = computed(() => {
+  if (!totalVotes.value) return 0
+  return isDominantAgree.value ? agreePercent.value : disagreePercent.value
+})
+
 const circumference = 2 * Math.PI * 40
 const donutDasharray = computed(() => {
-  const agreeLen = (agreePercent.value / 100) * circumference
-  return `${agreeLen} ${circumference - agreeLen}`
+  const dominantLen = (dominantPercent.value / 100) * circumference
+  return `${dominantLen} ${circumference - dominantLen}`
+})
+
+// 도넛 색상
+const donutFrontColor = computed(() => {
+  if (!totalVotes.value) return '#e2e8f0'
+  return isDominantAgree.value || isTie.value ? '#4973E5' : '#E53E3E'
+})
+const donutBgColor = computed(() => {
+  if (!totalVotes.value) return '#e2e8f0'
+  return isDominantAgree.value ? '#FED7D7' : '#BEE3F8'
+})
+const donutCenterText = computed(() => {
+  if (!totalVotes.value) return '-'
+  if (isTie.value) return '50%'
+  return `${dominantPercent.value}%`
+})
+const donutCenterLabel = computed(() => {
+  if (!totalVotes.value) return '데이터 없음'
+  if (isTie.value) return '동률'
+  return isDominantAgree.value ? '찬성' : '반대'
 })
 
 const choiceLabel = (choice) => choice === 'AGREE' ? '찬성' : '반대'
@@ -93,7 +122,7 @@ const onConfirmVote = async () => {
     await voteStore.fetchVoteDetail(voteId.value)
   } catch (e) {
     state.showVoteModal = false
-    const code = e?.response?.data?.resultCode
+    const code = e?.response?.data?.code
     if (code === 'BRD_403_03') {
       state.resultType = 'warning'
       state.resultTitle = '세대주만 투표할 수 있습니다.'
@@ -118,7 +147,8 @@ const onConfirmVote = async () => {
 }
 
 const goBack = () => {
-  router.push(`/resident/${route.params.complexId}/vote`)
+  const tab = route.query.tab ?? 'OPEN'
+  router.push(`/resident/${route.params.complexId}/vote?tab=${tab}`)
 }
 
 onMounted(async () => {
@@ -196,25 +226,40 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- 본문 (tiptap HTML) -->
+        <!-- 본문 -->
         <div v-if="vote.description" class="vote-body" v-html="vote.description" />
       </div>
 
       <!-- 결과 차트 (종료 후) -->
       <div v-if="isClosed && totalVotes > 0" class="result-section">
         <svg class="donut-svg" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="40" fill="none" stroke="#FED7D7" stroke-width="14"/>
-          <circle
-            cx="50" cy="50" r="40" fill="none"
-            stroke="#4973E5" stroke-width="14"
-            :stroke-dasharray="donutDasharray"
-            stroke-linecap="round"
-            transform="rotate(-90 50 50)"
-          />
-          <text x="50" y="46" text-anchor="middle" font-size="14" font-weight="700" fill="#1A202C">
-            {{ agreePercent }}%
+          <!-- 동률: 파랑 반 + 빨강 반 -->
+          <template v-if="isTie">
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#E53E3E" stroke-width="14"
+              :stroke-dasharray="`${circumference / 2} ${circumference / 2}`"
+              stroke-linecap="butt"
+              transform="rotate(-90 50 50)"
+            />
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#4973E5" stroke-width="14"
+              :stroke-dasharray="`${circumference / 2} ${circumference / 2}`"
+              stroke-linecap="butt"
+              transform="rotate(90 50 50)"
+            />
+          </template>
+          <!-- 일반: 우세 색 앞링 + 배경링 -->
+          <template v-else>
+            <circle cx="50" cy="50" r="40" fill="none" :stroke="donutBgColor" stroke-width="14"/>
+            <circle cx="50" cy="50" r="40" fill="none"
+              :stroke="donutFrontColor" stroke-width="14"
+              :stroke-dasharray="donutDasharray"
+              stroke-linecap="round"
+              transform="rotate(-90 50 50)"
+            />
+          </template>
+          <text x="50" y="50" text-anchor="middle" font-size="14" font-weight="700" fill="#1A202C">
+            {{ donutCenterText }}
           </text>
-          <text x="50" y="60" text-anchor="middle" font-size="8" fill="#718096">찬성</text>
+          <text x="50" y="64" text-anchor="middle" font-size="8" fill="#718096">{{ donutCenterLabel }}</text>
         </svg>
         <div class="result-legend">
           <span class="legend-agree">찬성 {{ agreePercent }}%</span>
@@ -238,39 +283,46 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- 내 선택 표시 -->
-      <div v-if="isParticipated && vote.myChoice" class="my-choice-wrap">
-        <p class="my-choice-label">내 투표</p>
-        <div class="my-choice-value" :class="vote.myChoice === 'AGREE' ? 'my-agree' : 'my-disagree'">
-          {{ choiceLabel(vote.myChoice) }}
-        </div>
-      </div>
-
-      <!-- 투표 버튼 (참여 가능 시) -->
-      <div v-if="canVote" class="vote-buttons">
-        <p class="vote-guide">어떻게 생각하시나요?</p>
+      <!-- 투표 버튼 영역 — 투표 가능하거나 참여 완료 시 항상 표시 -->
+      <div v-if="isActive || isParticipated" class="vote-buttons">
+        <p class="vote-guide">
+          {{ isParticipated ? '이미 투표에 참여하셨습니다.' : '어떻게 생각하시나요?' }}
+        </p>
         <div class="vote-btn-row">
-          <button class="vote-btn vote-btn--agree" @click="onSelectChoice('AGREE')">
+          <!-- 찬성 버튼 -->
+          <button
+            class="vote-btn vote-btn--agree"
+            :class="{
+              'is-selected': isParticipated && (vote.myChoice === 'AGREE' || vote.myChoice === '찬성'),
+              'is-disabled': isParticipated && vote.myChoice !== 'AGREE' && vote.myChoice !== '찬성',
+            }"
+            :disabled="isParticipated"
+            @click="onSelectChoice('AGREE')"
+          >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path d="M5 13l4 4L19 7"/>
             </svg>
             찬성
+            <span v-if="isParticipated && (vote.myChoice === 'AGREE' || vote.myChoice === '찬성')" class="my-pick-label">내 선택</span>
           </button>
-          <button class="vote-btn vote-btn--disagree" @click="onSelectChoice('DISAGREE')">
+
+          <!-- 반대 버튼 -->
+          <button
+            class="vote-btn vote-btn--disagree"
+            :class="{
+              'is-selected': isParticipated && (vote.myChoice === 'DISAGREE' || vote.myChoice === '반대'),
+              'is-disabled': isParticipated && vote.myChoice !== 'DISAGREE' && vote.myChoice !== '반대',
+            }"
+            :disabled="isParticipated"
+            @click="onSelectChoice('DISAGREE')"
+          >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
             반대
+            <span v-if="isParticipated && (vote.myChoice === 'DISAGREE' || vote.myChoice === '반대')" class="my-pick-label">내 선택</span>
           </button>
         </div>
-      </div>
-
-      <!-- 참여 완료 상태 -->
-      <div v-else-if="isActive && isParticipated" class="voted-done">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M5 13l4 4L19 7"/>
-        </svg>
-        투표 완료
       </div>
 
       <!-- 종료 후 -->
@@ -495,64 +547,83 @@ onMounted(async () => {
 .count-value.disagree { color: #e53e3e; }
 .count-divider { width: 1px; height: 32px; background: var(--color-border); }
 
-/* 내 선택 */
-.my-choice-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-12) var(--space-16);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-bg-muted);
-}
-.my-choice-label { font-size: var(--font-size-body-sm); color: var(--color-text-secondary); font-weight: 600; }
-.my-choice-value { padding: var(--space-4) var(--space-16); border-radius: 99px; font-size: var(--font-size-body-sm); font-weight: 700; }
-.my-agree { background: rgba(73, 115, 229, 0.12); color: #4973e5; }
-.my-disagree { background: rgba(229, 62, 62, 0.1); color: #e53e3e; }
-
 /* 투표 버튼 */
 .vote-buttons { display: flex; flex-direction: column; gap: var(--space-12); margin-top: var(--space-8); }
-.vote-guide { font-size: var(--font-size-body-sm); color: var(--color-text-secondary); text-align: center; margin: 0; }
+.vote-guide {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+  margin: 0;
+}
 .vote-btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12); }
+
 .vote-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-8);
-  height: 80px;
+  gap: var(--space-4);
+  height: 88px;
   border-radius: 16px;
   font-size: 18px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s;
   border: 2px solid transparent;
+  position: relative;
 }
+
+/* 찬성 기본 */
 .vote-btn--agree {
   background: rgba(73, 115, 229, 0.08);
   color: #4973e5;
   border-color: rgba(73, 115, 229, 0.2);
 }
-.vote-btn--agree:hover { background: #4973e5; color: var(--white); border-color: #4973e5; transform: scale(1.02); }
+.vote-btn--agree:not(:disabled):hover {
+  background: #4973e5;
+  color: var(--white);
+  border-color: #4973e5;
+  transform: scale(1.02);
+}
+
+/* 반대 기본 */
 .vote-btn--disagree {
   background: rgba(229, 62, 62, 0.06);
   color: #e53e3e;
   border-color: rgba(229, 62, 62, 0.2);
 }
-.vote-btn--disagree:hover { background: #e53e3e; color: var(--white); border-color: #e53e3e; transform: scale(1.02); }
+.vote-btn--disagree:not(:disabled):hover {
+  background: #e53e3e;
+  color: var(--white);
+  border-color: #e53e3e;
+  transform: scale(1.02);
+}
 
-.voted-done {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-8);
-  height: 52px;
-  border-radius: 12px;
-  background: rgba(80, 200, 120, 0.12);
-  color: #2f855a;
-  font-size: var(--font-size-body);
-  font-weight: 700;
-  margin-top: var(--space-8);
+/* 내 선택 강조 */
+.vote-btn--agree.is-selected {
+  background: #4973e5;
+  color: var(--white);
+  border-color: #4973e5;
+}
+.vote-btn--disagree.is-selected {
+  background: #e53e3e;
+  color: var(--white);
+  border-color: #e53e3e;
+}
+
+/* 선택 안 한 버튼 회색 비활성 */
+.vote-btn.is-disabled {
+  background: #f5f6f8;
+  color: #c0c8d4;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+/* 내 선택 라벨 */
+.my-pick-label {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.85;
 }
 
 .vote-closed-notice {
