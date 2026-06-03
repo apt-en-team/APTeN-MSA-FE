@@ -82,7 +82,7 @@ export default {
         </div>
       </div>
 
-      <!-- 제목 -->
+      <!-- 제목 + 본문 -->
       <div class="notice-content">
         <h2 class="notice-title">{{ notice.title }}</h2>
         <div class="notice-body" v-html="notice.content" />
@@ -104,8 +104,8 @@ export default {
 
       <!-- 일반 첨부파일 -->
       <div v-if="notice.files && notice.files.some(f => f.fileType === 'FILE')" class="file-section">
-
-          <a v-for="file in notice.files.filter(f => f.fileType === 'FILE')"
+        <a
+          v-for="file in notice.files.filter(f => f.fileType === 'FILE')"
           :key="file.fileId"
           :href="`${apiBase}/api/files/serve/${file.savedName}`"
           target="_blank"
@@ -127,22 +127,19 @@ export default {
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
-  padding-bottom: var(--space-32);
   background-color: var(--white);
   min-height: 100vh;
   margin: calc(-1 * var(--space-20)) calc(-1 * var(--space-32));
-  padding: var(--space-20) var(--space-20);
+  padding: var(--space-20);
   padding-bottom: var(--space-32);
 }
 
-/* 로딩 */
 .loading-wrap {
   display: flex;
   justify-content: center;
   gap: var(--space-8);
   padding: var(--space-48);
 }
-
 .dot {
   width: 6px;
   height: 6px;
@@ -152,13 +149,11 @@ export default {
 }
 .dot:nth-child(2) { animation-delay: 0.15s; }
 .dot:nth-child(3) { animation-delay: 0.3s; }
-
 @keyframes dotBounce {
   from { transform: translateY(0); opacity: 0.3; }
   to { transform: translateY(-5px); opacity: 1; }
 }
 
-/* 뒤로가기 */
 .back-btn {
   display: flex;
   align-items: center;
@@ -170,10 +165,7 @@ export default {
   padding: 0 var(--space-16);
   margin-bottom: var(--space-4);
 }
-
-.back-btn:hover {
-  color: var(--color-primary);
-}
+.back-btn:hover { color: var(--color-primary); }
 
 /* 작성자 */
 .author-row {
@@ -184,7 +176,6 @@ export default {
   border-bottom: 1px solid var(--color-border);
   padding-bottom: var(--space-12);
 }
-
 .author-avatar {
   width: 40px;
   height: 40px;
@@ -198,26 +189,9 @@ export default {
   font-weight: 700;
   flex-shrink: 0;
 }
-
-.author-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.author-name-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-}
-
-.author-name {
-  font-size: var(--font-size-body-sm);
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
+.author-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.author-name-row { display: flex; align-items: center; gap: var(--space-8); }
+.author-name { font-size: var(--font-size-body-sm); font-weight: 700; color: var(--color-text-primary); }
 .badge-admin {
   display: inline-block;
   padding: 1px var(--space-8);
@@ -227,16 +201,7 @@ export default {
   font-size: var(--font-size-badge);
   font-weight: 700;
 }
-
-.author-meta {
-  font-size: var(--font-size-detail);
-  color: var(--color-text-secondary);
-}
-
-.author-unit {
-  font-size: var(--font-size-detail);
-  color: var(--color-text-secondary);
-}
+.author-meta { font-size: var(--font-size-detail); color: var(--color-text-secondary); }
 
 /* 본문 */
 .notice-content {
@@ -245,7 +210,6 @@ export default {
   gap: var(--space-12);
   padding: 0 var(--space-16);
 }
-
 .notice-title {
   font-size: var(--font-size-heading-3);
   font-weight: 700;
@@ -253,18 +217,33 @@ export default {
   margin: 0;
   line-height: 1.4;
 }
-
 .notice-body {
   font-size: var(--font-size-body-sm);
   color: var(--color-text-primary);
   line-height: 1.8;
 }
 
+/* tiptap CSS */
 :deep(.notice-body p) { margin-bottom: var(--space-8); }
 :deep(.notice-body strong) { font-weight: 700; }
 :deep(.notice-body em) { font-style: italic; }
-:deep(.notice-body h1) { font-size: var(--font-size-heading-3); font-weight: 700; margin-bottom: var(--space-8); }
+:deep(.notice-body u) { text-decoration: underline; }
+:deep(.notice-body s) { text-decoration: line-through; }
+:deep(.notice-body h1) { font-size: var(--font-size-heading-2); font-weight: 700; margin-bottom: var(--space-8); }
+:deep(.notice-body h2) { font-size: var(--font-size-heading-3); font-weight: 700; margin-bottom: var(--space-8); }
+:deep(.notice-body h3) { font-size: var(--font-size-body); font-weight: 700; margin-bottom: var(--space-8); }
 :deep(.notice-body ul) { padding-left: var(--space-20); list-style: disc; }
+:deep(.notice-body ol) { padding-left: var(--space-20); list-style: decimal; }
+:deep(.notice-body blockquote) {
+  border-left: 3px solid var(--color-primary);
+  padding-left: var(--space-12);
+  color: var(--color-text-secondary);
+  margin: var(--space-8) 0;
+  font-style: italic;
+}
+:deep(.notice-body hr) { border: none; border-top: 1px solid var(--color-border); margin: var(--space-16) 0; }
+:deep(.notice-body p[style*="text-align: center"]) { text-align: center; }
+:deep(.notice-body p[style*="text-align: right"]) { text-align: right; }
 
 /* 이미지 */
 .image-section {
@@ -273,7 +252,6 @@ export default {
   flex-direction: column;
   gap: 2px;
 }
-
 .notice-image {
   width: 100%;
   max-height: 280px;
@@ -289,7 +267,6 @@ export default {
   padding: var(--space-12) var(--space-16);
   border-top: 1px solid var(--color-border);
 }
-
 .file-card {
   display: flex;
   align-items: center;
@@ -300,15 +277,9 @@ export default {
   background: var(--color-bg-muted);
   text-decoration: none;
   color: var(--color-text-primary);
-  cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-
-.file-card:hover {
-  background: #eef3fb;
-  border-color: var(--color-primary);
-}
-
+.file-card:hover { background: #eef3fb; border-color: var(--color-primary); }
 .file-card-name {
   flex: 1;
   font-size: var(--font-size-body-sm);
