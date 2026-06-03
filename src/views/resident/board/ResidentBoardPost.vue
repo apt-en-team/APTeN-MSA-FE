@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import BoardEditor from '@/components/resident/BoardEditor.vue'
+import ResidentModal from '@/components/resident/ResidentModal.vue'
 import { useBoardStore } from '@/stores/useBoardStore'
 import boardApi from '@/api/boardApi'
 
@@ -26,6 +27,8 @@ const form = ref({
 const attachedFiles = ref([])
 const attachedImages = ref([])
 const isSubmitting = ref(false)
+
+const pendingModal = ref(false)
 
 const isValid = computed(
   () => form.value.title.trim() && form.value.content.trim() !== '<p></p>' && form.value.content.trim() !== '',
@@ -52,7 +55,6 @@ const handleSubmit = async () => {
       })
       router.push(`/resident/${complexId}/board/${postId.value}`)
     } else {
-      // 1. 게시글 먼저 저장
       const created = await boardStore.createPost({
         complexId,
         category: form.value.category,
@@ -61,7 +63,6 @@ const handleSubmit = async () => {
       })
       const newPostId = created?.postId
 
-      // 2. 파일/이미지 업로드 (postId 포함)
       if (newPostId) {
         const allFiles = [
           ...attachedImages.value.map(f => ({ file: f, fileType: 'IMAGE' })),
@@ -78,7 +79,12 @@ const handleSubmit = async () => {
       router.push(`/resident/${complexId}/board`)
     }
   } catch (e) {
-    console.error('게시글 처리 실패', e)
+    const code = e?.response?.data?.code
+    if (code === 'BRD_403_05') {
+      pendingModal.value = true
+    } else {
+      console.error('게시글 처리 실패', e)
+    }
   } finally {
     isSubmitting.value = false
   }
@@ -101,7 +107,6 @@ onMounted(async () => {
   <div class="page-container">
     <div class="page-title">{{ isEditMode ? '글 수정하기' : '글 작성하기' }}</div>
 
-    <!-- 취소, 등록/수정 버튼 -->
     <div class="form-actions">
       <button type="button" class="btn-cancel" @click="handleCancel">취소</button>
       <button
@@ -114,7 +119,6 @@ onMounted(async () => {
       </button>
     </div>
 
-    <!-- 카테고리 (작성 모드에서만 표시) -->
     <div v-if="!isEditMode" class="form-section">
       <div class="section-header">
         <span class="section-label">카테고리</span>
@@ -134,7 +138,6 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 제목 -->
     <div class="form-section">
       <input
         v-model="form.title"
@@ -145,7 +148,6 @@ onMounted(async () => {
       />
     </div>
 
-    <!-- 에디터 -->
     <div class="form-section editor-section">
       <BoardEditor
         v-model="form.content"
@@ -153,6 +155,18 @@ onMounted(async () => {
         @update:images="(i) => (attachedImages = i)"
       />
     </div>
+
+    <!-- 승인 대기 모달 -->
+    <ResidentModal
+      :visible="pendingModal"
+      type="warning"
+      title="게시글 작성 불가"
+      subtitle="세대원 승인 대기 중입니다.&#10;관리자 승인 후 이용 가능합니다."
+      confirm-text="확인"
+      :show-cancel="false"
+      @confirm="pendingModal = false"
+      @close="pendingModal = false"
+    />
   </div>
 </template>
 

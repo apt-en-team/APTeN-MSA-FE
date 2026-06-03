@@ -95,7 +95,7 @@ apiClient.interceptors.request.use(
     }
 
     return config
-    
+
   },
   (error) => Promise.reject(error),
 )
@@ -151,9 +151,17 @@ apiClient.interceptors.response.use(
       }
     }
 
+
+    const resultCode = error.response?.data?.code ?? ''
+
     if (status === 403) {
-      window.location.href = '/forbidden'
-    }
+  const isBusinessError = resultCode && /^[A-Z]+_\d+_\d+$/.test(resultCode)
+  if (!isBusinessError) {
+    window.location.href = '/forbidden'
+  } else if (resultCode === 'BRD_403_05') {
+    // 승인 대기 알림은 각 컴포넌트에서 처리하도록 그냥 reject
+  }
+}
 
     return Promise.reject(error)
   },
