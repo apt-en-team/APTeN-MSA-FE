@@ -19,7 +19,7 @@ const PARKING_GUARDED_PATHS = [
 ]
 
 // 입주민 접근 제한 상태 목록, 이 상태면 일반 화면 대신 대기 페이지로 보낸다
-const RESIDENT_RESTRICTED_STATUSES = ['PENDING', 'REJECTED', '01', '03', '대기', '반려', '거절']
+const RESIDENT_RESTRICTED_STATUSES = ['PENDING', 'REJECTED']
 
 // 역할 기반 접근 권한 확인
 // allowedRoles가 비어있으면 누구나 접근 가능

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import authApi from '@/api/authApi'
 import { useComplexStore } from '@/stores/useComplexStore'
 
-const RESIDENT_RESTRICTED_STATUSES = ['PENDING', 'REJECTED', '01', '03', '대기', '반려', '거절']
+const RESIDENT_RESTRICTED_STATUSES = ['PENDING', 'REJECTED']
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
