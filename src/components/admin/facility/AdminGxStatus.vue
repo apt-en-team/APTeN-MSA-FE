@@ -142,6 +142,33 @@ const formatUnit = (row) => {
   return parts.length > 0 ? parts.join(' ') : '-'
 }
 
+const props = defineProps({
+  filterMonth: { type: String, default: '' },
+  filterStatus: { type: String, default: '' },
+})
+
+const filteredPrograms = computed(() => {
+  return state.programs.list.filter((p) => {
+    if (props.filterMonth) {
+      const [y, m] = props.filterMonth.split('-').map(Number)
+      const monthStart = props.filterMonth + '-01'
+      const monthEnd = `${props.filterMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+      const start = p.startDate || '0000-01-01'
+      const end = p.endDate || '9999-12-31'
+      if (!(start <= monthEnd && end >= monthStart)) return false
+    }
+    if (props.filterStatus && p.status !== props.filterStatus) return false
+    return true
+  })
+})
+
+// 필터 변경 시 선택 프로그램이 목록에 없으면 첫 번째로 재선택
+watch(filteredPrograms, (list) => {
+  if (!list.find((p) => String(p.programId) === String(state.selectedProgramId))) {
+    state.selectedProgramId = list[0]?.programId ?? null
+  }
+})
+
 const fetchPrograms = async () => {
   state.programs.loading = true
   state.programs.error = ''
@@ -322,12 +349,12 @@ onMounted(fetchPrograms)
     <div class="program-panel">
       <div v-if="state.programs.loading" class="panel-state">GX 프로그램 조회 중...</div>
       <div v-else-if="state.programs.error" class="panel-error">{{ state.programs.error }}</div>
-      <div v-else-if="state.programs.list.length === 0" class="panel-state">
-        등록된 GX 프로그램이 없습니다.
+      <div v-else-if="filteredPrograms.length === 0" class="panel-state">
+        해당 월에 등록된 GX 프로그램이 없습니다.
       </div>
       <div v-else class="program-list">
         <div
-          v-for="p in state.programs.list"
+          v-for="p in filteredPrograms"
           :key="p.programId"
           :class="['program-item', { active: String(state.selectedProgramId) === String(p.programId) }]"
           @click="selectProgram(p.programId)"

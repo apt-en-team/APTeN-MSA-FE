@@ -14,9 +14,20 @@ const RESERVATION_TYPE_LABEL = {
 
 const route = useRoute()
 
+const _now2 = new Date()
+const GX_STATUS_OPTIONS = [
+  { value: '', label: '전체 상태' },
+  { value: '모집중', label: '모집중' },
+  { value: '모집마감', label: '모집마감' },
+  { value: '종료', label: '종료' },
+  { value: '취소됨', label: '취소됨' },
+]
+
 const state = reactive({
   activeTab: 'facility',
   selectedDate: new Date().toISOString().slice(0, 10),
+  gxFilterMonth: `${_now2.getFullYear()}-${String(_now2.getMonth() + 1).padStart(2, '0')}`,
+  gxFilterStatus: '',
 
   facilityList: [],
   selectedFacilityId: route.query.facilityId ?? null,
@@ -131,6 +142,14 @@ onMounted(fetchFacilities)
           <div class="summary-chip available-chip">남은 자리 {{ state.countSummary.availableCount }}명</div>
         </template>
       </div>
+
+      <div v-if="state.activeTab === 'gx'" class="filter-area">
+        <label class="filter-label">조회 월</label>
+        <input v-model="state.gxFilterMonth" class="date-input" type="month" />
+        <select v-model="state.gxFilterStatus" class="filter-select-sm">
+          <option v-for="opt in GX_STATUS_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </div>
     </div>
 
     <!-- ── 일반 시설 탭 ─────────────────────────────────────────── -->
@@ -201,7 +220,7 @@ onMounted(fetchFacilities)
 
     <!-- ── GX 프로그램 탭 ──────────────────────────────────────── -->
     <div v-if="state.activeTab === 'gx'">
-      <AdminGxStatus />
+      <AdminGxStatus :filter-month="state.gxFilterMonth" :filter-status="state.gxFilterStatus" />
     </div>
   </div>
 </template>
@@ -273,6 +292,19 @@ onMounted(fetchFacilities)
   color: #374151;
   outline: none;
   font-family: 'Noto Sans KR', sans-serif;
+}
+
+.filter-select-sm {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #374151;
+  font-family: 'Noto Sans KR', sans-serif;
+  background: #fff;
+  cursor: pointer;
+  outline: none;
 }
 
 .summary-chip {
