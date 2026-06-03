@@ -27,7 +27,7 @@ const state = reactive({
   },
   pagination: {
     currentPage: 1,
-    pageSize: 20,
+    pageSize: 10,
   },
   modals: {
     detail: false,
