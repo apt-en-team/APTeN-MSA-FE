@@ -2,11 +2,14 @@
 // 차량 관리 컨테이너의 차량 정책 탭이다.
 // 시설 정책 패턴을 차용해 왼쪽 셀렉터에서 정책을 고르고 오른쪽 패널에서 세대당 등록 한도와 차량 대수별 월 요금을 읽기/편집한다.
 import { computed, onMounted, ref, watch } from 'vue'
+import VisitorPolicyPanel from '@/views/admin/vehicle/VisitorPolicyPanel.vue'
 import { useVehicleStore } from '@/stores/useVehicleStore'
+import { useVisitorVehicleStore } from '@/stores/useVisitorVehicleStore'
 import { useComplexStore } from '@/stores/useComplexStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 const vehicleStore = useVehicleStore()
+const visitorStore = useVisitorVehicleStore()
 const complexStore = useComplexStore()
 const authStore = useAuthStore()
 
@@ -36,6 +39,12 @@ const currentPolicies = computed(() => {
 // 정책 존재 여부
 const hasPolicy = computed(() => currentPolicies.value.length > 0)
 
+// 방문차량 요금 정책 설정 여부 (월 무료시간·시간당 요금이 모두 존재할 때만 설정으로 간주)
+const hasVisitorPolicy = computed(() => {
+  const policy = visitorStore.visitorPolicy
+  return policy != null && policy.monthlyLimitHours != null && policy.hourFee != null
+})
+
 // 저장된 등록 한도 정책
 const registrationPolicy = computed(() => vehicleStore.vehicleRegistrationPolicy)
 
@@ -58,6 +67,7 @@ const selectedPolicyKey = ref('limit')
 const policyMenus = computed(() => [
   { key: 'limit', label: '세대당 등록 한도', active: hasLimit.value },
   { key: 'fee', label: '차량 요금 정책', active: hasPolicy.value },
+  { key: 'visitor-fee', label: '방문차량 요금 정책', active: hasVisitorPolicy.value },
 ])
 
 // 셀렉터 항목 선택
@@ -203,6 +213,8 @@ const handleSave = async () => {
 onMounted(async () => {
   await loadPolicies()
   await loadRegistrationPolicy()
+  // 좌측 서브메뉴의 방문 정책 설정 점 표시를 위해 방문 정책도 함께 조회한다.
+  await visitorStore.fetchVisitorPolicy()
 })
 
 // MASTER 단지 전환 시 두 정책 재조회
@@ -238,7 +250,8 @@ watch(
       </aside>
 
       <!-- 오른쪽 상세 패널 -->
-      <article class="panel">
+      <VisitorPolicyPanel v-if="selectedPolicyKey === 'visitor-fee'" />
+      <article v-else class="panel">
         <!-- 세대당 등록 한도 상세 -->
         <template v-if="selectedPolicyKey === 'limit'">
           <div class="panel-header">
