@@ -399,6 +399,7 @@ onMounted(fetchPrograms)
           <table class="custom-table">
             <thead>
               <tr>
+                <th>번호</th>
                 <th>세대</th>
                 <th>예약자명</th>
                 <th>신청일</th>
@@ -408,11 +409,12 @@ onMounted(fetchPrograms)
             </thead>
             <tbody>
               <tr
-                v-for="row in pagedReservations"
+                v-for="(row, index) in pagedReservations"
                 :key="row.gxReservationId"
                 class="clickable-row"
                 @click="openDetailModal(row)"
               >
+                <td>{{ (state.reservations.currentPage - 1) * PAGE_SIZE + index + 1 }}</td>
                 <td>{{ formatUnit(row) }}</td>
                 <td>{{ row.residentName || '-' }}</td>
                 <td>{{ formatDateTime(row.createdAt) }}</td>

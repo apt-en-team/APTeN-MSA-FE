@@ -208,7 +208,7 @@ const statusClass = (s) =>
       <table class="custom-table">
         <thead>
           <tr>
-            <th>ID</th>
+            <th>번호</th>
             <th>예약자</th>
             <th>세대</th>
             <th>상태</th>
@@ -220,12 +220,12 @@ const statusClass = (s) =>
           </tr>
 
           <tr
-            v-for="user in pagedUsers"
+            v-for="(user, index) in pagedUsers"
             :key="user.reservationId"
             class="clickable-row"
             @click="openDetailModal(user)"
           >
-            <td>{{ user.reservationId }}</td>
+            <td>{{ (state.currentPage - 1) * PAGE_SIZE + index + 1 }}</td>
             <td>{{ user.residentName ?? '-' }}</td>
             <td>{{ user.unit ?? '-' }}</td>
             <td>
