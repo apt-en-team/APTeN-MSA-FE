@@ -32,6 +32,15 @@ const props = defineProps({
 })
 
 // 로그인한 사용자 이름을 결과 모달 처리자로 표시한다.
+function getErrorMessage(error, fallback = '잠시 후 다시 시도해주세요.') {
+  const responseData = error?.response?.data
+  if (responseData?.message) return responseData.message
+  if (responseData?.data?.message) return responseData.data.message
+  if (error?.data?.message) return error.data.message
+  if (error?.message && !error.message.startsWith('Request failed with status code')) return error.message
+  return fallback
+}
+
 function getCurrentActorName() {
   return authStore.userInfo?.name || authStore.name || '마스터 관리자'
 }
@@ -215,7 +224,7 @@ async function loadComplexDetail() {
     syncForm(detail)
   } catch (error) {
     console.error(error)
-    state.errorMessage = error?.message || '잠시 후 다시 시도해주세요.'
+    state.errorMessage = getErrorMessage(error, '잠시 후 다시 시도해주세요.')
     openResultModal({
       type: 'danger',
       title: '단지 정보를 불러오지 못했습니다.',
@@ -269,7 +278,7 @@ async function handleUpdateConfirm() {
     })
   } catch (error) {
     console.error(error)
-    state.errorMessage = error?.message || '잠시 후 다시 시도해주세요.'
+    state.errorMessage = getErrorMessage(error, '잠시 후 다시 시도해주세요.')
     openResultModal({
       type: 'danger',
       title: '수정에 실패했습니다.',
@@ -317,7 +326,7 @@ async function handleDeleteConfirm() {
     })
   } catch (error) {
     console.error(error)
-    state.errorMessage = error?.message || '잠시 후 다시 시도해주세요.'
+    state.errorMessage = getErrorMessage(error, '잠시 후 다시 시도해주세요.')
     openResultModal({
       type: 'danger',
       title: '수정에 실패했습니다.',

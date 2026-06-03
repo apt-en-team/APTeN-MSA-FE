@@ -207,7 +207,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 12px 16px 168px;
+  padding: 12px 16px calc(88px + env(safe-area-inset-bottom, 0px) + 16px);
 }
 
 /* 뒤로가기 */
@@ -367,14 +367,7 @@ onMounted(() => {
 
 /* CTA */
 .cta-area {
-  position: fixed;
-  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 430px;
-  padding: 0 16px;
-  z-index: 100;
+  margin-top: 4px;
 }
 
 .btn-reserve {
