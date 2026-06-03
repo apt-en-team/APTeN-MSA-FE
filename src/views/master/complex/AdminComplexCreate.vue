@@ -62,6 +62,15 @@ resultModal: {
 })
 
 // 등록 모달이 다시 열릴 때 이전 입력 상태가 남지 않도록 초기화한다.
+function getErrorMessage(error, fallback = '잠시 후 다시 시도해주세요.') {
+  const responseData = error?.response?.data
+  if (responseData?.message) return responseData.message
+  if (responseData?.data?.message) return responseData.data.message
+  if (error?.data?.message) return error.data.message
+  if (error?.message && !error.message.startsWith('Request failed with status code')) return error.message
+  return fallback
+}
+
 function resetState() {
   state.form.name = ''
   state.form.address = ''
@@ -188,7 +197,7 @@ async function loadAddressResults(page = 0) {
     state.addressTotalPages = 0
     state.addressTotalElements = 0
     state.addressHasNext = false
-    state.errorMessage = error?.message || '주소 검색에 실패했습니다.'
+    state.errorMessage = getErrorMessage(error, '주소 검색에 실패했습니다.')
     openResultModal({
       type: 'danger',
       title: '주소 검색에 실패했습니다.',
@@ -285,7 +294,7 @@ async function handleCreateConfirm() {
     })
   } catch (error) {
     console.error(error)
-    state.errorMessage = error?.message || '입력값을 확인한 뒤 다시 시도해주세요.'
+    state.errorMessage = getErrorMessage(error, '입력값을 확인한 뒤 다시 시도해주세요.')
     openResultModal({
       type: 'danger',
       title: '단지 생성에 실패했습니다.',
