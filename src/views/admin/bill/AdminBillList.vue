@@ -612,13 +612,13 @@ onBeforeUnmount(() => {
       <template #footer>
         <template v-if="billDetail">
           <button
-            v-if="billDetail.status === 'CONFIRMED'"
+            v-if="billDetail.status === '확정완료'"
             type="button"
             class="page-button page-button--ghost"
             @click="state.modals.unconfirmBill = true"
           >확정 취소</button>
           <button
-            v-if="billDetail.status === 'DRAFT'"
+            v-if="billDetail.status === '임시계산'"
             type="button"
             class="page-button page-button--primary"
             @click="state.modals.confirmBill = true"
