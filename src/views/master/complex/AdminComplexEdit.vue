@@ -68,19 +68,19 @@ const state = reactive({
   errorMessage: '',
   showUpdateConfirm: false,
   showDeleteConfirm: false,
-  resultModal: {
-    show: false,
-    type: 'success',
-    title: '',
-    subtitle: '',
-    desc: '',
-    itemName: '',
-    time: '',
-    actionLabel: '',
-    actor: '',
-    shouldEmitUpdated: false,
-    shouldCloseParent: false,
-  },
+})
+
+const resultModal = reactive({
+  show: false,
+  type: 'success',
+  title: '',
+  subtitle: '',
+  desc: '',
+  itemName: '',
+  time: '',
+  actionLabel: '',
+  actor: '',
+  afterConfirm: null,
 })
 
 // 수정 대상 단지 코드를 props 또는 현재 route에서 안전하게 찾는다.
@@ -105,20 +105,18 @@ function resetState() {
   state.errorMessage = ''
   state.showUpdateConfirm = false
   state.showDeleteConfirm = false
-  state.resultModal.show = false
-  state.resultModal.type = 'success'
-  state.resultModal.title = ''
-  state.resultModal.subtitle = ''
-  state.resultModal.desc = ''
-  state.resultModal.itemName = ''
-  state.resultModal.time = ''
-  state.resultModal.actionLabel = ''
-  state.resultModal.actor = ''
-  state.resultModal.shouldEmitUpdated = false
-  state.resultModal.shouldCloseParent = false
+  resultModal.show = false
+  resultModal.type = 'success'
+  resultModal.title = ''
+  resultModal.subtitle = ''
+  resultModal.desc = ''
+  resultModal.itemName = ''
+  resultModal.time = ''
+  resultModal.actionLabel = ''
+  resultModal.actor = ''
+  resultModal.afterConfirm = null
 }
 
-// 결과 모달을 열어 수정 또는 삭제 처리 결과를 안내한다.
 function openResultModal({
   type = 'success',
   title,
@@ -128,40 +126,18 @@ function openResultModal({
   time = '',
   actionLabel = '',
   actor = '',
-  shouldEmitUpdated = false,
-  shouldCloseParent = false,
-}) {
+  afterConfirm = null,
+} = {}) {
   state.showUpdateConfirm = false
   state.showDeleteConfirm = false
-  state.resultModal.show = true
-  state.resultModal.type = type
-  state.resultModal.title = title
-  state.resultModal.subtitle = subtitle
-  state.resultModal.desc = desc
-  state.resultModal.itemName = itemName
-  state.resultModal.time = time
-  state.resultModal.actionLabel = actionLabel
-  state.resultModal.actor = actor
-  state.resultModal.shouldEmitUpdated = shouldEmitUpdated
-  state.resultModal.shouldCloseParent = shouldCloseParent
+  Object.assign(resultModal, { show: true, type, title, subtitle, desc, itemName, time, actionLabel, actor, afterConfirm })
 }
 
-// 결과 모달 확인 시 부모에 완료 이벤트를 전달하고 모달을 닫는다.
-function handleResultConfirm() {
-  const shouldEmitUpdated = state.resultModal.shouldEmitUpdated
-  const shouldCloseParent = state.resultModal.shouldCloseParent
-
-  state.resultModal.show = false
-  state.resultModal.shouldEmitUpdated = false
-  state.resultModal.shouldCloseParent = false
-
-  if (shouldEmitUpdated) {
-    emit('updated')
-  }
-
-  if (shouldCloseParent) {
-    emit('close')
-  }
+async function handleResultConfirm() {
+  const callback = resultModal.afterConfirm
+  resultModal.show = false
+  resultModal.afterConfirm = null
+  if (typeof callback === 'function') await callback()
 }
 
 // 부모가 모달을 닫을 때 내부 상태도 함께 초기화한다.
@@ -207,7 +183,7 @@ async function loadComplexDetail() {
       type: 'warning',
       title: '단지 정보를 확인할 수 없습니다.',
       subtitle: '수정할 단지를 다시 선택해주세요.',
-      shouldCloseParent: true,
+      afterConfirm: () => emit('close'),
     })
     return
   }
@@ -229,7 +205,10 @@ async function loadComplexDetail() {
       type: 'danger',
       title: '단지 정보를 불러오지 못했습니다.',
       subtitle: state.errorMessage,
-      shouldCloseParent: true,
+      time: getCurrentTimeText(),
+      actionLabel: '단지 수정',
+      actor: getCurrentActorName(),
+      afterConfirm: () => emit('close'),
     })
   } finally {
     state.loading = false
@@ -273,8 +252,7 @@ async function handleUpdateConfirm() {
       time: getCurrentTimeText(),
       actionLabel: '단지 정보 수정',
       actor: getCurrentActorName(),
-      shouldEmitUpdated: true,
-      shouldCloseParent: true,
+      afterConfirm: () => { emit('updated'); emit('close') },
     })
   } catch (error) {
     console.error(error)
@@ -283,6 +261,10 @@ async function handleUpdateConfirm() {
       type: 'danger',
       title: '수정에 실패했습니다.',
       subtitle: state.errorMessage,
+      itemName: state.form.name || '선택 단지',
+      time: getCurrentTimeText(),
+      actionLabel: '단지 정보 수정',
+      actor: getCurrentActorName(),
     })
   } finally {
     state.loading = false
@@ -321,8 +303,7 @@ async function handleDeleteConfirm() {
       time: getCurrentTimeText(),
       actionLabel: '단지 삭제',
       actor: getCurrentActorName(),
-      shouldEmitUpdated: true,
-      shouldCloseParent: true,
+      afterConfirm: () => { emit('updated'); emit('close') },
     })
   } catch (error) {
     console.error(error)
@@ -510,16 +491,18 @@ onMounted(loadComplexDetail)
   />
 
   <ActionResultModal
-    :visible="state.resultModal.show"
-    :type="state.resultModal.type"
-    :title="state.resultModal.title"
-    :subtitle="state.resultModal.subtitle"
-    :desc="state.resultModal.desc"
-    :item-name="state.resultModal.itemName"
-    :time="state.resultModal.time"
-    :action-label="state.resultModal.actionLabel"
-    :actor="state.resultModal.actor"
+    :visible="resultModal.show"
+    :type="resultModal.type"
+    :title="resultModal.title"
+    :subtitle="resultModal.subtitle"
+    :desc="resultModal.desc"
+    :item-name="resultModal.itemName"
+    :time="resultModal.time"
+    :action-label="resultModal.actionLabel"
+    :actor="resultModal.actor"
+    confirm-text="확인"
     @close="handleResultConfirm"
+    @confirm="handleResultConfirm"
   />
 </template>
 
