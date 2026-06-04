@@ -133,8 +133,15 @@ const menuGroups = computed(() => [
 
     <!-- 우측 액션 버튼 -->
     <div class="app-header__actions">
+      <!-- MASTER 미리보기: 알림 대신 홈 버튼 -->
+      <button v-if="authStore.role === 'MASTER'" class="app-header__btn app-header__btn--home" @click="router.push('/admin/master')">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M9 21V12h6v9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
       <!-- 알림 버튼: 배지 position 기준을 위해 relative 적용 -->
-      <button class="app-header__btn app-header__btn--notif" @click="navigate(residentPath('notifications'))">
+      <button v-else class="app-header__btn app-header__btn--notif" @click="navigate(residentPath('notifications'))">
         <svg viewBox="0 0 24 24" fill="none">
           <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
