@@ -13,6 +13,7 @@ import { getAdminFacilities } from '@/api/facilityApi.js'
 import { getAdminVisitorVehicles } from '@/api/visitorVehicleApi'
 import { getParkingLogs } from '@/api/parkingApi'
 import { getAdminNotices } from '@/api/noticeApi'
+import { getAdminHouseholds } from '@/api/householdApi'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -39,6 +40,8 @@ const state = reactive({
   todayCancelled: null,
   activeCount: null,
   totalHousehold: null,
+  occupiedHousehold: null,
+  currentMonthMoveIns: null,
   visitors: [],
   reservations: [],
   facilitySummary: [],
@@ -101,7 +104,9 @@ const dashboardStats = computed(() => {
       label: '전체 세대',
       value: state.totalHousehold ?? '-',
       unit: state.totalHousehold === null ? '' : '세대',
-      desc: '세대 통계 API 연결 예정입니다.',
+      desc: state.totalHousehold !== null
+        ? `입주 ${state.occupiedHousehold} · 공실 ${state.totalHousehold - state.occupiedHousehold} · ${new Date().getMonth() + 1}월 입주 ${state.currentMonthMoveIns}`
+        : '단지 전체 기준',
       iconClass: 'icon-gray',
     },
   ]
@@ -114,6 +119,7 @@ async function fetchDashboard() {
 
   try {
     await fetchStats()
+    await fetchHouseholdStats()
     await fetchParkingCard()
     await fetchRecentItems()
   } catch (error) {
@@ -190,6 +196,18 @@ async function fetchParkingCard() {
 }
 
 // 통계 데이터 조회
+async function fetchHouseholdStats() {
+  try {
+    const res = await getAdminHouseholds({ page: 0, size: 1 })
+    const summary = res?.summary
+    state.totalHousehold = summary?.totalHouseholds ?? null
+    state.occupiedHousehold = summary?.occupiedHouseholds ?? null
+    state.currentMonthMoveIns = summary?.currentMonthMoveIns ?? null
+  } catch {
+    // 통계 실패 시 카드는 '-' 유지
+  }
+}
+
 async function fetchStats() {
   if (!showFacilitySection.value) return
   try {
