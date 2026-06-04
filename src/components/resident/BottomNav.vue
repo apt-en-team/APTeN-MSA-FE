@@ -46,20 +46,19 @@ const isActive = (path) => route.path.includes(path)
       <span class="bottom-nav__label">주차</span>
     </button>
 
-    <!-- 차량 탭 -->
+    <!-- 게시글 탭 -->
     <button
       class="bottom-nav__item"
-      :class="{ 'bottom-nav__item--active': isActive('vehicles') }"
-      @click="router.push(residentPath('vehicles'))"
+      :class="{ 'bottom-nav__item--active': isActive('board') }"
+      @click="router.push(residentPath('board'))"
     >
       <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none">
-        <path d="M5 17H3v-5l2-5h14l2 5v5h-2" stroke="currentColor" stroke-width="1.8"
-              stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="7" cy="17" r="2" stroke="currentColor" stroke-width="1.8"/>
-        <circle cx="17" cy="17" r="2" stroke="currentColor" stroke-width="1.8"/>
-        <path d="M9 17h6" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M8 8h8M8 12h8M8 16h5"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
       </svg>
-      <span class="bottom-nav__label">차량</span>
+      <span class="bottom-nav__label">게시글</span>
     </button>
 
     <!-- 홈 탭 -->

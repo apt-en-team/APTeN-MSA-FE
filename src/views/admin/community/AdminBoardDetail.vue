@@ -5,12 +5,12 @@ import { useNoticeStore } from '@/stores/useNoticeStore'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import boardApi from '@/api/boardApi'
 import noticeApi from '@/api/noticeApi'
-import { useAuthStore } from '@/stores/useAuthStore'
+// import { useAuthStore } from '@/stores/useAuthStore'
 
 const router = useRouter()
 const route = useRoute()
 const noticeStore = useNoticeStore()
-const authStore = useAuthStore()
+// const authStore = useAuthStore()
 
 const postId = computed(() => route.params.postId)
 const noticeId = computed(() => route.params.noticeId)
