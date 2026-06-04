@@ -12,6 +12,7 @@ import { useParkingStore } from '@/stores/useParkingStore'
 import { getAdminFacilities } from '@/api/facilityApi.js'
 import { getAdminVisitorVehicles } from '@/api/visitorVehicleApi'
 import { getParkingLogs } from '@/api/parkingApi'
+import { getAdminNotices } from '@/api/noticeApi'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -19,10 +20,10 @@ const complexStore = useComplexStore()
 const reservationStore = useReservationStore()
 const parkingStore = useParkingStore()
 
-const todayStr = (() => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-})()
+//const todayStr = (() => {
+//   const d = new Date()
+//   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+// })()
 
 // 대시보드 화면 데이터
 const state = reactive({
@@ -60,10 +61,6 @@ const showFacilitySection = computed(() => {
 
 const showParkingSection = computed(() => {
   return isFeatureEnabled(dashboardFeatures.value, FEATURE_CODES.PARKING_STATUS)
-})
-
-const showVoteSection = computed(() => {
-  return isFeatureEnabled(dashboardFeatures.value, FEATURE_CODES.VOTE)
 })
 
 // StatsCards에 넘길 상단 요약 카드 데이터이다.
@@ -161,11 +158,11 @@ const buildFacilitySummaryItem = (f, idx) => {
   return { facilityId: f.facilityId, name: f.name, hours, current, totalSlots, percent, isFull, barColor, slotLabel }
 }
 
-const reservationStatusLabel = (s) =>
-  ({ CONFIRMED: '예약완료', COMPLETED: '이용완료', CANCELLED: '취소됨' })[s] || s || '-'
+// const reservationStatusLabel = (s) =>
+//   ({ CONFIRMED: '예약완료', COMPLETED: '이용완료', CANCELLED: '취소됨' })[s] || s || '-'
 
-const reservationStatusClass = (s) =>
-  ({ CONFIRMED: 'status-confirmed', COMPLETED: 'status-completed', CANCELLED: 'status-cancelled' })[s] || ''
+// const reservationStatusClass = (s) =>
+//   ({ CONFIRMED: 'status-confirmed', COMPLETED: 'status-completed', CANCELLED: 'status-cancelled' })[s] || ''
 
 // 입출차 구분 라벨 반환
 const entryTypeLabel = (t) => (t === 'IN' ? '입차' : t === 'OUT' ? '출차' : '-')
@@ -175,6 +172,8 @@ const formatLoggedAt = (v) => (v ? String(v).replace('T', ' ').slice(5, 16) : '-
 
 // 방문일을 yyyy.MM.dd 형태로 변환
 const formatVisitDate = (v) => (v ? String(v).slice(0, 10).replace(/-/g, '.') : '-')
+
+const formatNoticeDate = (v) => (v ? String(v).slice(0, 10).replace(/-/g, '.') : '-')
 
 // 주차 현황 카드 데이터 조회
 async function fetchParkingCard() {
@@ -241,6 +240,14 @@ async function fetchRecentItems() {
 
   state.reservations = []
   state.posts = []
+
+  // 공지사항 최근 5건 조회
+  try {
+    const res = await getAdminNotices({ page: 0, size: 5 })
+    state.posts = (res?.content ?? []).slice(0, 5)
+  } catch {
+    state.posts = []
+  }
 }
 
 onMounted(() => {
@@ -458,13 +465,21 @@ onMounted(() => {
         <article class="panel">
           <div class="panel-header">
             <h2 class="panel-title">최근 게시판 활동</h2>
-            <button type="button" class="panel-more" @click="router.push('/admin/notices')">
+            <button type="button" class="panel-more" @click="router.push('/admin/boards/statistics')">
               전체보기 →
             </button>
           </div>
 
-          <div v-if="state.posts.length > 0" class="board-list">
-            <!-- API 연결 후 게시판 활동을 표시합니다. -->
+          <div v-if="state.posts.length > 0" class="notice-list">
+            <div
+              v-for="notice in state.posts"
+              :key="notice.noticeId"
+              class="notice-item card-clickable"
+              @click="router.push(`/admin/notices/${notice.noticeId}`)"
+            >
+              <div class="notice-title">{{ notice.title }}</div>
+              <div class="notice-date">{{ formatNoticeDate(notice.createdAt) }}</div>
+            </div>
           </div>
 
           <div v-else class="empty-state">
@@ -874,4 +889,38 @@ onMounted(() => {
 }
 
 .text-full { color: #C08B2D !important; }
+
+.notice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.notice-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f9fafb;
+  gap: 12px;
+}
+
+.notice-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1A202C;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notice-date {
+  font-size: 11px;
+  color: #92959D;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 </style>
