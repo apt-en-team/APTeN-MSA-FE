@@ -105,7 +105,7 @@ const dashboardStats = computed(() => {
       value: state.totalHousehold ?? '-',
       unit: state.totalHousehold === null ? '' : '세대',
       desc: state.totalHousehold !== null
-        ? `입주 ${state.occupiedHousehold} · 공실 ${state.totalHousehold - state.occupiedHousehold} · 이번달 입주 ${state.currentMonthMoveIns}`
+        ? `입주 ${state.occupiedHousehold} · 공실 ${state.totalHousehold - state.occupiedHousehold} · ${new Date().getMonth() + 1}월 입주 ${state.currentMonthMoveIns}`
         : '단지 전체 기준',
       iconClass: 'icon-gray',
     },
