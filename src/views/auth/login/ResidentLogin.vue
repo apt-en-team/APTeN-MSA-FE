@@ -1,7 +1,6 @@
 <script setup>
 import {ref, reactive} from 'vue'
 import {useAuthStore} from '@/stores/useAuthStore'
-import authApi from '@/api/authApi'
 
 // 인증 상태 관리 store
 // login() 호출 시 내부에서 역할별 리다이렉트 처리
@@ -23,9 +22,9 @@ const errors = reactive({
 const showPw = ref(false)
 
 // 소셜 로그인 URL — 백엔드 OAuth2 엔드포인트로 직접 리다이렉트
-const googleUrl = authApi.getGoogleLoginUrl()
-const kakaoUrl  = authApi.getKakaoLoginUrl()
-const naverUrl  = authApi.getNaverLoginUrl()
+const googleUrl = import.meta.env.VITE_GOOGLE_LOGIN_URL
+const kakaoUrl  = import.meta.env.VITE_KAKAO_LOGIN_URL
+const naverUrl  = import.meta.env.VITE_NAVER_LOGIN_URL
 
 // 클라이언트 유효성 검사
 // 서버 요청 전에 빈 값, 이메일 형식 체크
