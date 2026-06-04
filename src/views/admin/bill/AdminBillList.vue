@@ -704,7 +704,7 @@ onBeforeUnmount(() => {
         <label class="form-field">
           <span>홈 화면 노출 종료일<em class="required">*</em></span>
           <div class="form-field-row">
-            <span class="form-field-prefix">익월</span>
+            <span class="form-field-prefix">{{ state.billSettingForm.dueDay && state.billSettingForm.homeDisplayEndDay ? (Number(state.billSettingForm.homeDisplayEndDay) > Number(state.billSettingForm.dueDay) ? '당월' : '익월') : '' }}</span>
             <input v-model="state.billSettingForm.homeDisplayEndDay" type="number" min="1" max="31" placeholder="(예: 5)" />
             <span class="form-field-unit">일</span>
           </div>
@@ -768,7 +768,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="policy-item">
             <span>홈 노출 종료일</span>
-            <strong>{{ formatDay(currentPolicy.homeDisplayEndDay, '익월') }}</strong>
+            <strong>{{ currentPolicy.homeDisplayEndDay > currentPolicy.dueDay ? '당월' : '익월' }} {{ currentPolicy.homeDisplayEndDay }}일</strong>
           </div>
           <div class="policy-item">
             <span>연체료율(%)</span>

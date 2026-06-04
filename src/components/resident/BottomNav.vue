@@ -78,8 +78,8 @@ const isActive = (path) => route.path.includes(path)
     <!-- 관리비 탭 -->
     <button
       class="bottom-nav__item"
-      :class="{ 'bottom-nav__item--active': isActive('management-fee') }"
-      @click="router.push(residentPath('management-fee'))"
+      :class="{ 'bottom-nav__item--active': isActive('bill') }"
+      @click="router.push(residentPath('bill'))"
     >
       <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none">
         <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" stroke-width="1.8"

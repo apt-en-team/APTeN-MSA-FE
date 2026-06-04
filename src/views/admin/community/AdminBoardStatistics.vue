@@ -84,8 +84,8 @@ const filteredList = computed(() => {
 })
 
 const summaryItems = computed(() => [
-  { label: '전체 게시글', value: postsTotalElements.value, unit: '개', desc: '자유 + 문의' },
   { label: '전체 공지', value: noticesTotalElements.value, unit: '개', desc: '단지 공지' },
+  { label: '전체 게시글', value: postsTotalElements.value, unit: '개', desc: '자유 + 문의' },
   { label: '전체 댓글', value: statistics.value?.commentCount ?? 0, unit: '개', desc: '' },
   { label: '삭제된 글', value: statistics.value?.deletedPostCount ?? 0, unit: '개', desc: '소프트 삭제' },
 ])
@@ -235,7 +235,7 @@ onMounted(() => {
           <BaseBadge v-else variant="warning">문의</BaseBadge>
         </template>
 
-        <<!-- 제목 -->
+        <!-- 제목 -->
         <template #cell-title="{ row }">
           <span class="title-wrap">
             <span class="title-text">{{ row.title }}</span>
