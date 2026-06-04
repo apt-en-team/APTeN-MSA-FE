@@ -5,6 +5,7 @@ defineProps({
   columns: { type: Array, required: true },
   rows: { type: Array, default: () => [] },
   rowClass: { type: Function, default: null },
+  clickable: { type: Boolean, default: true },
 })
 
 // 행 클릭 이벤트를 부모 컴포넌트로 전달한다.
@@ -31,7 +32,7 @@ const emit = defineEmits(['row-click'])
         v-else
         v-for="row in rows"
         :key="row.id ?? row.userId ?? row.code ?? row.householdId ?? row.reservationId ?? row.sensorId"
-        :class="rowClass ? rowClass(row) : null"
+        :class="[rowClass ? rowClass(row) : null, clickable ? 'is-clickable' : null]"
         @click="emit('row-click', row)"
       >
         <td v-for="col in columns" :key="col.key">
@@ -80,6 +81,10 @@ const emit = defineEmits(['row-click'])
 }
 
 .data-table tbody tr {
+  cursor: default;
+}
+
+.data-table tbody tr.is-clickable {
   cursor: pointer;
 }
 
