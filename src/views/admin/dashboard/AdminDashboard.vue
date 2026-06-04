@@ -244,7 +244,7 @@ async function fetchRecentItems() {
   // 공지사항 최근 5건 조회
   try {
     const res = await getAdminNotices({ page: 0, size: 5 })
-    state.posts = res?.content ?? []
+    state.posts = (res?.content ?? []).slice(0, 5)
   } catch {
     state.posts = []
   }
@@ -465,7 +465,7 @@ onMounted(() => {
         <article class="panel">
           <div class="panel-header">
             <h2 class="panel-title">최근 게시판 활동</h2>
-            <button type="button" class="panel-more" @click="router.push('/admin/notices')">
+            <button type="button" class="panel-more" @click="router.push('/admin/boards/statistics')">
               전체보기 →
             </button>
           </div>
