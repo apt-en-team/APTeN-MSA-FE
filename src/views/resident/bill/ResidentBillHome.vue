@@ -16,10 +16,10 @@ const currentYear = now.getFullYear()
 const currentMonth = now.getMonth() + 1
 
 const ITEM_META = {
-  BASE_FEE:     { label: '기본 관리비', color: '#4A72F4', icon: 'house' },
-  VEHICLE_FEE:  { label: '차량 비용',   color: '#EF5350', icon: 'car' },
-  FACILITY_FEE: { label: '시설 이용',   color: '#FFA726', icon: 'calendar' },
-  VISITOR_FEE:  { label: '방문차량',    color: '#4CAF83', icon: 'truck' },
+  '기본관리비':   { label: '기본 관리비', color: '#4A72F4', icon: 'house' },
+  '차량비용':     { label: '차량 비용',   color: '#EF5350', icon: 'car' },
+  '시설이용비용': { label: '시설 이용',   color: '#FFA726', icon: 'calendar' },
+  '방문차량비용': { label: '방문차량',    color: '#4CAF83', icon: 'truck' },
 }
 
 const totalAmount = computed(() =>

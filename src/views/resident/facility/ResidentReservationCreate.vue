@@ -143,6 +143,43 @@ const onDateChange = () => {
   fetchAvailableTimes()
 }
 
+// 주간 날짜 선택기 — 오늘 기준 weekOffset 주 단위 이동
+const weekOffset = reactive({ value: 0 })
+
+const weekDays = computed(() => {
+  const days = []
+  const base = new Date(_now)
+  base.setDate(base.getDate() + weekOffset.value * 7)
+  // 해당 주의 월요일 기준으로 7일 생성
+  const dayOfWeek = base.getDay() === 0 ? 6 : base.getDay() - 1
+  const monday = new Date(base)
+  monday.setDate(base.getDate() - dayOfWeek)
+  const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일']
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    const dateStr = `${yyyy}-${mm}-${dd}`
+    days.push({ dateStr, day: DAY_LABELS[i], date: d.getDate(), isPast: dateStr < todayStr })
+  }
+  return days
+})
+
+const canGoPrev = computed(() => weekOffset.value > 0)
+
+const selectDate = (dateStr) => {
+  if (dateStr < todayStr) return
+  state.form.date = dateStr
+  state.form.selectedTime = null
+  state.form.selectedSeat = null
+  onDateChange()
+}
+
+const prevWeek = () => { if (canGoPrev.value) weekOffset.value-- }
+const nextWeek = () => { weekOffset.value++ }
+
 const selectTime = (slot) => {
   if (slot.isReservable === false) return
   if (
@@ -349,13 +386,23 @@ onMounted(async () => {
       <template v-if="!isApproval">
         <div class="section">
           <p class="section-label">예약 날짜</p>
-          <input
-            v-model="state.form.date"
-            class="date-input"
-            type="date"
-            :min="todayStr"
-            @change="onDateChange"
-          />
+          <div class="date-slider">
+            <button class="date-nav" type="button" :disabled="!canGoPrev" @click="prevWeek">&#8249;</button>
+            <div class="date-chips">
+              <button
+                v-for="d in weekDays"
+                :key="d.dateStr"
+                type="button"
+                :class="['date-chip', { 'is-selected': state.form.date === d.dateStr, 'is-past': d.isPast }]"
+                :disabled="d.isPast"
+                @click="selectDate(d.dateStr)"
+              >
+                <span class="date-chip__day">{{ d.day }}</span>
+                <span class="date-chip__num">{{ d.date }}</span>
+              </button>
+            </div>
+            <button class="date-nav" type="button" @click="nextWeek">&#8250;</button>
+          </div>
         </div>
 
         <!-- 예약 가능 시간 -->
@@ -609,26 +656,83 @@ onMounted(async () => {
   margin: 0;
 }
 
-/* 날짜 입력 */
-.date-input {
-  width: 100%;
-  height: 48px;
-  padding: 0 14px;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1a202c;
-  background: #ffffff;
-  font-family: 'Noto Sans KR', sans-serif;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
+/* 주간 날짜 선택기 */
+.date-slider {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.date-input:focus {
-  outline: none;
+.date-nav {
+  flex-shrink: 0;
+  width: 32px;
+  height: 48px;
+  border: none;
+  background: none;
+  font-size: 24px;
+  color: #4973e5;
+  cursor: pointer;
+  border-radius: 8px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.date-nav:hover:not(:disabled) { background: #f0f4ff; }
+.date-nav:disabled { color: #cbd5e1; cursor: not-allowed; }
+
+.date-chips {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.date-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 2px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.date-chip__day {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.date-chip__num {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a202c;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.date-chip.is-selected {
+  background: #4973e5;
   border-color: #4973e5;
+}
+
+.date-chip.is-selected .date-chip__day,
+.date-chip.is-selected .date-chip__num {
+  color: #ffffff;
+}
+
+.date-chip.is-past {
+  background: #f8fafc;
+  border-color: #f1f5f9;
+  cursor: not-allowed;
+}
+
+.date-chip.is-past .date-chip__day,
+.date-chip.is-past .date-chip__num {
+  color: #cbd5e1;
 }
 
 /* 시간 칩 */

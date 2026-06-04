@@ -7,7 +7,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
-const RESIDENT_RESTRICTED_STATUSES = ['PENDING', 'REJECTED', '01', '03', '대기', '반려', '거절']
+const RESIDENT_RESTRICTED_STATUSES = ['PENDING', 'REJECTED']
 
 onMounted(() => {
   const { accessToken, refreshToken, userId, userUid, name, role, status, building, unit, complexId } = route.query
