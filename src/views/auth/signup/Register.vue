@@ -103,10 +103,17 @@ async function checkEmail() {
   }
   errors.email = ''
   try {
-    await authApi.checkEmail({ email: form.email })
-    emailChecked.value = true
-    emailCheckError.value = false
-    emailCheckMsg.value = '사용 가능한 이메일입니다.'
+    // BE는 중복이어도 200 + { isDuplicate } 로 응답하므로 body의 isDuplicate를 검사
+    const result = await authApi.checkEmail({ email: form.email })
+    if (result?.isDuplicate === true) {
+      emailChecked.value = false
+      emailCheckError.value = true
+      emailCheckMsg.value = '이미 사용중인 이메일입니다.'
+    } else {
+      emailChecked.value = true
+      emailCheckError.value = false
+      emailCheckMsg.value = '사용 가능한 이메일입니다.'
+    }
   } catch (e) {
     emailChecked.value = false
     emailCheckError.value = true
@@ -542,7 +549,9 @@ function handleSuccessClose() {
       title="회원가입 완료"
       subtitle="관리자 승인 후 서비스를 이용하실 수 있습니다."
       confirm-text="로그인하러 가기"
+      :show-cancel="false"
       @close="handleSuccessClose"
+      @confirm="handleSuccessClose"
     />
 
   </div>

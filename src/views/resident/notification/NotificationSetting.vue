@@ -53,6 +53,14 @@ async function handleToggleAll() {
       불러오는 중...
     </div>
 
+    <!-- 설정 로드 실패 -->
+    <div v-else-if="notificationStore.error && notificationStore.settings.length === 0" class="notif-setting-page__state">
+      <p class="notif-setting-page__error-text">알림 설정을 불러오지 못했습니다.</p>
+      <button class="notif-setting-page__retry-btn" type="button" @click="notificationStore.fetchSettings()">
+        다시 시도
+      </button>
+    </div>
+
     <!-- 전체 알림 ON/OFF 설정 -->
     <div v-else class="notif-setting-page__section">
       <div class="notif-setting-page__copy">
@@ -173,5 +181,24 @@ async function handleToggleAll() {
 
 .notif-setting-page__toggle.is-on .notif-setting-page__toggle-thumb {
   transform: translateX(20px);
+}
+
+.notif-setting-page__error-text {
+  margin: 0 0 12px;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 14px;
+  color: var(--color-danger, #e53e3e);
+}
+
+.notif-setting-page__retry-btn {
+  padding: 8px 20px;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  background: #FFFFFF;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  cursor: pointer;
 }
 </style>
