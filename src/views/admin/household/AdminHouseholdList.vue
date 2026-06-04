@@ -1148,6 +1148,18 @@ async function findExistingHousehold(building, unit) {
 }
 
 let createAddressTimer = null
+let keywordTimer = null
+watch(
+  () => state.filters.keyword,
+  () => {
+    if (keywordTimer) window.clearTimeout(keywordTimer)
+    keywordTimer = window.setTimeout(() => {
+      state.pagination.currentPage = 1
+      loadHouseholds()
+    }, 300)
+  },
+)
+
 watch(
   () => [state.createForm.building, state.createForm.unit],
   () => {
@@ -1785,6 +1797,7 @@ watch(
         v-else
         :columns="matchColumns"
         :rows="pagedMatchRequests"
+        :clickable="false"
       >
         <template #cell-select="{ row }">
           <input
@@ -2042,15 +2055,15 @@ watch(
                     <div class="form-grid">
                       <label class="form-field">
                         <span>이름</span>
-                        <input v-model="state.editResidentForm.name" type="text" placeholder="이름" />
+                        <input v-model="state.editResidentForm.name" type="text" placeholder="이름" :disabled="m.status === '매칭완료'" />
                       </label>
                       <label class="form-field">
                         <span>연락처</span>
-                        <input v-model="state.editResidentForm.phone" type="text" placeholder="010-0000-0000" />
+                        <input v-model="state.editResidentForm.phone" type="text" placeholder="010-0000-0000" :disabled="m.status === '매칭완료'" />
                       </label>
                       <label class="form-field">
                         <span>생년월일</span>
-                        <input v-model="state.editResidentForm.birthDate" type="date" />
+                        <input v-model="state.editResidentForm.birthDate" type="date" :disabled="m.status === '매칭완료'" />
                       </label>
                       <label class="form-field">
                         <span>세대 역할</span>
