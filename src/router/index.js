@@ -8,6 +8,7 @@ import adminRoutes from './adminRoutes'
 import authRoutes from './authRoutes'
 import masterRoutes from './masterRoutes'
 import residentRoutes from './residentRoutes'
+import NotFoundPage from '@/views/common/NotFoundPage.vue'
 
 // parkingTypeCode 가드가 책임지는 관리자 주차 경로 목록, 새 주차 경로 추가 시 여기에 명시해야 가드가 적용된다
 const PARKING_GUARDED_PATHS = [
@@ -37,6 +38,10 @@ const routes = [
   ...masterRoutes,
   ...adminRoutes,
   ...residentRoutes,
+  { path: '/resident/:complexId/bills', redirect: to => `/resident/${to.params.complexId}/bill` },
+  { path: '/resident/:complexId/notices/:noticeId', redirect: to => `/resident/${to.params.complexId}/notice/${to.params.noticeId}` },
+  { path: '/resident/:complexId/votes/:voteId', redirect: to => `/resident/${to.params.complexId}/vote/${to.params.voteId}` },
+  { path: '/:pathMatch(.*)*', component: NotFoundPage },
 ]
 
 const router = createRouter({
