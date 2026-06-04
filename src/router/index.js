@@ -38,6 +38,9 @@ const routes = [
   ...masterRoutes,
   ...adminRoutes,
   ...residentRoutes,
+  { path: '/resident/:complexId/bills', redirect: to => `/resident/${to.params.complexId}/bill` },
+  { path: '/resident/:complexId/notices/:noticeId', redirect: to => `/resident/${to.params.complexId}/notice/${to.params.noticeId}` },
+  { path: '/resident/:complexId/votes/:voteId', redirect: to => `/resident/${to.params.complexId}/vote/${to.params.voteId}` },
   { path: '/:pathMatch(.*)*', component: NotFoundPage },
 ]
 
