@@ -143,6 +143,7 @@ onMounted(() => {
         </svg>
         <span v-if="normalizeReservationStatus(state.detail.status) === 'COMPLETED'">이미 이용이 완료된 예약입니다.</span>
         <span v-else-if="normalizeReservationStatus(state.detail.status) === 'CANCELLED'">이미 취소된 예약입니다.</span>
+        <span v-else>예약 취소가 불가능한 예약입니다.</span>
       </div>
     </template>
 
