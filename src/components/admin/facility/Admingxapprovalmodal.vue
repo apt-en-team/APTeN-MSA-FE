@@ -86,7 +86,7 @@ const handleApprove = async () => {
       type: 'success',
       title: 'GX 승인 처리가 완료되었습니다.',
       subtitle: props.program?.name || '',
-      desc: `확정 ${approvedCount}명 / 취소 ${cancelledCount}명 처리되었습니다.`,
+      desc: `확정 ${approvedCount}명 / 대기 유지 ${cancelledCount}명 처리되었습니다.`,
       itemName: props.program?.name || '',
       time: getCurrentTimeText(),
       actionLabel: 'GX 일괄 승인',
@@ -135,7 +135,7 @@ const handleApprove = async () => {
 
     <div v-if="confirmCount > 0" class="bulk-notice">
       신청 순서대로 <strong>{{ confirmCount }}명</strong> 확정되며, 나머지
-      <strong>{{ overflowCount }}명</strong>은 자동 취소됩니다.
+      <strong>{{ overflowCount }}명</strong>은 대기 상태로 유지됩니다.
     </div>
     <div v-else class="bulk-notice bulk-notice--warn">
       확정 가능한 인원이 없습니다. (정원 초과 또는 대기자 없음)
@@ -153,7 +153,7 @@ const handleApprove = async () => {
           <span class="bulk-pending-unit">{{ r.unit || [r.dong, r.ho].filter(Boolean).join(' ') || '-' }}</span>
         </div>
         <span :class="['bulk-badge', r.willConfirm ? 'badge-confirm' : 'badge-cancel']">
-          {{ r.willConfirm ? '확정 예정' : '취소 예정' }}
+          {{ r.willConfirm ? '확정 예정' : '대기 유지' }}
         </span>
       </div>
     </div>
@@ -271,7 +271,7 @@ const handleApprove = async () => {
 }
 
 .bulk-pending-item.will-cancel {
-  background: #fce4ec;
+  background: #fefce8;
 }
 
 .bulk-pending-order {
@@ -312,8 +312,8 @@ const handleApprove = async () => {
 }
 
 .badge-cancel {
-  background: #ffcdd2;
-  color: #c62828;
+  background: #fef9c3;
+  color: #a16207;
 }
 
 .bulk-empty {

@@ -94,6 +94,7 @@ const waitingList = computed(() =>
 
 const programWaitingCount = (p) => {
   if (String(p.programId) === String(state.selectedProgramId)) {
+    if (state.reservations.loading) return p.waitingCount ?? 0
     return waitingList.value.length
   }
   return p.waitingCount ?? 0
@@ -101,6 +102,7 @@ const programWaitingCount = (p) => {
 
 const programCancelledCount = (p) => {
   if (String(p.programId) === String(state.selectedProgramId)) {
+    if (state.reservations.loading) return p.cancelledCount ?? 0
     return state.reservations.list.filter((r) => r.status === '거절' || r.status === '취소').length
   }
   return p.cancelledCount ?? 0
@@ -120,7 +122,7 @@ const totalResPages = computed(() =>
 const programStatusLabel = (status) => status || '-'
 
 const programStatusClass = (status) =>
-  ({ '모집중': 'open', '모집마감': 'waiting-closed', '종료': 'closed', '프로그램취소': 'cancelled' }[status] || '')
+  ({ '모집중': 'open', '모집마감': 'waiting-closed', '종료': 'closed', '취소됨': 'cancelled' }[status] || '')
 
 const resStatusClass = (status) =>
   ({
@@ -268,7 +270,7 @@ const handleGxCancel = async () => {
       time: getCurrentTimeText(),
       actionLabel: 'GX 예약 강제 취소',
       actor: getCurrentActorName(),
-      afterConfirm: refreshDetail,
+      afterConfirm: async () => { await Promise.all([fetchPrograms(), refreshDetail()]) },
     })
   } catch (e) {
     closeGxCancelModal()
@@ -361,7 +363,8 @@ onMounted(fetchPrograms)
         >
           <div class="program-item-top">
             <span class="program-name">{{ p.name }}</span>
-            <span v-if="programWaitingCount(p) > 0" class="pending-badge">대기 {{ programWaitingCount(p) }}</span>
+            <span v-if="p.status && p.status !== '모집중'" :class="['program-status-chip', `status-${programStatusClass(p.status)}`]">{{ programStatusLabel(p.status) }}</span>
+            <span v-else-if="programWaitingCount(p) > 0" class="pending-badge">대기 {{ programWaitingCount(p) }}</span>
           </div>
           <div class="program-period">
             {{ formatDate(p.startDate) }} ~ {{ formatDate(p.endDate) }}
@@ -618,6 +621,18 @@ onMounted(fetchPrograms)
   color: #1a202c;
   font-family: 'Noto Sans KR', sans-serif;
 }
+
+.program-status-chip {
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.program-status-chip.status-waiting-closed { background: #fefcbf; color: #b7791f; }
+.program-status-chip.status-closed { background: #e2e8f0; color: #4a5568; }
+.program-status-chip.status-cancelled { background: #fff5f5; color: #e53e3e; }
 
 .pending-badge {
   background: #f6e3bf;
