@@ -235,7 +235,7 @@ onMounted(() => {
           <BaseBadge v-else variant="warning">문의</BaseBadge>
         </template>
 
-        <<!-- 제목 -->
+        <!-- 제목 -->
         <template #cell-title="{ row }">
           <span class="title-wrap">
             <span class="title-text">{{ row.title }}</span>
