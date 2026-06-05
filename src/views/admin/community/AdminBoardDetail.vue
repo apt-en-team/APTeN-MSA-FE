@@ -504,12 +504,13 @@ onMounted(async () => {
 :deep(.detail-body strong) { font-weight: 700; }
 :deep(.detail-body em) { font-style: italic; }
 :deep(.detail-body ul) { padding-left: var(--space-20); list-style: disc; }
-:deep(.detail-body blockquote) {
+.detail-body :deep(blockquote) {
   border-left: 3px solid var(--color-primary);
   padding-left: var(--space-12);
   color: var(--color-text-secondary);
   margin: var(--space-8) 0;
   font-style: italic;
+  margin-inline-start: 0;
 }
 
 .detail-files {
