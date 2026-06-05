@@ -13,7 +13,8 @@ import { startForegroundMessageListener } from '@/services/fcmService'
 const route = useRoute()
 
 const hideBottomNav = computed(() => {
-  return route.path.includes('/board/') && route.params.postId
+  return (route.path.includes('/board/') && route.params.postId) ||
+          route.path.includes('/vote/')
 })
 
 const mainPaddingBottom = computed(() => {
@@ -141,7 +142,6 @@ watch(
 
 .resident-layout__main {
   flex: 1;
-  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
 }
 
 .resident-layout__page {

@@ -28,13 +28,6 @@ const residentFeatures = computed(() => {
 // 드로어 열림 상태
 const drawerOpen = ref(false)
 
-// 드로어 스크롤 시 자주쓰는 메뉴 숨김
-const hideQuickMenu = ref(false)
-
-function handleDrawerScroll(e) {
-  hideQuickMenu.value = e.target.scrollTop > 10
-}
-
 // complexId 기반 경로 생성
 const residentPath = (path) => `/resident/${authStore.complexId}/${path}`
 
@@ -44,7 +37,6 @@ function canUseResidentFeature(featureCode) {
 
 function navigate(path) {
   drawerOpen.value = false
-  hideQuickMenu.value = false
   router.push(path)
 }
 
@@ -160,7 +152,7 @@ const menuGroups = computed(() => [
   <Transition name="drawer">
     <div v-if="drawerOpen" class="drawer">
       <!-- 오버레이 -->
-      <div class="drawer__overlay" @click="drawerOpen = false; hideQuickMenu = false" />
+      <div class="drawer__overlay" @click="drawerOpen = false;" />
 
       <!-- 드로어 본체 -->
       <div class="drawer__panel">
@@ -171,7 +163,7 @@ const menuGroups = computed(() => [
             <p class="drawer__user-name">{{ authStore.name }}</p>
             <p class="drawer__user-unit">{{ authStore.building }}동 {{ authStore.unit }}호</p>
           </div>
-          <button class="drawer__close" @click="drawerOpen = false; hideQuickMenu = false">
+          <button class="drawer__close" @click="drawerOpen = false;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -179,42 +171,39 @@ const menuGroups = computed(() => [
           </button>
         </div>
 
-        <!-- 스크롤 가능한 본문 -->
-        <div class="drawer__body" @scroll="handleDrawerScroll">
-          <!-- 자주 쓰는 메뉴 — 스크롤 시 숨김 -->
-          <Transition name="fade">
-            <div v-if="!hideQuickMenu" class="drawer__quick">
-              <p class="drawer__section-label">자주 쓰는 메뉴</p>
-              <div class="drawer__quick-grid">
-                <button
-                  v-for="menu in quickMenus"
-                  :key="menu.label"
-                  class="drawer__quick-item"
-                  @click="navigate(menu.path)"
-                >
-                  <span class="drawer__quick-icon" v-html="menu.icon" />
-                  <span class="drawer__quick-label">{{ menu.label }}</span>
-                </button>
-              </div>
-            </div>
-          </Transition>
-
-          <!-- 전체 메뉴 -->
-          <div class="drawer__menu">
-            <p class="drawer__section-label">전체 메뉴보기</p>
-            <div v-for="group in menuGroups" :key="group.label" class="drawer__group">
-              <p class="drawer__group-label">{{ group.label }}</p>
-              <button
-                v-for="item in group.items"
-                :key="item.label"
-                class="drawer__menu-item"
-                @click="navigate(item.path)"
-              >
-                <span class="drawer__menu-icon" v-html="item.icon" />
-                <span class="drawer__menu-label">{{ item.label }}</span>
-              </button>
-            </div>
+        <div class="drawer__body">
+        <!-- 자주 쓰는 메뉴 -->
+        <div>
+          <p class="drawer__section-label">자주 쓰는 메뉴</p>
+          <div class="drawer__quick-grid">
+            <button
+              v-for="menu in quickMenus"
+              :key="menu.label"
+              class="drawer__quick-item"
+              @click="navigate(menu.path)"
+            >
+              <span class="drawer__quick-icon" v-html="menu.icon" />
+              <span class="drawer__quick-label">{{ menu.label }}</span>
+            </button>
           </div>
+        </div>
+
+        <!-- 전체 메뉴 -->
+        <div class="drawer__menu">
+          <p class="drawer__section-label">전체 메뉴보기</p>
+          <div v-for="group in menuGroups" :key="group.label" class="drawer__group">
+            <p class="drawer__group-label">{{ group.label }}</p>
+            <button
+              v-for="item in group.items"
+              :key="item.label"
+              class="drawer__menu-item"
+              @click="navigate(item.path)"
+            >
+              <span class="drawer__menu-icon" v-html="item.icon" />
+              <span class="drawer__menu-label">{{ item.label }}</span>
+            </button>
+          </div>
+        </div>
         </div>
       </div>
     </div>
@@ -527,19 +516,5 @@ const menuGroups = computed(() => [
 .drawer-enter-from .drawer__panel,
 .drawer-leave-to .drawer__panel {
   transform: translateX(100%);
-}
-
-/* 자주쓰는 메뉴 페이드 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s, max-height 0.3s;
-  max-height: 200px;
-  overflow: hidden;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  max-height: 0;
 }
 </style>
