@@ -11,7 +11,7 @@ import { useNotificationStore } from '@/stores/useNotificationStore'
 import NotificationBadge from '@/components/notification/NotificationBadge.vue'
 import NotificationDropdown from '@/components/notification/NotificationDropdown.vue'
 import notificationSocketService from '@/services/notificationSocketService'
-import { startForegroundMessageListener } from '@/services/fcmService'
+import { startForegroundMessageListener, isFcmEnabled, requestPermission, registerToken, hasRegisteredToken } from '@/services/fcmService'
 
 const route = useRoute()
 const router = useRouter()
@@ -291,6 +291,33 @@ async function ensureMyComplex() {
   }
 }
 
+async function autoRegisterFcmToken() {
+  if (!isFcmEnabled()) return
+  if (typeof Notification === 'undefined') return
+
+  let permission = Notification.permission
+  if (permission === 'denied') return
+
+  if (permission === 'default') {
+    const result = await requestPermission()
+    if (!result.granted) return
+    permission = 'granted'
+  }
+
+  // 이미 토큰이 등록돼 있으면 foreground 리스너만 시작
+  if (hasRegisteredToken()) {
+    startForegroundMessageListener().catch((e) => console.error('[FCM] foreground listener 초기화 실패', e))
+    return
+  }
+
+  try {
+    await registerToken()
+    console.info('[FCM] 관리자 자동 토큰 등록 완료')
+  } catch (e) {
+    console.warn('[FCM] 관리자 자동 토큰 등록 실패', e)
+  }
+}
+
 onMounted(() => {
   ensureMyComplex()
 
@@ -298,8 +325,7 @@ onMounted(() => {
   if (showNotification.value) {
     notificationStore.fetchUnreadCount()
     notificationSocketService.connect()
-    // 설정 화면에서 토큰 등록을 마친 관리자도 새로고침 후 foreground FCM을 받을 수 있게 한다.
-    startForegroundMessageListener().catch((error) => console.error('[FCM] foreground listener 초기화 실패', error))
+    autoRegisterFcmToken()
   }
 })
 
