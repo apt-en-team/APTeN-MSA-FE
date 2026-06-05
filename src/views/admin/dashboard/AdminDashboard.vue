@@ -13,7 +13,9 @@ import { getAdminFacilities } from '@/api/facilityApi.js'
 import { getAdminVisitorVehicles } from '@/api/visitorVehicleApi'
 import { getParkingLogs } from '@/api/parkingApi'
 import { getAdminNotices } from '@/api/noticeApi'
-import { getAdminHouseholds } from '@/api/householdApi'
+import { getAdminHouseholds, getHouseholdMatchRequests } from '@/api/householdApi'
+import { getAdminVehicleStats } from '@/api/vehicleApi'
+import { getAdminGxPrograms } from '@/api/gxApi'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -30,7 +32,9 @@ const parkingStore = useParkingStore()
 const state = reactive({
   loading: false,
   errorMessage: '',
-  pendingApproval: null,
+  gxPending: null,
+  vehiclePending: null,
+  householdPending: null,
   parkingRate: null,
   parkingUsed: null,
   parkingTotal: null,
@@ -66,14 +70,30 @@ const showParkingSection = computed(() => {
   return isFeatureEnabled(dashboardFeatures.value, FEATURE_CODES.PARKING_STATUS)
 })
 
+const pendingApproval = computed(() => {
+  const hasData = state.vehiclePending !== null || state.householdPending !== null
+  if (!hasData) return null
+  const gx = showFacilitySection.value ? (state.gxPending ?? 0) : 0
+  return gx + (state.vehiclePending ?? 0) + (state.householdPending ?? 0)
+})
+
+const pendingDesc = computed(() => {
+  if (pendingApproval.value === null) return '데이터를 불러오는 중입니다.'
+  const parts = []
+  if (showFacilitySection.value && state.gxPending !== null) parts.push(`GX ${state.gxPending}건`)
+  if (state.vehiclePending !== null) parts.push(`차량 ${state.vehiclePending}건`)
+  if (state.householdPending !== null) parts.push(`세대 ${state.householdPending}건`)
+  return parts.length ? parts.join(' · ') : '-'
+})
+
 // StatsCards에 넘길 상단 요약 카드 데이터이다.
 const dashboardStats = computed(() => {
   return [
     {
       label: '승인 대기',
-      value: state.pendingApproval ?? '-',
-      unit: state.pendingApproval === null ? '' : '건',
-      desc: '연결된 데이터가 없습니다.',
+      value: pendingApproval.value ?? '-',
+      unit: pendingApproval.value === null ? '' : '건',
+      desc: pendingDesc.value,
       descClass: 'highlight-orange',
       iconClass: 'icon-orange',
     },
@@ -112,16 +132,41 @@ const dashboardStats = computed(() => {
   ]
 })
 
+async function fetchPendingStats() {
+  const FINISHED = ['CLOSED', '종료', 'CANCELLED', '취소됨']
+  const results = await Promise.allSettled([
+    showFacilitySection.value
+      ? getAdminGxPrograms({ size: 200 }).then((res) => {
+          const list = Array.isArray(res?.content) ? res.content : (Array.isArray(res) ? res : [])
+          state.gxPending = list
+            .filter((p) => !FINISHED.includes(p.status))
+            .reduce((sum, p) => sum + Number(p.waitingCount ?? 0), 0)
+        })
+      : Promise.resolve(),
+    getAdminVehicleStats().then((s) => { state.vehiclePending = Number(s?.pending ?? 0) }),
+    getHouseholdMatchRequests({ page: 0, size: 200 })
+      .then((res) => {
+        const content = Array.isArray(res?.content) ? res.content : (Array.isArray(res) ? res : [])
+        const normalize = (s) => ({ '01': 'PENDING', '승인대기': 'PENDING' })[s]
+        state.householdPending = content.filter((m) => normalize(m.matchStatus) === 'PENDING').length
+      }),
+  ])
+  results.forEach((r) => { if (r.status === 'rejected') console.warn('[대시보드] 승인대기 일부 조회 실패', r.reason) })
+}
+
 // 대시보드 전체 조회
 async function fetchDashboard() {
   state.loading = true
   state.errorMessage = ''
 
   try {
-    await fetchStats()
-    await fetchHouseholdStats()
-    await fetchParkingCard()
-    await fetchRecentItems()
+    await Promise.all([
+      fetchPendingStats(),
+      fetchStats(),
+      fetchHouseholdStats(),
+      fetchParkingCard(),
+      fetchRecentItems(),
+    ])
   } catch (error) {
     console.error('대시보드 조회 실패:', error)
     state.errorMessage = '대시보드 정보를 불러오지 못했습니다.'
