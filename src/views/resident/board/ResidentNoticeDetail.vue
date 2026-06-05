@@ -15,6 +15,7 @@ export default {
 
     const state = reactive({
       loading: false,
+      error: false,
     })
 
     const notice = computed(() => noticeStore.noticeDetail)
@@ -35,8 +36,11 @@ export default {
 
     onMounted(async () => {
       state.loading = true
+      state.error = false
       try {
         await noticeStore.fetchNoticeDetail(noticeId.value)
+      } catch {
+        state.error = true
       } finally {
         state.loading = false
       }
@@ -119,10 +123,49 @@ export default {
         </a>
       </div>
     </template>
+
+    <!-- 에러 또는 삭제된 공지 -->
+    <div v-else class="error-wrap">
+      <p class="error-text">공지사항을 찾을 수 없습니다.</p>
+      <button class="btn-go-list" @click="goBack">목록으로</button>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.error-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 60px 16px;
+  text-align: center;
+}
+
+.error-text {
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.btn-go-list {
+  height: 44px;
+  padding: 0 24px;
+  background: #4973e5;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-go-list:hover {
+  background: #3a5ec8;
+}
+
 .notice-detail {
   display: flex;
   flex-direction: column;

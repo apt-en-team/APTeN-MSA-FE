@@ -7,8 +7,21 @@ import ParkingTypeSelector from '@/components/admin/parking/ParkingTypeSelector.
 import { DEFAULT_COMPLEX_FEATURES, FEATURE_CODES } from '@/constants/complexFeatures'
 import { normalizeFeatures } from '@/utils/featureGate'
 import { useComplexStore } from '@/stores/useComplexStore'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 const complexStore = useComplexStore()
+const authStore = useAuthStore()
+
+function getCurrentTimeText() {
+  return new Date().toLocaleString('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
+function getCurrentActorName() {
+  return authStore.userInfo?.name || authStore.user?.name || authStore.name || '마스터'
+}
 
 // 부모 컴포넌트에서 모달 열림 여부를 제어한다.
 const props = defineProps({
@@ -36,6 +49,7 @@ const state = reactive({
     parkingType: 'NONE',
   },
   addressKeyword: '',
+  addressKeywordError: '',
   addressResults: [],
   addressPage: 0,
   addressSize: 6,
@@ -46,7 +60,9 @@ const state = reactive({
   errorMessage: '',
   showAddressModal: false,
   showConfirmModal: false,
-resultModal: {
+})
+
+const resultModal = reactive({
   show: false,
   type: 'success',
   title: '',
@@ -56,9 +72,7 @@ resultModal: {
   time: '',
   actionLabel: '',
   actor: '',
-  shouldEmitCreated: false,
-  shouldCloseParent: false,
-},
+  afterConfirm: null,
 })
 
 // 등록 모달이 다시 열릴 때 이전 입력 상태가 남지 않도록 초기화한다.
@@ -83,6 +97,7 @@ function resetState() {
   state.form.features = normalizeFeatures(DEFAULT_COMPLEX_FEATURES)
   state.form.parkingType = 'NONE'
   state.addressKeyword = ''
+  state.addressKeywordError = ''
   state.addressResults = []
   state.addressPage = 0
   state.addressSize = 6
@@ -93,20 +108,18 @@ function resetState() {
   state.errorMessage = ''
   state.showAddressModal = false
   state.showConfirmModal = false
-  state.resultModal.show = false
-  state.resultModal.type = 'success'
-  state.resultModal.title = ''
-  state.resultModal.subtitle = ''
-  state.resultModal.desc = ''
-  state.resultModal.itemName = ''
-  state.resultModal.time = ''
-  state.resultModal.actionLabel = ''
-  state.resultModal.actor = ''
-  state.resultModal.shouldEmitCreated = false
-  state.resultModal.shouldCloseParent = false
+  resultModal.show = false
+  resultModal.type = 'success'
+  resultModal.title = ''
+  resultModal.subtitle = ''
+  resultModal.desc = ''
+  resultModal.itemName = ''
+  resultModal.time = ''
+  resultModal.actionLabel = ''
+  resultModal.actor = ''
+  resultModal.afterConfirm = null
 }
 
-// 결과 모달을 열어 등록 처리 결과를 안내한다.
 function openResultModal({
   type = 'success',
   title,
@@ -116,39 +129,17 @@ function openResultModal({
   time = '',
   actionLabel = '',
   actor = '',
-  shouldEmitCreated = false,
-  shouldCloseParent = false,
-}) {
+  afterConfirm = null,
+} = {}) {
   state.showConfirmModal = false
-  state.resultModal.show = true
-  state.resultModal.type = type
-  state.resultModal.title = title
-  state.resultModal.subtitle = subtitle
-  state.resultModal.desc = desc
-  state.resultModal.itemName = itemName
-  state.resultModal.time = time
-  state.resultModal.actionLabel = actionLabel
-  state.resultModal.actor = actor
-  state.resultModal.shouldEmitCreated = shouldEmitCreated
-  state.resultModal.shouldCloseParent = shouldCloseParent
+  Object.assign(resultModal, { show: true, type, title, subtitle, desc, itemName, time, actionLabel, actor, afterConfirm })
 }
 
-// 결과 모달 확인 시 부모에 완료 이벤트를 전달하고 모달을 닫는다.
-function handleResultConfirm() {
-  const shouldEmitCreated = state.resultModal.shouldEmitCreated
-  const shouldCloseParent = state.resultModal.shouldCloseParent
-
-  state.resultModal.show = false
-  state.resultModal.shouldEmitCreated = false
-  state.resultModal.shouldCloseParent = false
-
-  if (shouldEmitCreated) {
-    emit('created')
-  }
-
-  if (shouldCloseParent) {
-    emit('close')
-  }
+async function handleResultConfirm() {
+  const callback = resultModal.afterConfirm
+  resultModal.show = false
+  resultModal.afterConfirm = null
+  if (typeof callback === 'function') await callback()
 }
 
 // 부모가 모달을 닫을 때 내부 상태도 함께 초기화한다.
@@ -162,13 +153,10 @@ async function loadAddressResults(page = 0) {
   if (state.loading) return
 
   if (!state.addressKeyword.trim()) {
-    openResultModal({
-      type: 'warning',
-      title: '주소 검색어를 입력해주세요.',
-      subtitle: '단지 주소를 찾으려면 검색어를 먼저 입력해야 합니다.',
-    })
+    state.addressKeywordError = '주소 검색어를 입력해주세요.'
     return
   }
+  state.addressKeywordError = ''
 
   state.loading = true
 
@@ -201,7 +189,10 @@ async function loadAddressResults(page = 0) {
     openResultModal({
       type: 'danger',
       title: '주소 검색에 실패했습니다.',
-      subtitle: state.errorMessage || '잠시 후 다시 시도해주세요.',
+      subtitle: state.errorMessage,
+      time: getCurrentTimeText(),
+      actionLabel: '단지 등록',
+      actor: getCurrentActorName(),
     })
   } finally {
     state.loading = false
@@ -272,25 +263,16 @@ async function handleCreateConfirm() {
       parkingType: state.form.parkingType,
     })
 
-    const createdAt = new Date().toLocaleString('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-
     // 관리자 계정 생성은 단지 API를 호출하면 백엔드가 Auth Service 내부 호출로 처리한다.
     openResultModal({
       type: 'success',
       title: '단지 생성이 완료되었습니다.',
       subtitle: '목록을 갱신해 새로 등록된 단지를 확인합니다.',
       itemName: state.form.name || '새 단지',
-      time: createdAt,
+      time: getCurrentTimeText(),
       actionLabel: '단지 등록',
-      actor: state.form.managerName || '마스터',
-      shouldEmitCreated: true,
-      shouldCloseParent: true,
+      actor: getCurrentActorName(),
+      afterConfirm: () => { emit('created'); emit('close') },
     })
   } catch (error) {
     console.error(error)
@@ -299,6 +281,10 @@ async function handleCreateConfirm() {
       type: 'danger',
       title: '단지 생성에 실패했습니다.',
       subtitle: state.errorMessage,
+      itemName: state.form.name || '새 단지',
+      time: getCurrentTimeText(),
+      actionLabel: '단지 등록',
+      actor: getCurrentActorName(),
     })
   } finally {
     state.loading = false
@@ -336,6 +322,7 @@ watch(
               v-model="state.addressKeyword"
               type="text"
               placeholder="주소 또는 아파트명을 검색해주세요."
+              @input="state.addressKeywordError = ''"
             />
             <button
               type="button"
@@ -346,6 +333,7 @@ watch(
               주소 검색
             </button>
           </div>
+          <p v-if="state.addressKeywordError" class="master-complex-form__field-error">{{ state.addressKeywordError }}</p>
         </div>
 
         <label class="master-complex-form__field">
@@ -519,6 +507,7 @@ watch(
   subtitle="입력한 단지 정보와 최초 관리자 계정을 생성합니다."
   item-label="단지명"
   :item-name="state.form.name || '새 단지'"
+  action-label="단지 등록"
   action-text="관리자 계정 생성"
   :extra-value="state.form.managerEmail"
   extra-label="이메일"
@@ -531,16 +520,18 @@ watch(
 />
 
   <ActionResultModal
-    :visible="state.resultModal.show"
-    :type="state.resultModal.type"
-    :title="state.resultModal.title"
-    :subtitle="state.resultModal.subtitle"
-    :desc="state.resultModal.desc"
-    :item-name="state.resultModal.itemName"
-    :time="state.resultModal.time"
-    :action-label="state.resultModal.actionLabel"
-    :actor="state.resultModal.actor"
+    :visible="resultModal.show"
+    :type="resultModal.type"
+    :title="resultModal.title"
+    :subtitle="resultModal.subtitle"
+    :desc="resultModal.desc"
+    :item-name="resultModal.itemName"
+    :time="resultModal.time"
+    :action-label="resultModal.actionLabel"
+    :actor="resultModal.actor"
+    confirm-text="확인"
     @close="handleResultConfirm"
+    @confirm="handleResultConfirm"
   />
 </template>
 
@@ -709,6 +700,13 @@ watch(
   color: var(--color-text-secondary);
   font-size: 13px;
   text-align: center;
+}
+
+.master-complex-form__field-error {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #e53e3e;
+  font-family: 'Noto Sans KR', sans-serif;
 }
 
 .master-complex-form__feedback {
