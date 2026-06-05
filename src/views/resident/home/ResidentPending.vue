@@ -24,7 +24,6 @@ let pollCount = 0
 let pollingFinished = false
 
 // 최대 횟수까지 대기 상태면 표시할 안내 (명부 불일치 등 수동 승인 케이스)
-const pollTimedOut = ref(false)
 
 // 최신 status를 store와 localStorage에 함께 반영 — 라우터 가드가 localStorage를 다시 읽으므로 둘 다 갱신
 function applyStatus(status) {
@@ -72,10 +71,8 @@ async function pollStatus() {
     // 일시적 조회 실패는 다음 주기에 재시도
   }
 
-  // 최대 횟수까지 대기면 폴링 중단 + 안내 표시
   if (pollCount >= MAX_POLL_COUNT) {
     stopPolling()
-    pollTimedOut.value = true
   }
 }
 
@@ -166,12 +163,6 @@ async function handleLogout() {
         승인까지 1~2 영업일이 소요될 수 있습니다.<br>
         문의사항은 관리사무소로 연락해주세요.
       </template>
-    </p>
-
-    <!-- 폴링 시간 초과 안내 (자동승인 미완료 — 수동 승인 대기) -->
-    <p v-if="pollTimedOut && !isRejected" class="pending__notice">
-      관리자 승인을 기다리는 중입니다.<br>
-      승인 완료 후 다시 로그인해 주세요.
     </p>
 
     <!-- 로그아웃 버튼 -->
