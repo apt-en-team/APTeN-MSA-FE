@@ -76,21 +76,12 @@ apiClient.interceptors.request.use(
       ensureHeaders(config)['X-Complex-Id'] = String(userInfo.complexId)
     }
 
-    // MASTER가 공통 관리자 API를 호출할 때만 선택 단지 ID 헤더 추가.
+    // MASTER가 단지 관련 API를 호출할 때 선택 단지 ID 헤더 추가.
     // master 전용 API(/api/admin/master/*)는 단지 무관하므로 제외.
-    // develop과 household 브랜치의 URL 형태를 모두 허용한다.
-    const isCommonAdminApi =
-      (requestUrl.startsWith('/api/admin/') && !requestUrl.startsWith('/api/admin/master/')) ||
-      (requestUrl.startsWith('/admin/') && !requestUrl.startsWith('/admin/master/'))
-    const isBoardPath =
-      requestUrl.startsWith('/boards/') ||
-      requestUrl.startsWith('/notices/') ||
-      requestUrl.startsWith('/admin/boards/') ||
-      requestUrl.startsWith('/admin/notices/') ||
-      requestUrl.startsWith('/api/admin/boards/') ||
-      requestUrl.startsWith('/api/admin/notices/')
+    const isMasterOnlyApi =
+      requestUrl.startsWith('/api/admin/master/') || requestUrl.startsWith('/admin/master/')
 
-    if (userInfo?.role === 'MASTER' && selectedComplex?.complexId && (isCommonAdminApi || isBoardPath)) {
+    if (userInfo?.role === 'MASTER' && selectedComplex?.complexId && !isMasterOnlyApi) {
       ensureHeaders(config)['X-Selected-Complex-Id'] = String(selectedComplex.complexId)
     }
 

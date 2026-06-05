@@ -23,6 +23,8 @@ const mainPaddingBottom = computed(() => {
 
 const authStore = useAuthStore()
 const complexStore = useComplexStore()
+
+
 const notificationStore = useNotificationStore()
 
 // 입주민 레이아웃 진입 시 내 단지 정보를 조회해 features source를 준비한다.
@@ -81,6 +83,45 @@ watch(
 </template>
 
 <style scoped>
+.preview-banner {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #1a202c;
+  color: #fff;
+  font-size: 12px;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.preview-banner__label {
+  font-weight: 700;
+}
+
+.preview-banner__complex {
+  flex: 1;
+  color: #a0aec0;
+}
+
+.preview-banner__exit {
+  padding: 4px 12px;
+  border: 1px solid #4a5568;
+  border-radius: 6px;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+}
+
+.preview-banner__exit:hover {
+  background: #2d3748;
+}
+
 .resident-layout {
   display: flex;
   justify-content: center;
