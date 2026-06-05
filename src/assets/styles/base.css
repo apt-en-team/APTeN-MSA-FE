@@ -65,3 +65,12 @@ img {
 #app {
   min-height: 100vh;
 }
+
+.detail-body blockquote {
+  border-left: 3px solid var(--color-primary);
+  padding-left: 12px;
+  color: var(--color-text-secondary);
+  margin: 8px 0;
+  font-style: italic;
+  margin-inline-start: 0;
+}

@@ -72,8 +72,10 @@ router.beforeEach(async (to, from) => {
   }
 
   // 권한이 없으면 역할별 기본 화면으로 이동한다.
+  // MASTER는 입주민 미리보기 목적으로 /resident/* 경로에 접근할 수 있다.
   if (!canAccess(authStore.role, to.meta.roles)) {
     if (authStore.role === 'USER') return `/resident/${authStore.complexId}/home`
+    if (authStore.role === 'MASTER' && to.path.startsWith('/resident/')) return true
     if (authStore.role === 'MASTER') return '/admin/master'
     if (authStore.role === 'MANAGER' || authStore.role === 'ADMIN') return '/admin/dashboard'
     return '/'
