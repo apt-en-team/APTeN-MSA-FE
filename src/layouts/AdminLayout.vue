@@ -292,29 +292,44 @@ async function ensureMyComplex() {
 }
 
 async function autoRegisterFcmToken() {
-  if (!isFcmEnabled()) return
-  if (typeof Notification === 'undefined') return
+  console.log('[FCM] autoRegisterFcmToken 시작')
 
+  if (!isFcmEnabled()) {
+    console.warn('[FCM] ❌ isFcmEnabled=false — VITE_FCM_ENABLED 또는 브라우저 미지원')
+    return
+  }
+  if (typeof Notification === 'undefined') {
+    console.warn('[FCM] ❌ Notification API 없음')
+    return
+  }
+
+  console.log('[FCM] 알림 권한:', Notification.permission)
   let permission = Notification.permission
-  if (permission === 'denied') return
+  if (permission === 'denied') {
+    console.warn('[FCM] ❌ 알림 권한 거부됨 — 브라우저 설정에서 허용 필요')
+    return
+  }
 
   if (permission === 'default') {
+    console.log('[FCM] 권한 요청 중...')
     const result = await requestPermission()
+    console.log('[FCM] 권한 요청 결과:', result)
     if (!result.granted) return
     permission = 'granted'
   }
 
-  // 이미 토큰이 등록돼 있으면 foreground 리스너만 시작
   if (hasRegisteredToken()) {
+    console.log('[FCM] 이미 토큰 있음 — foreground 리스너만 시작')
     startForegroundMessageListener().catch((e) => console.error('[FCM] foreground listener 초기화 실패', e))
     return
   }
 
+  console.log('[FCM] 토큰 발급 시작...')
   try {
     await registerToken()
-    console.info('[FCM] 관리자 자동 토큰 등록 완료')
+    console.info('[FCM] ✅ 관리자 토큰 등록 완료')
   } catch (e) {
-    console.warn('[FCM] 관리자 자동 토큰 등록 실패', e)
+    console.error('[FCM] ❌ 토큰 등록 실패:', e?.message || e)
   }
 }
 

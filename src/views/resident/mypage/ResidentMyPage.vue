@@ -144,7 +144,7 @@ onMounted(() => {
             </div>
             <p class="profile-complex">{{ userInfo.complexName }} {{ userInfo.building }}동 / {{ userInfo.unit }}호</p>
             <p class="profile-sub">
-              <span>입주일 {{ userInfo.birthDate }}</span>
+              <span>생년월일 {{ userInfo.birthDate }}</span>
               <span class="divider">|</span>
               <span>
                 <svg class="phone-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
