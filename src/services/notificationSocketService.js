@@ -66,6 +66,7 @@ function connect() {
   socket.onmessage = (event) => {
     try {
       const payload = JSON.parse(event.data)
+      console.info('[NotificationSocket] 알림 수신', payload)
       const store = useNotificationStore()
       // 신규 알림 이벤트를 store로 전달
       store.handleIncomingNotification(payload)
