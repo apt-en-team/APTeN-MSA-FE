@@ -9,6 +9,7 @@ import BottomNav from '@/components/resident/BottomNav.vue'
 import { useRoute } from 'vue-router'
 import notificationSocketService from '@/services/notificationSocketService'
 import { startForegroundMessageListener } from '@/services/fcmService'
+import NotificationToast from '@/components/notification/NotificationToast.vue'
 
 const route = useRoute()
 
@@ -80,6 +81,7 @@ watch(
       <BottomNav v-if="!hideBottomNav" />
     </div>
   </div>
+  <NotificationToast variant="resident" :duration="4000" />
 </template>
 
 <style scoped>

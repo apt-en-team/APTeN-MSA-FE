@@ -230,10 +230,10 @@ async function loadHomeData() {
     // 병렬 요청으로 성능 최적화
     const [vehicles, reservations, notices_res, visitors, parking, homeBill_res] = await Promise.allSettled([
       getMyVehicles(),
-      getMyReservations({ phase: 'UPCOMING', size: 4 }),
+      showFacilitySection.value ? getMyReservations({ phase: 'UPCOMING', size: 4 }) : Promise.resolve(null),
       getNotices({size: 3}),
       getVisitorVehicles({ status: 'APPROVED', fromDate: today, size: 1 }),
-      getResidentParkingStatus(),
+      showParkingSection.value ? getResidentParkingStatus() : Promise.resolve(null),
       getMyHomeBill(),
     ])
 

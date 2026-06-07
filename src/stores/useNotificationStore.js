@@ -22,6 +22,7 @@ export const useNotificationStore = defineStore('notification', {
     loading: false,
     error: null,
     dropdownOpen: false,
+    toasts: [],
 
     // WebSocket 연결 상태
     socketConnected: false,
@@ -52,7 +53,7 @@ export const useNotificationStore = defineStore('notification', {
           this.notifications = toList(res)
           this.totalElements = res.totalElements ?? 0
           this.totalPages = res.totalPages ?? 1
-          this.hasNext = res.last === false
+          this.hasNext = res.hasNext ?? (res.last === false)
         } else {
           // 배열로 내려올 경우 대비
           this.notifications = toList(res)
@@ -182,6 +183,19 @@ export const useNotificationStore = defineStore('notification', {
           })
         }
       }
+
+      // 토스트 큐에 추가 (최대 3개 유지)
+      const toast = {
+        id: payload.notificationId ?? Date.now(),
+        title: payload.title ?? '',
+        content: payload.content ?? '',
+        linkPath: payload.linkPath ?? null,
+      }
+      this.toasts = [toast, ...this.toasts].slice(0, 3)
+    },
+
+    removeToast(id) {
+      this.toasts = this.toasts.filter((t) => t.id !== id)
     },
 
     // 페이지 변경 시 목록 초기화 후 재조회
