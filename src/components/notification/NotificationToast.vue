@@ -17,25 +17,44 @@ const props = defineProps({
 const router = useRouter()
 const notificationStore = useNotificationStore()
 
-// 관리자 전용 알림음 (Web Audio API)
+// 브라우저 정책: AudioContext는 사용자 제스처(클릭 등) 이후에만 소리 재생 가능
+// 제스처 전에 도착한 알림은 소리 없이 토스트만 표시하고, 이후부터는 소리가 난다
+let audioCtx = null
+let audioUnlocked = false
+
+function unlockAudio() {
+  if (audioUnlocked) return
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume()
+    audioUnlocked = true
+  } catch { /* noop */ }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('click', unlockAudio, { once: true })
+  window.addEventListener('keydown', unlockAudio, { once: true })
+}
+
+// 관리자 전용 알림음 — 잠금 해제 전 알림은 소리 없이 스킵
 function playSound() {
   if (props.variant !== 'admin') return
+  if (!audioUnlocked || !audioCtx) return
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    const oscillator = ctx.createOscillator()
-    const gain = ctx.createGain()
+    const oscillator = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
     oscillator.connect(gain)
-    gain.connect(ctx.destination)
+    gain.connect(audioCtx.destination)
     oscillator.type = 'sine'
-    oscillator.frequency.setValueAtTime(880, ctx.currentTime)
-    oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15)
-    gain.gain.setValueAtTime(0.25, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
-    oscillator.start(ctx.currentTime)
-    oscillator.stop(ctx.currentTime + 0.4)
-  } catch {
-    // 자동 재생 정책으로 막히면 조용히 건너뜀
-  }
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime)
+    oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.15)
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4)
+    oscillator.start(audioCtx.currentTime)
+    oscillator.stop(audioCtx.currentTime + 0.4)
+  } catch { /* noop */ }
 }
 
 // 새 토스트가 추가될 때 자동 제거 타이머 + 알림음
@@ -122,6 +141,10 @@ function handleClick(toast) {
   border-radius: 10px;
   background: #fff;
   border-left: 4px solid #4973E5;
+}
+
+.toast-item--admin {
+  border-left-color: #1e2a3e;
 }
 
 .toast-item--admin {

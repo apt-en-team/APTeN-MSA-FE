@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import NotificationItem from '@/components/notification/NotificationItem.vue'
-import BasePagination from '@/components/common/BasePagination.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
 import BaseEmpty from '@/components/common/BaseEmpty.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
@@ -28,12 +28,20 @@ function showError(msg) {
   resultModal.value = { visible: true, type: 'danger', title: '오류', subtitle: msg }
 }
 
+const PAGE_SIZE = 6
+
 // 목록 조회 (필터/페이지 파라미터 포함)
+// 미읽음 필터: unreadOnly=true → isRead=false, 전체는 undefined
+function buildParams() {
+  return {
+    size: PAGE_SIZE,
+    isRead: filterUnread.value ? false : undefined,
+  }
+}
+
 async function loadNotifications() {
   notificationStore.resetNotifications()
-  await notificationStore.fetchNotifications({
-    unreadOnly: filterUnread.value || undefined,
-  })
+  await notificationStore.fetchNotifications(buildParams())
 }
 
 onMounted(async () => {
@@ -51,9 +59,7 @@ async function toggleFilter() {
 // 페이지 변경
 async function handlePageChange(newPage) {
   notificationStore.page = newPage
-  await notificationStore.fetchNotifications({
-    unreadOnly: filterUnread.value || undefined,
-  })
+  await notificationStore.fetchNotifications(buildParams())
 }
 
 // 전체 읽음 처리
@@ -121,7 +127,7 @@ function handleReadError(msg) {
     </ul>
 
     <!-- 페이지네이션 -->
-    <BasePagination
+    <AppPagination
       v-if="notificationStore.totalPages > 1"
       :current-page="notificationStore.page"
       :total-pages="notificationStore.totalPages"

@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import NotificationItem from '@/components/notification/NotificationItem.vue'
+import BaseLoading from '@/components/common/BaseLoading.vue'
 import ActionResultModal from '@/components/common/ActionResultModal.vue'
 
 const notificationStore = useNotificationStore()
@@ -16,18 +17,36 @@ function showError(msg) {
   resultModal.value = { visible: true, type: 'danger', title: '오류', subtitle: msg }
 }
 
-// 초기 진입 시 알림 목록 조회
+// 초기 진입 시 알림 목록 조회 (8개씩)
 onMounted(async () => {
   notificationStore.resetNotifications()
-  await notificationStore.fetchNotifications()
+  await notificationStore.fetchNotifications({ size: 8 })
   await notificationStore.fetchUnreadCount()
+  setupIntersectionObserver()
 })
 
-// 더보기 — 다음 페이지 추가 로드
+onUnmounted(() => {
+  observer?.disconnect()
+})
+
+// 스크롤 끝 감지 → 자동 로드
+const sentinel = ref(null)
+let observer = null
+
+function setupIntersectionObserver() {
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) loadMore()
+    },
+    { threshold: 0.1 },
+  )
+  if (sentinel.value) observer.observe(sentinel.value)
+}
+
 async function loadMore() {
   if (!notificationStore.hasNext || notificationStore.loading) return
   notificationStore.page += 1
-  await notificationStore.fetchNotifications()
+  await notificationStore.fetchNotifications({ size: 8 })
 }
 
 // 전체 읽음 처리
@@ -107,16 +126,9 @@ function goSettings() {
       />
     </ul>
 
-    <!-- 더보기 버튼 -->
-    <div v-if="notificationStore.hasNext" class="notif-list-page__more">
-      <button
-        type="button"
-        class="notif-list-page__more-btn"
-        :disabled="notificationStore.loading"
-        @click="loadMore"
-      >
-        {{ notificationStore.loading ? '불러오는 중...' : '더보기' }}
-      </button>
+    <!-- 스크롤 끝 감지용 sentinel + 로딩 표시 -->
+    <div ref="sentinel" class="notif-list-page__sentinel">
+      <BaseLoading v-if="notificationStore.loading && notificationStore.notifications.length > 0" />
     </div>
   </section>
 
@@ -225,25 +237,11 @@ function goSettings() {
   overflow: hidden;
 }
 
-.notif-list-page__more {
-  margin-top: 16px;
-  text-align: center;
-}
-
-.notif-list-page__more-btn {
-  height: 36px;
-  padding: 0 24px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-8);
-  background: var(--color-card-bg);
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.notif-list-page__more-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.notif-list-page__sentinel {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
 }
 </style>

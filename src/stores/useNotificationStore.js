@@ -53,7 +53,7 @@ export const useNotificationStore = defineStore('notification', {
           this.notifications = toList(res)
           this.totalElements = res.totalElements ?? 0
           this.totalPages = res.totalPages ?? 1
-          this.hasNext = res.last === false
+          this.hasNext = res.hasNext ?? (res.last === false)
         } else {
           // 배열로 내려올 경우 대비
           this.notifications = toList(res)
