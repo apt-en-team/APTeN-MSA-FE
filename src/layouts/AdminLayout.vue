@@ -106,7 +106,8 @@ function isAdminMenuVisible(path) {
 
   // 주차 관련 메뉴는 단지 운영 타입이 BASIC 또는 SENSOR일 때만 노출 (NONE은 숨김)
   if (['parking-logs', 'parking/dashboard', 'parking/statistics', 'parking/zones'].includes(path)) {
-    return currentParkingType.value === 'BASIC' || currentParkingType.value === 'SENSOR'
+    return isFeatureEnabled(currentAdminFeatures.value, FEATURE_CODES.PARKING_STATUS) &&
+      (currentParkingType.value === 'BASIC' || currentParkingType.value === 'SENSOR')
   }
 
   if (path === 'votes') {
