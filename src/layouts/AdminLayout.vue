@@ -10,6 +10,7 @@ import { normalizeFeatures, isFeatureEnabled } from '@/utils/featureGate'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import NotificationBadge from '@/components/notification/NotificationBadge.vue'
 import NotificationDropdown from '@/components/notification/NotificationDropdown.vue'
+import NotificationToast from '@/components/notification/NotificationToast.vue'
 import notificationSocketService from '@/services/notificationSocketService'
 import { startForegroundMessageListener, isFcmEnabled, requestPermission, registerToken, hasRegisteredToken } from '@/services/fcmService'
 
@@ -735,6 +736,7 @@ watch(
       </main>
     </div>
   </div>
+  <NotificationToast v-if="showNotification" variant="admin" />
 </template>
 
 <style scoped>
