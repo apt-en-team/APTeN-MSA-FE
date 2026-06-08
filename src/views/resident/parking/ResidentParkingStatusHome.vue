@@ -92,11 +92,13 @@ const selectedStatusText = computed(() => {
 // 구역 선택 처리
 const handleZoneSelect = (index) => {
   selectedZoneIndex.value = index
-  if (isSensorComplex.value) {
-    const zone = zoneList.value[index]
-    if (zone?.zoneId != null) {
-      router.push(`/resident/${route.params.complexId}/parking/zones/${zone.zoneId}/spots`)
-    }
+}
+
+// 선택 구역 자리 현황으로 이동 (SENSOR 단지 전용)
+const goToSpots = () => {
+  const zone = selectedZone.value
+  if (zone?.zoneId != null) {
+    router.push(`/resident/${route.params.complexId}/parking/zones/${zone.zoneId}/spots`)
   }
 }
 
@@ -152,7 +154,7 @@ onUnmounted(() => {
           <div class="parking-header-card__divider"></div>
 
           <p v-if="isSensorComplex" class="zone-select-hint">
-            구역을 선택하면 자리 현황을 볼 수 있습니다
+            구역을 선택하면 세부 현황을 확인할 수 있습니다
           </p>
 
           <div class="zone-toggle">
@@ -210,6 +212,15 @@ onUnmounted(() => {
             </p>
           </div>
         </div>
+
+        <button
+          v-if="isSensorComplex && selectedZone"
+          type="button"
+          class="spot-map-btn"
+          @click="goToSpots"
+        >
+          자리 현황 보기
+        </button>
 
         <div class="zone-status-badge" :class="`zone-status-badge--${selectedStatusKey}`">
           <span class="zone-status-badge__dot"></span>
@@ -447,6 +458,19 @@ onUnmounted(() => {
 .parking-detail__total-caption--free { color: #2F855A; }
 .parking-detail__total-caption--busy { color: #B7791F; }
 .parking-detail__total-caption--full { color: #C53030; }
+
+/* 자리 현황 보기 버튼 */
+.spot-map-btn {
+  width: 100%;
+  height: 44px;
+  border: 1.5px solid var(--resident-primary);
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--resident-primary);
+  font-size: var(--font-size-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
 
 /* 상태 뱃지 */
 .zone-status-badge {

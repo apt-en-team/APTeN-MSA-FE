@@ -296,8 +296,8 @@ export const useParkingStore = defineStore('parking', {
       if (!target) return
 
       target.currentParkedCount = payload.zoneOccupied
-      target.totalSlots = payload.zoneTotalSlots
-      target.remainingSlots = payload.zoneTotalSlots - payload.zoneOccupied
+      // totalSlots는 초기 API 값 유지 (SENSOR 타입에서 SSE 이벤트의 zoneTotalSlots이 DB값으로 부정확할 수 있음)
+      target.remainingSlots = Math.max((target.totalSlots || 0) - payload.zoneOccupied, 0)
 
       const totalSlots = zones.reduce((sum, zone) => sum + (zone.totalSlots || 0), 0)
       const currentParkedCount = zones.reduce((sum, zone) => sum + (zone.currentParkedCount || 0), 0)
