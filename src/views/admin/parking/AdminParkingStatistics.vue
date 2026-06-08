@@ -107,9 +107,9 @@ onMounted(() => {
     </div>
 
     <div class="admin-parking-stats__chart">
-      <div v-if="parkingStore.loading" class="chart-empty">조회 중...</div>
+      <div v-show="parkingStore.loading" class="chart-empty">조회 중...</div>
       <apexchart
-        v-else
+        v-show="!parkingStore.loading"
         type="bar"
         height="320"
         :options="chartOptions"

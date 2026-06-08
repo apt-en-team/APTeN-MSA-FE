@@ -628,14 +628,6 @@ watch(
             + 관리비 설정
           </button>
 
-          <button
-            v-if="route.path === '/admin/vehicles'"
-            type="button"
-            class="admin-layout__action-button"
-            @click="handleActionClick"
-          >
-            + 차량 등록
-          </button>
 
           <button
             v-if="route.path === '/admin/visitor-vehicles'"
@@ -659,7 +651,7 @@ watch(
             v-if="route.path === '/admin/parking/dashboard'"
             type="button"
             class="admin-layout__action-button"
-            @click="handleActionClick"
+            @click="router.push('/admin/parking/zones?create=true')"
           >
             + 주차 구역 등록
           </button>
