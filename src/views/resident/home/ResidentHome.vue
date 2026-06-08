@@ -89,7 +89,7 @@ const homeSummaryCards = computed(() => {
       unit: '대',
       desc: `최대 ${maxVehicleCount}대 등록 가능`,
       descClass: '',
-      path: '/resident/my-vehicle',
+      path: `/resident/${route.params.complexId}/vehicles`,
       showProgress: false,
       progressValue: 0,
     },
@@ -129,7 +129,7 @@ const homeSummaryCards = computed(() => {
       unit: '%',
       desc: '',
       descClass: '',
-      path: '',
+      path: `/resident/${route.params.complexId}/parking`,
       showProgress: true,
       progressValue: parkingUsageRate.value,
     })
