@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, computed, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useFacilityStore } from '@/stores/useFacilityStore.js'
 import { useReservationStore } from '@/stores/useReservationStore.js'
@@ -55,6 +55,8 @@ const resultModal = reactive({ show: false, success: false, message: '' })
 const billingConfirmModal = reactive({ show: false })
 // 이전 해지 후 재신청 확인 모달
 const resubscribeModal = reactive({ show: false })
+// 좌석형 선점 holdId (구독 모달 확인 후 createReservation에 전달)
+const pendingHoldId = ref(null)
 
 const reservationType = computed(() => normalizeReservationType(state.facility?.reservationType))
 const isApproval = computed(() => reservationType.value === 'APPROVAL')
@@ -204,6 +206,13 @@ const isSlotSelected = (slot) =>
 const isSlotDisabled = (slot) => {
   if (slot.isReservable === false) return true
   if (isCount.value && slot.availableCount === 0) return true
+  // 오늘 날짜 선택 시 현재 시각보다 이미 지난 시간대 비활성
+  if (state.form.date === todayStr) {
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const [startH, startM] = slot.startTime.split(':').map(Number)
+    if (startH * 60 + startM <= currentMinutes) return true
+  }
   return false
 }
 
@@ -246,9 +255,35 @@ const subscribeBillingNote = computed(() => {
 })
 
 // 구독형 시설 예약 클릭 처리
-// ACTIVE: 바로 예약 / 유예기간: 바로 예약 / 해지 후 완전종료: 재신청 모달 / 신규: 첫구독 안내 모달
-const onReserveClick = () => {
+// 좌석형은 예약하기 버튼 클릭 즉시 선점(holdSeat) → 구독 여부에 따라 바로 예약 or 모달
+const onReserveClick = async () => {
   if (!canSubmit.value || state.submitting) return
+  state.submitting = true
+
+  try {
+    // 좌석형: 구독 모달 전에 선점 먼저 (모달 보는 동안 다른 사람이 같은 좌석 예약 방지)
+    if (isSeat.value) {
+      const apiDate = toApiDate(state.form.date)
+      const holdRes = await reservationStore.holdSeat({
+        facilityId: route.params.facilityId,
+        seatId: state.form.selectedSeat.seatId,
+        reservationDate: apiDate,
+        startTime: state.form.selectedTime.startTime,
+        endTime: state.form.selectedTime.endTime,
+      })
+      pendingHoldId.value = holdRes?.holdId ?? null
+    }
+  } catch (e) {
+    // 선점 실패 (이미 선점된 좌석 등)
+    state.submitting = false
+    resultModal.success = false
+    resultModal.message = e?.response?.data?.message || '좌석 선점에 실패했습니다. 다른 좌석을 선택해 주세요.'
+    resultModal.show = true
+    return
+  }
+
+  state.submitting = false
+
   if (isSubscriptionType.value) {
     if (state.isAlreadySubscribed || isInGracePeriod.value) {
       submitReservation()
@@ -275,19 +310,12 @@ const submitReservation = async () => {
         endTime: state.form.selectedTime.endTime,
       })
     } else if (isSeat.value) {
-      const holdRes = await reservationStore.holdSeat({
-        facilityId: route.params.facilityId,
-        seatId: state.form.selectedSeat.seatId,
-        reservationDate: apiDate,
-        startTime: state.form.selectedTime.startTime,
-        endTime: state.form.selectedTime.endTime,
-      })
       await reservationStore.createReservation({
         facilityId: route.params.facilityId,
         reservationDate: apiDate,
         startTime: state.form.selectedTime.startTime,
         endTime: state.form.selectedTime.endTime,
-        holdId: holdRes?.holdId,
+        holdId: pendingHoldId.value,
         seatId: state.form.selectedSeat.seatId,
       })
     }
@@ -298,6 +326,7 @@ const submitReservation = async () => {
     resultModal.message =
       e?.response?.data?.message || '예약에 실패했습니다. 다시 시도해 주세요.'
   } finally {
+    pendingHoldId.value = null
     state.submitting = false
     resultModal.show = true
   }

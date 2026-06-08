@@ -365,7 +365,7 @@ onMounted(async () => {
   gap: var(--space-16);
   background-color: var(--white);
   min-height: 100vh;
-  margin: calc(-1 * var(--space-20)) calc(-1 * var(--space-32));
+  margin: calc(-1 * var(--space-20)) calc(-1 * var(--space-16));
   padding: var(--space-20);
   padding-bottom: var(--space-48);
 }
