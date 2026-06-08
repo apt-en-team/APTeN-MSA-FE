@@ -360,7 +360,10 @@ onMounted(() => fetchList())
               :class="{ 'is-cancelled': sub.status !== 'ACTIVE' && sub.status !== '구독중' }"
             >
               <div class="sub-item__info">
-                <div class="sub-item__name">{{ sub.facilityName }}</div>
+                <div class="sub-item__name">
+                  {{ sub.facilityName }}
+                  <span v-if="sub.subscriberName" class="sub-item__subscriber">{{ sub.subscriberName }}</span>
+                </div>
                 <div class="sub-item__meta">
                   <span class="meta-tag">{{ feeTypeLabel(sub.feeType) }}</span>
                   <span class="meta-fee">{{ feeDisplay(sub) }}</span>
@@ -647,9 +650,21 @@ onMounted(() => fetchList())
 }
 
 .sub-item__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 14px;
   font-weight: 700;
   color: #1a202c;
+}
+
+.sub-item__subscriber {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-muted);
+  padding: 1px 7px;
+  border-radius: 10px;
 }
 
 .sub-item__meta {
