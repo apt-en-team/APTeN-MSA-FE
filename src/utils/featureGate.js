@@ -25,6 +25,8 @@ export function getAdminFeatureByPath(path = '') {
   if (path.startsWith('/admin/reservations')) return FEATURE_CODES.FACILITY
   if (path.startsWith('/admin/gx-programs')) return FEATURE_CODES.FACILITY
   if (path.startsWith('/admin/votes')) return FEATURE_CODES.VOTE
+  if (path.startsWith('/admin/parking')) return FEATURE_CODES.PARKING_STATUS
+  if (path.startsWith('/admin/parking-logs')) return FEATURE_CODES.PARKING_STATUS
   return null
 }
 

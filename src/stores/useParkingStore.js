@@ -93,7 +93,12 @@ export const useParkingStore = defineStore('parking', {
       this.error = null
       try {
         const res = await parkingApi.getParkingLogs(params)
-        this.parkingLogPage = res ?? createEmptyPage()
+        const page = res ?? createEmptyPage()
+        this.parkingLogPage = {
+          ...page,
+          totalElements: Number(page.totalElements ?? 0),
+          totalPages: Number(page.totalPages ?? 0),
+        }
       } catch (e) {
         console.error(e)
         this.error = e
