@@ -206,12 +206,12 @@ const isSlotSelected = (slot) =>
 const isSlotDisabled = (slot) => {
   if (slot.isReservable === false) return true
   if (isCount.value && slot.availableCount === 0) return true
-  // 오늘 날짜 선택 시 현재 시각보다 이미 지난 시간대 비활성
-  if (state.form.date === todayStr) {
+  // 오늘 날짜 선택 시 슬롯 종료 시각이 지난 시간대 비활성 (하루종일형 슬롯 당일 예약 허용)
+  if (state.form.date === todayStr && slot.endTime) {
     const now = new Date()
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
-    const [startH, startM] = slot.startTime.split(':').map(Number)
-    if (startH * 60 + startM <= currentMinutes) return true
+    const [endH, endM] = slot.endTime.split(':').map(Number)
+    if (endH * 60 + endM <= currentMinutes) return true
   }
   return false
 }
