@@ -302,7 +302,8 @@ export const useParkingStore = defineStore('parking', {
 
       const totalSlots = zones.reduce((sum, zone) => sum + (zone.totalSlots || 0), 0)
       const currentParkedCount = zones.reduce((sum, zone) => sum + (zone.currentParkedCount || 0), 0)
-      const remainingSlots = totalSlots - currentParkedCount
+      // 점유 합이 총 면수를 초과해도 전체 잔여 면수 음수 표시 방지
+      const remainingSlots = Math.max(totalSlots - currentParkedCount, 0)
       const occupancyRate = totalSlots > 0
         ? Number(((currentParkedCount / totalSlots) * 100).toFixed(1))
         : 0
