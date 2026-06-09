@@ -292,7 +292,8 @@ export const useParkingStore = defineStore('parking', {
       const zones = this.residentParkingStatus?.zones
       if (!Array.isArray(zones) || zones.length === 0) return
 
-      const target = zones.find((zone) => zone.zoneId === payload.zoneId)
+      // Jackson이 Long을 String으로 직렬화하므로 타입 불일치 방지
+      const target = zones.find((zone) => String(zone.zoneId) === String(payload.zoneId))
       if (!target) return
 
       target.currentParkedCount = payload.zoneOccupied
