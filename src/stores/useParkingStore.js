@@ -327,6 +327,21 @@ export const useParkingStore = defineStore('parking', {
             targetSpot.isActive = payload.isActive
           }
         }
+
+        // zoneId 매칭 실패 대비: 현재 보고 있는 구역의 카운터를 실제 자리 상태 기준으로 보정
+        if (this.currentZoneId != null) {
+          const zones = this.residentParkingStatus?.zones
+          if (Array.isArray(zones)) {
+            const zoneTarget = zones.find((z) => String(z.zoneId) === String(this.currentZoneId))
+            if (zoneTarget) {
+              const occupiedCount = this.currentZoneSpots.filter(
+                (s) => s.status === 'OCCUPIED' && s.isActive !== false,
+              ).length
+              zoneTarget.currentParkedCount = occupiedCount
+              zoneTarget.remainingSlots = Math.max((zoneTarget.totalSlots || 0) - occupiedCount, 0)
+            }
+          }
+        }
       }
     },
 
