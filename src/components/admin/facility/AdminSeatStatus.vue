@@ -84,7 +84,8 @@ const handleResultConfirm = async () => {
   if (typeof callback === 'function') await callback()
 }
 
-const isOccupied = (seat) => seat.status !== 'AVAILABLE'
+const isBlocked = (seat) => seat.status === 'BLOCKED'
+const isOccupied = (seat) => seat.status === 'RESERVED' || seat.status === 'TEMP_HOLD'
 
 const openDetailModal = (seat) => {
   if (!seat.reservationId) return
@@ -157,7 +158,7 @@ const fetchSeatStatus = async () => {
 
     emit('update-summary', {
       reservedCount: state.seats.filter((s) => isOccupied(s)).length,
-      totalCount: state.seats.length,
+      totalCount: state.seats.filter((s) => !isBlocked(s)).length,
     })
   } catch {
     state.seats = []
@@ -198,12 +199,20 @@ watch(
           v-for="seat in state.seats"
           :key="seat.seatId ?? seat.seatNo"
           class="seat-box"
-          :class="{ reserved: isOccupied(seat), clickable: !!seat.reservationId }"
+          :class="{
+            reserved: isOccupied(seat),
+            blocked: isBlocked(seat),
+            clickable: !!seat.reservationId,
+          }"
           @click="openDetailModal(seat)"
         >
           <p class="seat-no">{{ seat.seatNo ?? '-' }}번</p>
           <p v-if="seat.seatName" class="seat-name">{{ seat.seatName }}</p>
-          <template v-if="isOccupied(seat)">
+          <template v-if="isBlocked(seat)">
+            <p class="seat-blocked-label">이용불가</p>
+            <p class="seat-blocked-sub">점검 · 휴무</p>
+          </template>
+          <template v-else-if="isOccupied(seat)">
             <p class="seat-user">{{ seat.residentName ?? '-' }}</p>
             <p v-if="seat.unit" class="seat-unit">{{ seat.unit }}</p>
           </template>
@@ -308,6 +317,27 @@ watch(
 .seat-box.reserved {
   background: #eef2ff;
   border-color: #c7d2fe;
+}
+
+.seat-box.blocked {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  border-style: dashed;
+}
+
+.seat-blocked-label {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+
+.seat-blocked-sub {
+  margin: 0;
+  font-size: 11px;
+  color: #94a3b8;
+  font-family: 'Noto Sans KR', sans-serif;
 }
 
 .seat-no {
