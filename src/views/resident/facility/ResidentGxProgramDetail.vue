@@ -308,7 +308,7 @@ onMounted(() => {
           <div class="info-row">
             <span class="info-label">정원</span>
             <span class="info-value">
-              {{ state.detail.currentCount ?? state.detail.confirmedCount ?? '-' }} /
+              {{ state.detail.currentCount ?? ((state.detail.confirmedCount ?? 0) + (state.detail.waitingCount ?? 0)) }} /
               {{ state.detail.maxCount }}명
             </span>
           </div>

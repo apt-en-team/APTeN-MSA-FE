@@ -146,8 +146,8 @@ onMounted(() => {
           <div class="card-tags">
             <span class="tag">{{ formatFee(p.baseFee) }}</span>
             <span v-if="p.maxCount" class="tag">정원 {{ p.maxCount }}명</span>
-            <span v-if="p.confirmedCount != null" class="tag tag-count">
-              신청 {{ p.confirmedCount }}명
+            <span v-if="p.confirmedCount != null || p.waitingCount != null" class="tag tag-count">
+              신청 {{ (p.confirmedCount ?? 0) + (p.waitingCount ?? 0) }}명
             </span>
           </div>
         </div>
