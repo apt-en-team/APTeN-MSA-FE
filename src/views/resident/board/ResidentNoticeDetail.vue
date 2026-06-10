@@ -297,8 +297,8 @@ export default {
 }
 .notice-image {
   width: 100%;
-  max-height: 280px;
-  object-fit: cover;
+  height: auto;
+  object-fit: contain;
   display: block;
 }
 
